@@ -6,18 +6,20 @@ export const AUTH_BASE =
 /**
  * Rent API kök URL (sonunda / yok). Tüm filo/kiralama/ödeme/kullanıcı istekleri buraya gider.
  *
- * - `next dev`: env boşsa `http://localhost:8090`
- * - Prod: önce `NEXT_PUBLIC_RENT_API_BASE` (hosting paneli veya `.env.production`); yoksa `https://rent-api.algorycode.com`
+ * - `next dev`: `NEXT_PUBLIC_RENT_API_BASE` boşsa `http://localhost:8090` (doğrudan Spring Boot).
+ * - Prod, doğrudan tarayıcı → API: tam URL (örn. `https://rent-api.algorycode.com`).
+ * - Prod, BFF proxy (önerilen): `NEXT_PUBLIC_RENT_API_BASE=/api/rent` + sunucuda `RENT_API_UPSTREAM`
+ *   (gerçek API kökü; NEXT_PUBLIC yapmayın). Tarayıcı sadece kendi sitenize istek atar.
  *
- * Şablon: `.env.local.example` → `.env.local` (lokal). `.env.production` repoda (git’e ekleyin).
+ * Şablon: `.env.local.example` → `.env.local`. `.env.production` deploy’a dahil edin; hosting’de
+ * `RENT_API_UPSTREAM` eklemeyi unutmayın.
  */
-const PROD_RENT_API_DEFAULT = "https://rent-api.algorycode.com";
+const PROD_RENT_API_DEFAULT = "/api/rent";
 
 export const RENT_API_BASE = (() => {
   const v = process.env.NEXT_PUBLIC_RENT_API_BASE?.trim();
   if (v) return v.replace(/\/$/, "");
   if (process.env.NODE_ENV === "development") return "http://localhost:8090";
-  // `next build` / hosting: env unutulursa (ör. .env.production deploy’a girmemiş) prod kökü
   return PROD_RENT_API_DEFAULT;
 })();
 

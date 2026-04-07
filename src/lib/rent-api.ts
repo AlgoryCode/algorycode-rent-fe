@@ -66,7 +66,8 @@ export function getRentApiErrorMessage(err: unknown): string {
     if (data?.detail && typeof data.detail === "string") return data.detail;
     if (err.response?.status === 409) return "İstek sunucu tarafından reddedildi (çakışma).";
     if (err.response?.status === 400) return data?.detail ?? "Geçersiz istek.";
-    if (err.code === "ERR_NETWORK") return "API’ye bağlanılamadı. Sunucu ve CORS ayarlarını kontrol edin.";
+    if (err.code === "ERR_NETWORK")
+      return "API’ye bağlanılamadı (ağ veya sunucu). BFF kullanıyorsanız hosting’de RENT_API_UPSTREAM tanımlı mı kontrol edin; doğrudan URL kullanıyorsanız DNS/TLS ve CORS’u kontrol edin.";
   }
   if (err instanceof Error) return err.message;
   return "Bilinmeyen hata";
