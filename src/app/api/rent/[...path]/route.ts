@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { resolveRentApiUpstreamUrl } from "@/lib/rent-api-upstream.server";
+
 /**
- * Rent API BFF: tarayıcı → aynı origin `/api/rent/...` → sunucuda `RENT_API_UPSTREAM`’e iletilir.
- * Böylece CORS / istemci TLS / DNS kaynaklı ERR_NETWORK riski azalır.
- *
- * Gerekli: `NEXT_PUBLIC_RENT_API_BASE=/api/rent` ve sunucuda `RENT_API_UPSTREAM=https://rent-api...` (gizli tutun).
+ * Rent API BFF: tarayıcı → `/api/rent/...` → sunucuda upstream’e iletilir.
+ * `RENT_API_UPSTREAM` tanımlı değilse varsayılan `https://rent.algorycode.com` kullanılır.
  */
-function upstreamBase(): string | null {
-  const u = process.env.RENT_API_UPSTREAM?.trim().replace(/\/$/, "");
-  return u && u.length > 0 ? u : null;
-}
 
 function forwardRequestHeaders(req: NextRequest): Headers {
   const h = new Headers();
@@ -23,13 +19,7 @@ function forwardRequestHeaders(req: NextRequest): Headers {
 }
 
 async function proxy(req: NextRequest, pathSegments: string[], method: string): Promise<NextResponse> {
-  const base = upstreamBase();
-  if (!base) {
-    return NextResponse.json(
-      { message: "RENT_API_UPSTREAM ayarlı değil. Sunucu ortamında gerçek Rent API kök URL’ini verin." },
-      { status: 500 },
-    );
-  }
+  const base = resolveRentApiUpstreamUrl();
 
   const sub = pathSegments.length ? pathSegments.join("/") : "";
   const target = sub ? `${base}/${sub}` : base;

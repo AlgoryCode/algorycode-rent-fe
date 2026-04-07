@@ -12,7 +12,7 @@ const SLOT_KEYS = new Set<string>(VEHICLE_IMAGE_SLOTS.map((s) => s.key));
 function rentClient() {
   if (!RENT_API_BASE) {
     throw new Error(
-      "NEXT_PUBLIC_RENT_API_BASE ayarlı değil. Üretim build’inde .env.production veya hosting ortam değişkeni ile kök API URL’ini verin (örn. https://rent-api.algorycode.com).",
+      "NEXT_PUBLIC_RENT_API_BASE ayarlı değil. Üretim build’inde .env.production veya hosting ortam değişkeni ile kök API URL’ini verin (örn. https://rent.algorycode.com veya /api/rent).",
     );
   }
   return axios.create({
@@ -67,7 +67,7 @@ export function getRentApiErrorMessage(err: unknown): string {
     if (err.response?.status === 409) return "İstek sunucu tarafından reddedildi (çakışma).";
     if (err.response?.status === 400) return data?.detail ?? "Geçersiz istek.";
     if (err.code === "ERR_NETWORK")
-      return "API’ye bağlanılamadı (ağ veya sunucu). BFF kullanıyorsanız hosting’de RENT_API_UPSTREAM tanımlı mı kontrol edin; doğrudan URL kullanıyorsanız DNS/TLS ve CORS’u kontrol edin.";
+      return "API’ye bağlanılamadı (ağ veya sunucu). DNS/TLS, API’nin ayakta olması ve (doğrudan çağrıda) CORS’u kontrol edin.";
   }
   if (err instanceof Error) return err.message;
   return "Bilinmeyen hata";
