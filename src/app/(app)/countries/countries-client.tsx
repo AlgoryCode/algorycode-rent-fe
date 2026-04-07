@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Globe2, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -18,10 +19,12 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCountries } from "@/hooks/use-countries";
 import { normalizeHexForColorPicker } from "@/lib/country-color";
+import { rentKeys } from "@/lib/rent-query-keys";
 import { createCountryOnRentApi, getRentApiErrorMessage, patchCountryColorOnRentApi } from "@/lib/rent-api";
 
 export function CountriesClient() {
-  const { countries, loading, error, refetch, setCountries } = useCountries();
+  const qc = useQueryClient();
+  const { countries, loading, error, refetch } = useCountries();
   const [savingId, setSavingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -45,15 +48,15 @@ export function CountriesClient() {
       setFormError(null);
       setSavingId(id);
       try {
-        const updated = await patchCountryColorOnRentApi(id, trimmed);
-        setCountries((prev) => prev.map((c) => (c.id === id ? updated : c)));
+        await patchCountryColorOnRentApi(id, trimmed);
+        await qc.invalidateQueries({ queryKey: rentKeys.countries() });
       } catch (e) {
         setFormError(getRentApiErrorMessage(e));
       } finally {
         setSavingId(null);
       }
     },
-    [setCountries],
+    [qc],
   );
 
   const resetAddForm = useCallback(() => {
@@ -81,8 +84,8 @@ export function CountriesClient() {
     setAddSubmitting(true);
     setFormError(null);
     try {
-      const created = await createCountryOnRentApi({ code, name, colorCode: hex });
-      setCountries((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, "tr")));
+      await createCountryOnRentApi({ code, name, colorCode: hex });
+      await qc.invalidateQueries({ queryKey: rentKeys.countries() });
       toast.success("Ülke kaydedildi");
       setAddOpen(false);
       resetAddForm();
@@ -91,7 +94,7 @@ export function CountriesClient() {
     } finally {
       setAddSubmitting(false);
     }
-  }, [addCode, addName, addHex, resetAddForm, setCountries]);
+  }, [addCode, addName, addHex, resetAddForm, qc]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">

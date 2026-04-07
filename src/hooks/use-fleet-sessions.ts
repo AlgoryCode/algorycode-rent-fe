@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { RentalSession } from "@/lib/mock-fleet";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { rentKeys } from "@/lib/rent-query-keys";
 import {
   createRentalOnRentApi,
   fetchRentalsFromRentApi,
@@ -10,38 +11,28 @@ import {
 } from "@/lib/rent-api";
 
 export function useFleetSessions() {
-  const [sessions, setSessions] = useState<RentalSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
 
-  const refetch = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const list = await fetchRentalsFromRentApi();
-      setSessions(list);
-    } catch (e) {
-      setError(getRentApiErrorMessage(e));
-      setSessions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: sessions = [], isPending, error, refetch, isFetching } = useQuery({
+    queryKey: rentKeys.rentals(),
+    queryFn: fetchRentalsFromRentApi,
+  });
 
-  useEffect(() => {
-    void refetch();
-  }, [refetch]);
-
-  const createRental = useCallback(async (payload: CreateRentalPayload) => {
-    const created = await createRentalOnRentApi(payload);
-    setSessions((prev) => {
-      const rest = prev.filter((s) => s.id !== created.id);
-      return [created, ...rest];
-    });
-    return created;
-  }, []);
+  const createMutation = useMutation({
+    mutationFn: (payload: CreateRentalPayload) => createRentalOnRentApi(payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: rentKeys.rentals() });
+    },
+  });
 
   const allSessions = useMemo(() => sessions, [sessions]);
 
-  return { allSessions, createRental, ready: !loading, error, refetch };
+  return {
+    allSessions,
+    createRental: createMutation.mutateAsync.bind(createMutation),
+    ready: !isPending,
+    isRefreshing: isFetching && !isPending,
+    error: error ? getRentApiErrorMessage(error) : null,
+    refetch: () => refetch(),
+  };
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Search, UserCog } from "lucide-react";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PanelUser, PanelUserRole } from "@/lib/mock-users";
 import { ROLE_LABEL } from "@/lib/mock-users";
+import { rentKeys } from "@/lib/rent-query-keys";
 import { fetchPanelUsersFromRentApi, getRentApiErrorMessage } from "@/lib/rent-api";
 
 function roleBadgeVariant(role: PanelUserRole): "default" | "secondary" | "outline" {
@@ -29,33 +31,16 @@ function roleBadgeVariant(role: PanelUserRole): "default" | "secondary" | "outli
 export function UsersClient() {
   const [query, setQuery] = useState("");
   const [activeOnly, setActiveOnly] = useState(false);
-  const [sourceList, setSourceList] = useState<PanelUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetchPanelUsersFromRentApi()
-      .then((list) => {
-        if (!cancelled) {
-          setSourceList(list);
-          setLoadError(null);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setLoadError(getRentApiErrorMessage(e));
-          setSourceList([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const {
+    data: sourceList = [],
+    isPending: loading,
+    error,
+  } = useQuery({
+    queryKey: rentKeys.panelUsers(),
+    queryFn: fetchPanelUsersFromRentApi,
+  });
+  const loadError = error ? getRentApiErrorMessage(error) : null;
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();

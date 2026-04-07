@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Wallet } from "lucide-react";
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { PaymentLog, PaymentLogStatus } from "@/lib/mock-payments";
+import { rentKeys } from "@/lib/rent-query-keys";
 import { fetchPaymentsFromRentApi, getRentApiErrorMessage } from "@/lib/rent-api";
 import { cn } from "@/lib/utils";
 
@@ -58,33 +60,16 @@ function PlateLink({ plate, vehicleId }: { plate: string; vehicleId: string }) {
 export function PaymentsClient() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | PaymentLogStatus>("all");
-  const [sourceList, setSourceList] = useState<PaymentLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetchPaymentsFromRentApi()
-      .then((list) => {
-        if (!cancelled) {
-          setSourceList(list);
-          setLoadError(null);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setLoadError(getRentApiErrorMessage(e));
-          setSourceList([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const {
+    data: sourceList = [],
+    isPending: loading,
+    error,
+  } = useQuery({
+    queryKey: rentKeys.payments(),
+    queryFn: fetchPaymentsFromRentApi,
+  });
+  const loadError = error ? getRentApiErrorMessage(error) : null;
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();

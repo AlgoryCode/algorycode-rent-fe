@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Vehicle } from "@/lib/mock-fleet";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { rentKeys } from "@/lib/rent-query-keys";
 import {
   createVehicleOnRentApi,
   fetchVehiclesFromRentApi,
@@ -10,41 +11,29 @@ import {
 } from "@/lib/rent-api";
 
 export function useFleetVehicles() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
 
-  const refetch = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const list = await fetchVehiclesFromRentApi();
-      setVehicles(list);
-    } catch (e) {
-      setError(getRentApiErrorMessage(e));
-      setVehicles([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: vehicles = [], isPending, error, refetch, isFetching } = useQuery({
+    queryKey: rentKeys.vehicles(),
+    queryFn: fetchVehiclesFromRentApi,
+  });
 
-  useEffect(() => {
-    void refetch();
-  }, [refetch]);
-
-  const addVehicle = useCallback(
-    async (payload: CreateVehiclePayload) => {
-      const created = await createVehicleOnRentApi(payload);
-      setVehicles((prev) => {
-        const rest = prev.filter((v) => v.id !== created.id);
-        return [created, ...rest];
-      });
-      return created;
+  const addMutation = useMutation({
+    mutationFn: (payload: CreateVehiclePayload) => createVehicleOnRentApi(payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: rentKeys.vehicles() });
     },
-    [],
-  );
+  });
 
   const allVehicles = useMemo(() => vehicles, [vehicles]);
 
-  return { allVehicles, addVehicle, ready: !loading, error, refetch };
+  return {
+    allVehicles,
+    addVehicle: addMutation.mutateAsync.bind(addMutation),
+    ready: !isPending,
+    /** İlk yükleme bitti; arka planda sessiz yenileme olabilir */
+    isRefreshing: isFetching && !isPending,
+    error: error ? getRentApiErrorMessage(error) : null,
+    refetch: () => refetch(),
+  };
 }

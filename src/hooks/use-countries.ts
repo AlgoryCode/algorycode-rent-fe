@@ -1,34 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import {
   fetchCountriesFromRentApi,
   getRentApiErrorMessage,
   type CountryRow,
 } from "@/lib/rent-api";
+import { rentKeys } from "@/lib/rent-query-keys";
 
 export function useCountries() {
-  const [countries, setCountries] = useState<CountryRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const refetch = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const list = await fetchCountriesFromRentApi();
-      setCountries(list);
-    } catch (e) {
-      setError(getRentApiErrorMessage(e));
-      setCountries([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refetch();
-  }, [refetch]);
+  const { data: countries = [], isPending, error, refetch, isFetching } = useQuery({
+    queryKey: rentKeys.countries(),
+    queryFn: fetchCountriesFromRentApi,
+  });
 
   const countryByCode = useMemo(() => {
     const m = new Map<string, CountryRow>();
@@ -38,5 +23,12 @@ export function useCountries() {
     return m;
   }, [countries]);
 
-  return { countries, countryByCode, loading, error, refetch, setCountries };
+  return {
+    countries,
+    countryByCode,
+    loading: isPending,
+    isRefreshing: isFetching && !isPending,
+    error: error ? getRentApiErrorMessage(error) : null,
+    refetch: () => refetch(),
+  };
 }
