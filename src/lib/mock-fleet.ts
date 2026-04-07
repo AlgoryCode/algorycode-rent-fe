@@ -23,7 +23,8 @@ export type RentalSession = {
   /** Kiralama kaydının oluşturulma zamanı (ISO 8601) */
   createdAt?: string;
   customer: CustomerInfo;
-  feedback: { at: string; text: string }[];
+  /** Kiralama başına en fazla bir müşteri yorumu */
+  feedback?: { at: string; text: string };
   photos: { id: string; url: string; caption?: string }[];
   /** Bu kiralamaya özel kaza / hasar bildirimleri */
   accidentReports?: RentalAccidentReport[];
@@ -65,10 +66,7 @@ export const seedSessions: RentalSession[] = [
       passportNo: "U12345678",
       phone: "+90 532 111 2233",
     },
-    feedback: [
-      { at: "2026-04-06T10:00:00.000Z", text: "Araç temiz teslim edildi, yakıt tam doluydu." },
-      { at: "2026-04-08T14:30:00.000Z", text: "Klima çok iyi çalışıyor." },
-    ],
+    feedback: { at: "2026-04-06T10:00:00.000Z", text: "Araç temiz teslim edildi, yakıt tam doluydu." },
     photos: [
       { id: "p1", url: "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&q=80", caption: "Teslim öncesi" },
       { id: "p2", url: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400&q=80", caption: "İade" },
@@ -87,7 +85,7 @@ export const seedSessions: RentalSession[] = [
       passportNo: "U87654321",
       phone: "+90 533 444 5566",
     },
-    feedback: [{ at: "2026-04-04T09:00:00.000Z", text: "Genel olarak memnun kaldık." }],
+    feedback: { at: "2026-04-04T09:00:00.000Z", text: "Genel olarak memnun kaldık." },
     photos: [],
     accidentReports: [
       {
@@ -116,7 +114,6 @@ export const seedSessions: RentalSession[] = [
       passportNo: "P11223344",
       phone: "+90 534 777 8899",
     },
-    feedback: [],
     photos: [{ id: "p3", url: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400&q=80" }],
     accidentReports: [],
   },

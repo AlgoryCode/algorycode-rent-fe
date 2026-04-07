@@ -1,6 +1,28 @@
 import { eachDayOfInterval, format, isWithinInterval, parseISO, startOfDay } from "date-fns";
 import type { RentalSession, Vehicle } from "@/lib/mock-fleet";
 
+/** Eski kayıtlarda `feedback` dizi olabilir; tek yoruma indirger. */
+function normalizeRentalFeedback(raw: unknown): { at: string; text: string } | undefined {
+  if (raw == null) return undefined;
+  if (Array.isArray(raw)) {
+    const first = raw[0] as { at?: string; text?: string } | undefined;
+    if (first?.at != null && first.text != null) return { at: first.at, text: first.text };
+    return undefined;
+  }
+  if (typeof raw === "object" && raw !== null && "at" in raw && "text" in raw) {
+    const o = raw as { at: string; text: string };
+    return { at: o.at, text: o.text };
+  }
+  return undefined;
+}
+
+export function normalizeRentalSession(s: RentalSession): RentalSession {
+  const fb = normalizeRentalFeedback((s as { feedback?: unknown }).feedback);
+  const next = { ...s, feedback: fb } as RentalSession;
+  if (fb === undefined) delete (next as { feedback?: unknown }).feedback;
+  return next;
+}
+
 const STORAGE_KEY = "rent-fe-extra-sessions";
 const VEHICLES_STORAGE_KEY = "rent-fe-extra-vehicles";
 
@@ -15,7 +37,7 @@ export function getExtraSessionsSnapshot(): RentalSession[] {
   extraCacheRaw = raw;
   try {
     const parsed = JSON.parse(raw) as unknown;
-    extraCacheParsed = Array.isArray(parsed) ? (parsed as RentalSession[]) : [];
+    extraCacheParsed = Array.isArray(parsed) ? (parsed as RentalSession[]).map(normalizeRentalSession) : [];
   } catch {
     extraCacheParsed = [];
   }

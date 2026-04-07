@@ -85,19 +85,15 @@ function RentalDetailTabs({ s }: { s: RentalSession }) {
         </TabsTrigger>
       </TabsList>
       <TabsContent value="yorum" className="px-0.5">
-        {s.feedback.length === 0 ? (
+        {!s.feedback ? (
           <p className="py-2 text-xs text-muted-foreground">Bu kiralama için yorum yok.</p>
         ) : (
-          <ul className="space-y-2">
-            {s.feedback.map((f, i) => (
-              <li key={i} className="rounded-md border bg-background px-2.5 py-2 text-xs">
-                <span className="text-[10px] text-muted-foreground">
-                  {format(parseISO(f.at), "d MMM yyyy HH:mm", { locale: tr })}
-                </span>
-                <p className="mt-1">{f.text}</p>
-              </li>
-            ))}
-          </ul>
+          <div className="rounded-md border bg-background px-2.5 py-2 text-xs">
+            <span className="text-[10px] text-muted-foreground">
+              {format(parseISO(s.feedback.at), "d MMM yyyy HH:mm", { locale: tr })}
+            </span>
+            <p className="mt-1">{s.feedback.text}</p>
+          </div>
         )}
       </TabsContent>
       <TabsContent value="fotograflar" className="px-0.5">

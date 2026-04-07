@@ -124,7 +124,6 @@ export function VehicleDetailClient({ vehicle }: Props) {
         passportNo: passportNo.trim(),
         phone: phone.trim(),
       },
-      feedback: [],
       photos: [],
       accidentReports: [],
     };

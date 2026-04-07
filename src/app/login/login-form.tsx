@@ -59,9 +59,7 @@ export function LoginForm() {
         <div className="glass glow-card rounded-xl p-6 space-y-5">
           <div className="text-center space-y-1">
             <h1 className="text-lg font-semibold">Yönetim paneli</h1>
-            <p className="text-xs text-muted-foreground">
-              AuthService <code className="rounded bg-muted px-1 py-0.5 text-[10px]">/basicauth/login</code> ile giriş
-            </p>
+            <p className="text-xs text-muted-foreground">Hesabınızla giriş yapın.</p>
           </div>
 
           <form onSubmit={(e) => void onSubmit(e)} className="space-y-3">
@@ -90,11 +88,6 @@ export function LoginForm() {
               {loading ? "Giriş…" : "Giriş yap"}
             </Button>
           </form>
-
-          <p className="text-center text-[10px] text-muted-foreground leading-relaxed">
-            Gateway üzerinden AuthService&apos;e yönlendirilir. Lokal için{" "}
-            <code className="rounded bg-muted px-1">NEXT_PUBLIC_GATEWAY_BASE=http://localhost:8072</code>
-          </p>
         </div>
       </div>
     </div>
