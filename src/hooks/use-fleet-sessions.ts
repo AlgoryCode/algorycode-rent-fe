@@ -17,7 +17,7 @@ export function useFleetSessions() {
 
   const { data: sessions = [], isPending, error, refetch, isFetching } = useQuery({
     queryKey: rentKeys.rentals(),
-    queryFn: fetchRentalsFromRentApi,
+    queryFn: () => fetchRentalsFromRentApi(),
   });
 
   const createMutation = useMutation({

@@ -19,15 +19,25 @@ type Props = {
 };
 
 export function VehicleImageSlotsEditor({ value, onChange }: Props) {
-  const inputRefs = useRef<Map<VehicleImageSlot, HTMLInputElement | null>>(new Map());
+  const cameraInputRefs = useRef<Map<VehicleImageSlot, HTMLInputElement | null>>(new Map());
+  const galleryInputRefs = useRef<Map<VehicleImageSlot, HTMLInputElement | null>>(new Map());
 
-  const setInputRef = useCallback((key: VehicleImageSlot, el: HTMLInputElement | null) => {
-    if (el) inputRefs.current.set(key, el);
-    else inputRefs.current.delete(key);
+  const setCameraInputRef = useCallback((key: VehicleImageSlot, el: HTMLInputElement | null) => {
+    if (el) cameraInputRefs.current.set(key, el);
+    else cameraInputRefs.current.delete(key);
   }, []);
 
-  const triggerPick = (key: VehicleImageSlot) => {
-    inputRefs.current.get(key)?.click();
+  const setGalleryInputRef = useCallback((key: VehicleImageSlot, el: HTMLInputElement | null) => {
+    if (el) galleryInputRefs.current.set(key, el);
+    else galleryInputRefs.current.delete(key);
+  }, []);
+
+  const triggerCameraPick = (key: VehicleImageSlot) => {
+    cameraInputRefs.current.get(key)?.click();
+  };
+
+  const triggerGalleryPick = (key: VehicleImageSlot) => {
+    galleryInputRefs.current.get(key)?.click();
   };
 
   const handleFile = (key: VehicleImageSlot, fileList: FileList | null) => {
@@ -74,12 +84,23 @@ export function VehicleImageSlotsEditor({ value, onChange }: Props) {
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
               <div className="relative overflow-hidden rounded-lg border border-border bg-muted/30">
                 <input
-                  ref={(el) => setInputRef(key, el)}
+                  ref={(el) => setCameraInputRef(key, el)}
                   type="file"
                   accept="image/*"
                   capture="environment"
                   className="sr-only"
-                  aria-label={`${label} fotoğrafı seç`}
+                  aria-label={`${label} fotoğrafı kameradan çek`}
+                  onChange={(e) => {
+                    handleFile(key, e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+                <input
+                  ref={(el) => setGalleryInputRef(key, el)}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  aria-label={`${label} fotoğrafını galeriden seç`}
                   onChange={(e) => {
                     handleFile(key, e.target.files);
                     e.target.value = "";
@@ -98,27 +119,41 @@ export function VehicleImageSlotsEditor({ value, onChange }: Props) {
                       <X className="h-3.5 w-3.5" />
                     </button>
                     <div className="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/50 to-transparent p-1.5 pt-6">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="h-7 gap-1 text-[10px]"
-                        onClick={() => triggerPick(key)}
-                      >
-                        <Camera className="h-3 w-3" />
-                        Yeniden
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 gap-1 text-[10px]"
+                          onClick={() => triggerCameraPick(key)}
+                        >
+                          <Camera className="h-3 w-3" />
+                          Kameradan
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 gap-1 text-[10px]"
+                          onClick={() => triggerGalleryPick(key)}
+                        >
+                          Galeriden
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => triggerPick(key)}
-                    className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1 border-2 border-dashed border-border/80 bg-background/50 px-2 text-center transition-colors hover:border-primary/40 hover:bg-muted/40"
-                  >
+                  <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 border-2 border-dashed border-border/80 bg-background/50 px-2 text-center">
                     <Camera className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-[10px] font-medium leading-tight text-muted-foreground">Fotoğraf ekle</span>
-                  </button>
+                    <div className="flex flex-wrap items-center justify-center gap-1.5">
+                      <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => triggerCameraPick(key)}>
+                        Kameradan çek
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => triggerGalleryPick(key)}>
+                        Galeriden seç
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

@@ -1,82 +1,60 @@
 "use client";
 
 import Link from "next/link";
-import { startOfDay } from "date-fns";
-import { ArrowRight, CarFront } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useFleetSessions } from "@/hooks/use-fleet-sessions";
-import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
-import { vehicleFleetStatus } from "@/lib/fleet-utils";
+import {
+  BarChart3,
+  CalendarRange,
+  Car,
+  ClipboardList,
+  Globe2,
+  MailCheck,
+  MessagesSquare,
+  Settings,
+  UserCog,
+  Users,
+  Wallet,
+} from "lucide-react";
 
 export default function DashboardPage() {
-  const { allVehicles } = useFleetVehicles();
-  const { allSessions } = useFleetSessions();
-  const today = startOfDay(new Date());
-
-  let available = 0;
-  let rented = 0;
-  let maintenance = 0;
-  for (const v of allVehicles) {
-    const s = vehicleFleetStatus(v, allSessions, today);
-    if (s === "available") available++;
-    else if (s === "rented") rented++;
-    else maintenance++;
-  }
+  const quickMenu = [
+    { href: "/vehicles", label: "Araçlar", icon: Car, bg: "from-sky-500/25 to-blue-500/10" },
+    { href: "/reports", label: "Raporlar", icon: BarChart3, bg: "from-violet-500/25 to-indigo-500/10" },
+    { href: "/logs", label: "Kiralamalar", icon: ClipboardList, bg: "from-amber-500/25 to-orange-500/10" },
+    { href: "/calendar", label: "Takvim", icon: CalendarRange, bg: "from-fuchsia-500/25 to-purple-500/10" },
+    { href: "/payments", label: "Ödemeler", icon: Wallet, bg: "from-emerald-500/25 to-teal-500/10" },
+    { href: "/requests", label: "Talepler", icon: MailCheck, bg: "from-rose-500/25 to-pink-500/10" },
+    { href: "/customers", label: "Customers", icon: Users, bg: "from-cyan-500/25 to-sky-500/10" },
+    { href: "/customers/channel", label: "Toplu mesaj", icon: MessagesSquare, bg: "from-lime-500/25 to-green-500/10" },
+    { href: "/users", label: "Kullanıcılar", icon: UserCog, bg: "from-slate-500/25 to-zinc-500/10" },
+    { href: "/countries", label: "Ülkeler", icon: Globe2, bg: "from-purple-500/25 to-blue-500/10" },
+    { href: "/settings", label: "Ayarlar", icon: Settings, bg: "from-stone-500/25 to-neutral-500/10" },
+  ] as const;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">Özet</h1>
-        <p className="text-xs text-muted-foreground">Filo durumu — bugünün tarihine göre.</p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card className="glow-card">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Toplam araç</CardDescription>
-            <CardTitle className="text-2xl tabular-nums">{allVehicles.length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="glow-card">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Müsait</CardDescription>
-            <CardTitle className="text-2xl tabular-nums text-emerald-700 dark:text-emerald-400">{available}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="glow-card">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Kirada / bakım</CardDescription>
-            <CardTitle className="text-2xl tabular-nums">
-              <span className="text-amber-700 dark:text-amber-400">{rented}</span>
-              <span className="mx-1 text-muted-foreground">/</span>
-              <span className="text-muted-foreground">{maintenance}</span>
-            </CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
-      <Card className="glow-card">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <CarFront className="h-4 w-4" />
-              Araçlar
-            </CardTitle>
-            <CardDescription className="text-xs">Listeyi görüntüleyin, arayın veya yeni araç ekleyin.</CardDescription>
-          </div>
-          <Button size="sm" className="h-8 gap-1 text-xs" asChild>
-            <Link href="/vehicles">
-              Araçlara git
-              <ArrowRight className="h-3.5 w-3.5" />
+    <div className="-mx-3 -my-3 min-h-[calc(100vh-3rem)] sm:-mx-4 sm:-my-4">
+      <div className="grid h-full grid-cols-2 gap-3 p-3 sm:hidden">
+        {quickMenu.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`group relative isolate flex min-h-[128px] flex-col justify-between overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br ${item.bg} p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99]`}
+            >
+              <div className="pointer-events-none absolute -right-5 -top-6 h-20 w-20 rounded-full bg-primary/10 blur-2xl" />
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border/60 bg-background/85 backdrop-blur">
+                <Icon className="h-5 w-5 text-primary transition-transform duration-200 group-hover:scale-110" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold tracking-tight">{item.label}</p>
+              </div>
             </Link>
-          </Button>
-        </CardHeader>
-        <CardContent className="text-xs text-muted-foreground">
-          Aktif kiralama kaydı: <span className="font-mono text-foreground">{allSessions.length}</span> seans (örnek + yerel).
-        </CardContent>
-      </Card>
+          );
+        })}
+      </div>
+      <div className="hidden h-full items-center justify-center sm:flex">
+        <p className="text-sm text-muted-foreground">Hizli menu kartlari sadece mobil gorunumde gosterilir.</p>
+      </div>
     </div>
   );
 }

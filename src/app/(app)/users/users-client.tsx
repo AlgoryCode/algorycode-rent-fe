@@ -119,10 +119,10 @@ export function UsersClient() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((u, idx) => (
+                    {rows.map((u) => (
                       <tr
                         key={u.id}
-                        className={`border-b border-border/60 last:border-0 hover:bg-muted/20 ${idx % 2 === 0 ? "bg-muted/10" : "bg-background"}`}
+                        className="border-b border-border/60 bg-background transition-colors hover:bg-muted/40 last:border-0"
                       >
                         <td className="px-3 py-2.5 font-medium">{u.fullName}</td>
                         <td className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground">{u.email}</td>
@@ -152,8 +152,8 @@ export function UsersClient() {
               </div>
 
               <ul className="space-y-2 md:hidden">
-                {rows.map((u, idx) => (
-                  <li key={u.id} className={`rounded-lg border p-3 text-xs ${idx % 2 === 0 ? "bg-muted/15" : "bg-background"}`}>
+                {rows.map((u) => (
+                  <li key={u.id} className="rounded-lg border bg-background p-3 text-xs transition-colors hover:bg-muted/40">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-semibold">{u.fullName}</p>

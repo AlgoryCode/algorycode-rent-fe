@@ -5,9 +5,12 @@ import { useMemo } from "react";
 import { rentKeys } from "@/lib/rent-query-keys";
 import {
   createVehicleOnRentApi,
+  deleteVehicleOnRentApi,
   fetchVehiclesFromRentApi,
   getRentApiErrorMessage,
+  updateVehicleOnRentApi,
   type CreateVehiclePayload,
+  type UpdateVehiclePayload,
 } from "@/lib/rent-api";
 
 export function useFleetVehicles() {
@@ -25,11 +28,27 @@ export function useFleetVehicles() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateVehiclePayload }) => updateVehicleOnRentApi(id, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: rentKeys.vehicles() });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteVehicleOnRentApi(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: rentKeys.vehicles() });
+    },
+  });
+
   const allVehicles = useMemo(() => vehicles, [vehicles]);
 
   return {
     allVehicles,
     addVehicle: addMutation.mutateAsync.bind(addMutation),
+    updateVehicle: (id: string, payload: UpdateVehiclePayload) => updateMutation.mutateAsync({ id, payload }),
+    deleteVehicle: deleteMutation.mutateAsync.bind(deleteMutation),
     ready: !isPending,
     /** İlk yükleme bitti; arka planda sessiz yenileme olabilir */
     isRefreshing: isFetching && !isPending,

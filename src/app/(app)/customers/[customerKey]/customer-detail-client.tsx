@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
-import { ArrowLeft, Copy, Mail, MessageCircle } from "lucide-react";
+import { Copy, Mail, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -97,12 +97,6 @@ export function CustomerDetailClient({ customerKey }: Props) {
   if (!row) {
     return (
       <div className="mx-auto max-w-4xl space-y-4">
-        <Button asChild variant="outline" size="sm" className="h-8 text-xs">
-          <Link href="/customers">
-            <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-            Müşterilere dön
-          </Link>
-        </Button>
         <Card className="glow-card">
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
             Müşteri kaydı bulunamadı. Listeyi yenileyip tekrar deneyin.
@@ -114,15 +108,6 @@ export function CustomerDetailClient({ customerKey }: Props) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <Button asChild variant="outline" size="sm" className="h-8 text-xs">
-          <Link href="/customers">
-            <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-            Müşterilere dön
-          </Link>
-        </Button>
-      </div>
-
       <Card className="glow-card">
         <CardHeader className="space-y-1">
           <CardTitle className="text-base">{row.customer.fullName}</CardTitle>

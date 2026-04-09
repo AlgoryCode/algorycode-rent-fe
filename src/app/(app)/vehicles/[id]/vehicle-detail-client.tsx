@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { addDays, addMonths, addYears, eachDayOfInterval, format, startOfDay, startOfMonth } from "date-fns";
+import { addDays, addMonths, addYears, differenceInCalendarDays, eachDayOfInterval, format, parseISO, startOfDay, startOfMonth } from "date-fns";
 import { tr } from "date-fns/locale";
+import { DayPicker, type DateRange } from "react-day-picker";
 import { toast } from "sonner";
-import { ArrowLeft, BarChart3, CalendarDays, KeyRound, ScrollText } from "lucide-react";
+import { BarChart3, CalendarDays, KeyRound, ScrollText } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,10 +26,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ImageSourceInput } from "@/components/ui/image-source-input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCountries } from "@/hooks/use-countries";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
+import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import { getRentApiErrorMessage } from "@/lib/rent-api";
 import {
   bookedDatesForVehicle,
@@ -47,7 +50,10 @@ import type { RentalSession, Vehicle } from "@/lib/mock-fleet";
 import { sessionCreatedAt } from "@/lib/rental-metadata";
 import { mergeVehicleImagesWithDemo } from "@/lib/vehicle-images";
 import { rentalCountsForCalendar } from "@/lib/rental-status";
+import { PHONE_COUNTRY_CODES } from "@/lib/phone-country-codes";
 import { cn } from "@/lib/utils";
+
+import "react-day-picker/style.css";
 
 type Props = {
   vehicle: Vehicle;
@@ -65,6 +71,7 @@ type AdditionalDriverDraft = {
 };
 
 type ReportRange = "1w" | "1m" | "6m" | "1y";
+const COUNTRY_NONE = "__none__";
 
 function blankAdditionalDriver(): AdditionalDriverDraft {
   return {
@@ -90,7 +97,8 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
   const router = useRouter();
   const autoOpenedRef = useRef(false);
   const { allSessions, createRental } = useFleetSessions();
-  const { countryByCode } = useCountries();
+  const { updateVehicle } = useFleetVehicles();
+  const { countryByCode, countries } = useCountries();
   const today = useMemo(() => new Date(), []);
   const countryMeta = useMemo(() => {
     const cc = vehicle.countryCode?.toUpperCase();
@@ -105,22 +113,72 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
   );
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [pickStart, setPickStart] = useState<string>("");
   const [pickEnd, setPickEnd] = useState<string>("");
   const [fullName, setFullName] = useState("");
   const [nationalId, setNationalId] = useState("");
   const [passportNo, setPassportNo] = useState("");
-  const [phone, setPhone] = useState("");
-  const [commissionAmount, setCommissionAmount] = useState(vehicle.defaultCommissionAmount ? String(vehicle.defaultCommissionAmount) : "");
+  const [driverLicenseNo, setDriverLicenseNo] = useState("");
+  const [passportImageDataUrl, setPassportImageDataUrl] = useState("");
+  const [driverLicenseImageDataUrl, setDriverLicenseImageDataUrl] = useState("");
+  const [phoneCountryCode, setPhoneCountryCode] = useState("+90");
+  const [phoneLocal, setPhoneLocal] = useState("");
+  const [commissionAmount, setCommissionAmount] = useState("");
   const [commissionFlow, setCommissionFlow] = useState<"collect" | "pay">(vehicle.external ? "pay" : "collect");
   const [commissionCompany, setCommissionCompany] = useState(vehicle.externalCompany ?? "");
   const [additionalDrivers, setAdditionalDrivers] = useState<AdditionalDriverDraft[]>([]);
   const [logFilters, setLogFilters] = useState<RentalLogFilterValues>(emptyRentalLogFilters());
   const [reportRange, setReportRange] = useState<ReportRange>("6m");
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingVehicle, setSavingVehicle] = useState(false);
+  const [editPlate, setEditPlate] = useState(vehicle.plate);
+  const [editBrand, setEditBrand] = useState(vehicle.brand);
+  const [editModel, setEditModel] = useState(vehicle.model);
+  const [editYear, setEditYear] = useState(String(vehicle.year));
+  const [editMaintenance, setEditMaintenance] = useState(Boolean(vehicle.maintenance));
+  const [editExternal, setEditExternal] = useState(Boolean(vehicle.external));
+  const [editExternalCompany, setEditExternalCompany] = useState(vehicle.externalCompany ?? "");
+  const [editCommissionRate, setEditCommissionRate] = useState(
+    vehicle.commissionRatePercent != null ? String(vehicle.commissionRatePercent) : "",
+  );
+  const [editCommissionPhone, setEditCommissionPhone] = useState(vehicle.commissionBrokerPhone ?? "");
+  const [editRentalPrice, setEditRentalPrice] = useState(
+    vehicle.rentalDailyPrice != null ? String(vehicle.rentalDailyPrice) : "",
+  );
+  const [editCountryCode, setEditCountryCode] = useState<string>(vehicle.countryCode ?? COUNTRY_NONE);
 
   const filteredRentalLogs = useMemo(() => {
     return sortSessionsByLogTimeDesc(filterRentalLogSessions(rentalLogs, logFilters));
   }, [rentalLogs, logFilters]);
+
+  const selectedDateRange = useMemo<DateRange | undefined>(() => {
+    if (!pickStart && !pickEnd) return undefined;
+    return {
+      from: pickStart ? parseISO(pickStart) : undefined,
+      to: pickEnd ? parseISO(pickEnd) : undefined,
+    };
+  }, [pickStart, pickEnd]);
+
+  const estimateCommissionAmount = useCallback(
+    (start: string, end: string) => {
+      if (!vehicle.commissionEnabled || vehicle.commissionRatePercent == null || vehicle.rentalDailyPrice == null) {
+        return "";
+      }
+      if (!start || !end) return "";
+      try {
+        const startDate = parseISO(start);
+        const endDate = parseISO(end);
+        const rentalDays = Math.max(1, differenceInCalendarDays(endDate, startDate) + 1);
+        const gross = rentalDays * vehicle.rentalDailyPrice;
+        const commission = (gross * vehicle.commissionRatePercent) / 100;
+        return commission.toFixed(2);
+      } catch {
+        return "";
+      }
+    },
+    [vehicle.commissionEnabled, vehicle.commissionRatePercent, vehicle.rentalDailyPrice],
+  );
 
   const reportStats = useMemo(() => {
     const nowDay = startOfDay(today);
@@ -162,46 +220,50 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
       const st = s.status ?? "active";
       return st === "active" || st === "pending";
     }).length;
-    const netCommission = filtered.reduce((sum, s) => {
-      const amount = Number(s.commissionAmount ?? 0);
-      if (!Number.isFinite(amount)) return sum;
-      const flow = s.commissionFlow ?? "collect";
-      return sum + (flow === "collect" ? amount : -amount);
-    }, 0);
-    const buckets = new Map<string, { net: number; count: number; collect: number; pay: number }>();
+    const buckets = new Map<string, { net: number; count: number; gross: number; commission: number }>();
+    let totalGrossRevenue = 0;
+    let totalCommission = 0;
     for (const s of filtered) {
-      const amount = Number(s.commissionAmount ?? 0);
-      if (!Number.isFinite(amount)) continue;
-      const flow = s.commissionFlow ?? "collect";
-      const signed = flow === "collect" ? amount : -amount;
+      const startDate = parseISO(s.startDate);
+      const endDate = parseISO(s.endDate);
+      const rentalDays = Math.max(1, differenceInCalendarDays(endDate, startDate) + 1);
+      const gross = rentalDays * Number(vehicle.rentalDailyPrice ?? 0);
+      const commission =
+        vehicle.commissionEnabled && vehicle.commissionRatePercent != null ? (gross * Number(vehicle.commissionRatePercent)) / 100 : 0;
+      const net = gross - commission;
+      totalGrossRevenue += gross;
+      totalCommission += commission;
       const sourceDate = new Date(s.createdAt ?? `${s.startDate}T00:00:00.000Z`);
       const key = rangeMeta.daily ? format(sourceDate, "yyyy-MM-dd") : format(sourceDate, "yyyy-MM");
-      const prev = buckets.get(key) ?? { net: 0, count: 0, collect: 0, pay: 0 };
+      const prev = buckets.get(key) ?? { net: 0, count: 0, gross: 0, commission: 0 };
       buckets.set(key, {
-        net: prev.net + signed,
+        net: prev.net + net,
         count: prev.count + 1,
-        collect: prev.collect + (flow === "collect" ? amount : 0),
-        pay: prev.pay + (flow === "pay" ? amount : 0),
+        gross: prev.gross + gross,
+        commission: prev.commission + commission,
       });
     }
     const monthlyRows = bucketDefs.map((b) => {
-      const row = buckets.get(b.key) ?? { net: 0, count: 0, collect: 0, pay: 0 };
+      const row = buckets.get(b.key) ?? { net: 0, count: 0, gross: 0, commission: 0 };
       return { key: b.key, label: b.label, ...row };
     });
     const maxNetAbs = Math.max(1, ...monthlyRows.map((r) => Math.abs(r.net)));
     const maxCount = Math.max(1, ...monthlyRows.map((r) => r.count));
+    const totalProfit = totalGrossRevenue - totalCommission;
     return {
       total,
       completed,
       cancelled,
       active,
-      netCommission,
+      totalGrossRevenue,
+      totalCommission,
+      totalProfit,
       monthlyRows,
       maxNetAbs,
       maxCount,
       rangeLabel: rangeMeta.label,
     };
-  }, [sessions, today, reportRange]);
+  }, [sessions, today, reportRange, vehicle.rentalDailyPrice, vehicle.commissionEnabled, vehicle.commissionRatePercent]);
 
   const vehicleInfoRows = useMemo(
     () => [
@@ -226,9 +288,35 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
       },
       { label: "Araç kayıt no", value: <span className="font-mono text-xs">{vehicle.id}</span> },
       { label: "Bakım", value: vehicle.maintenance ? "Evet — kiralanamaz" : "Hayır" },
-      { label: "Bugünkü durum", value: status === "maintenance" ? "Bakımda" : status === "rented" ? "Kirada" : "Müsait" },
+      {
+        label: "Bugünkü durum",
+        value:
+          status === "maintenance" ? (
+            <Badge variant="muted">Bakımda</Badge>
+          ) : status === "rented" ? (
+            <Badge variant="warning">Kirada</Badge>
+          ) : (
+            <Badge variant="success">Müsait</Badge>
+          ),
+      },
       { label: "Harici araç", value: vehicle.external ? "Evet" : "Hayır" },
-      { label: "Varsayılan komisyon", value: vehicle.defaultCommissionAmount != null ? `${vehicle.defaultCommissionAmount}` : "—" },
+      {
+        label: "Günlük kiralama fiyatı",
+        value: vehicle.rentalDailyPrice != null ? vehicle.rentalDailyPrice.toLocaleString("tr-TR", { maximumFractionDigits: 2 }) : "—",
+      },
+      { label: "Komisyon", value: vehicle.commissionEnabled ? "Var" : "Yok" },
+      {
+        label: "Komisyon oranı",
+        value: vehicle.commissionEnabled && vehicle.commissionRatePercent != null ? `%${vehicle.commissionRatePercent}` : "—",
+      },
+      {
+        label: "Komisyoncu",
+        value: vehicle.commissionEnabled ? vehicle.commissionBrokerFullName || "—" : "—",
+      },
+      {
+        label: "Komisyoncu telefonu",
+        value: vehicle.commissionEnabled ? vehicle.commissionBrokerPhone || "—" : "—",
+      },
       ...(vehicle.externalCompany ? [{ label: "Harici firma", value: vehicle.externalCompany }] : []),
       { label: "Toplam kiralama", value: <span className="tabular-nums">{sessions.length} kayıt</span> },
     ],
@@ -246,13 +334,19 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
       const d = formatDay(day);
       setPickStart(d);
       setPickEnd(d);
-      setCommissionAmount(vehicle.defaultCommissionAmount != null ? String(vehicle.defaultCommissionAmount) : "");
+      setDateRangeOpen(false);
+      setCommissionAmount(estimateCommissionAmount(d, d));
       setCommissionFlow(vehicle.external ? "pay" : "collect");
       setCommissionCompany(vehicle.externalCompany ?? "");
+      setPassportImageDataUrl("");
+      setDriverLicenseImageDataUrl("");
+      setPhoneCountryCode("+90");
+      setPhoneLocal("");
+      setDriverLicenseNo("");
       setAdditionalDrivers([]);
       setDialogOpen(true);
     },
-    [vehicle.maintenance, vehicle.defaultCommissionAmount, vehicle.external, vehicle.externalCompany],
+    [vehicle.maintenance, vehicle.external, vehicle.externalCompany, estimateCommissionAmount],
   );
 
   useEffect(() => {
@@ -266,6 +360,25 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
     openForDay(new Date());
     router.replace(`/vehicles/${vehicle.id}`, { scroll: false });
   }, [autoOpenNewRental, vehicle.id, vehicle.maintenance, openForDay, router]);
+
+  useEffect(() => {
+    if (!dialogOpen || !vehicle.commissionEnabled) return;
+    setCommissionAmount(estimateCommissionAmount(pickStart, pickEnd));
+  }, [dialogOpen, vehicle.commissionEnabled, pickStart, pickEnd, estimateCommissionAmount]);
+
+  useEffect(() => {
+    setEditPlate(vehicle.plate);
+    setEditBrand(vehicle.brand);
+    setEditModel(vehicle.model);
+    setEditYear(String(vehicle.year));
+    setEditMaintenance(Boolean(vehicle.maintenance));
+    setEditExternal(Boolean(vehicle.external));
+    setEditExternalCompany(vehicle.externalCompany ?? "");
+    setEditCommissionRate(vehicle.commissionRatePercent != null ? String(vehicle.commissionRatePercent) : "");
+    setEditCommissionPhone(vehicle.commissionBrokerPhone ?? "");
+    setEditRentalPrice(vehicle.rentalDailyPrice != null ? String(vehicle.rentalDailyPrice) : "");
+    setEditCountryCode(vehicle.countryCode ?? COUNTRY_NONE);
+  }, [vehicle]);
 
   const updateAdditionalDriver = <K extends keyof AdditionalDriverDraft>(idx: number, key: K, value: AdditionalDriverDraft[K]) => {
     setAdditionalDrivers((prev) => prev.map((d, i) => (i === idx ? { ...d, [key]: value } : d)));
@@ -283,8 +396,13 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
   const submitRental = async () => {
     const start = pickStart.trim();
     const end = pickEnd.trim();
-    if (!fullName.trim() || !nationalId.trim() || !passportNo.trim() || !phone.trim()) {
+    const phone = `${phoneCountryCode} ${phoneLocal}`.trim();
+    if (!fullName.trim() || !passportNo.trim() || !driverLicenseNo.trim() || !phoneLocal.trim()) {
       toast.error("Tüm alanları doldurun.");
+      return;
+    }
+    if (!driverLicenseImageDataUrl || !passportImageDataUrl) {
+      toast.error("Ehliyet ve pasaport görselleri zorunlu.");
       return;
     }
     if (!start || !end || end < start) {
@@ -334,7 +452,10 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
           fullName: fullName.trim(),
           nationalId: nationalId.trim(),
           passportNo: passportNo.trim(),
-          phone: phone.trim(),
+          phone,
+          driverLicenseNo: driverLicenseNo.trim() || undefined,
+          driverLicenseImageDataUrl,
+          passportImageDataUrl,
         },
         commissionAmount: commission,
         commissionFlow,
@@ -354,8 +475,12 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
       setFullName("");
       setNationalId("");
       setPassportNo("");
-      setPhone("");
-      setCommissionAmount(vehicle.defaultCommissionAmount != null ? String(vehicle.defaultCommissionAmount) : "");
+      setDriverLicenseNo("");
+      setPhoneCountryCode("+90");
+      setPhoneLocal("");
+      setPassportImageDataUrl("");
+      setDriverLicenseImageDataUrl("");
+      setCommissionAmount("");
       setCommissionFlow(vehicle.external ? "pay" : "collect");
       setCommissionCompany(vehicle.externalCompany ?? "");
       setAdditionalDrivers([]);
@@ -364,17 +489,59 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
     }
   };
 
+  const submitVehicleUpdate = async () => {
+    const plate = editPlate.trim().toUpperCase();
+    const brand = editBrand.trim();
+    const model = editModel.trim();
+    const year = Number.parseInt(editYear, 10);
+    const rentalPrice = Number.parseFloat(editRentalPrice.replace(",", "."));
+    const commissionRate = Number.parseFloat(editCommissionRate.replace(",", "."));
+
+    if (!plate || !brand || !model || !Number.isFinite(year)) {
+      toast.error("Plaka, marka, model ve yıl zorunlu.");
+      return;
+    }
+    if (!Number.isFinite(rentalPrice) || rentalPrice <= 0) {
+      toast.error("Günlük kiralama fiyatı sıfırdan büyük olmalı.");
+      return;
+    }
+    if (editExternal) {
+      if (!editExternalCompany.trim()) {
+        toast.error("Harici araçta firma adı zorunlu.");
+        return;
+      }
+      if (!Number.isFinite(commissionRate) || commissionRate <= 0 || commissionRate > 100) {
+        toast.error("Harici araçta komisyon oranı 0-100 arası zorunlu.");
+        return;
+      }
+    }
+
+    setSavingVehicle(true);
+    try {
+      await updateVehicle(vehicle.id, {
+        plate,
+        brand,
+        model,
+        year,
+        maintenance: editMaintenance,
+        external: editExternal,
+        externalCompany: editExternal ? editExternalCompany.trim() : "",
+        commissionRatePercent: editExternal ? commissionRate : undefined,
+        commissionBrokerPhone: editExternal ? editCommissionPhone.trim() : "",
+        rentalDailyPrice: rentalPrice,
+        countryCode: editCountryCode !== COUNTRY_NONE ? editCountryCode : "",
+      });
+      toast.success("Araç bilgileri güncellendi.");
+      setEditOpen(false);
+    } catch (e) {
+      toast.error(getRentApiErrorMessage(e));
+    } finally {
+      setSavingVehicle(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <Button asChild variant="outline" size="sm" className="h-8 text-xs">
-          <Link href="/vehicles">
-            <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-            Araçlara dön
-          </Link>
-        </Button>
-      </div>
-
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
           <div className="min-w-0 flex-1">
@@ -383,13 +550,6 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
               {vehicle.brand} {vehicle.model} · <span className="font-mono">{vehicle.plate}</span>
             </p>
           </div>
-          {status === "maintenance" ? (
-            <Badge variant="muted">Bakım</Badge>
-          ) : status === "rented" ? (
-            <Badge variant="warning">Bugün kirada</Badge>
-          ) : (
-            <Badge variant="success">Müsait</Badge>
-          )}
         </div>
         <Button
           type="button"
@@ -418,17 +578,21 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
 
         <Card className="glow-card order-2 min-w-0">
           <CardHeader className="py-3 pb-2">
-            <CardTitle className="text-sm">Araç bilgileri</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm">Araç bilgileri</CardTitle>
+              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditOpen(true)}>
+                Araç güncelle
+              </Button>
+            </div>
             <CardDescription className="text-xs">Plaka, marka, model ve filo durumu.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border/60">
-              {vehicleInfoRows.map((row, idx) => (
+              {vehicleInfoRows.map((row) => (
                 <div
                   key={`vehicle-info-${row.label}`}
                   className={cn(
-                    "grid grid-cols-[140px_1fr] items-center gap-3 px-3 py-2 sm:grid-cols-[170px_1fr] sm:px-4",
-                    idx % 2 === 0 ? "bg-muted/20" : "bg-background",
+                    "grid grid-cols-[140px_1fr] items-center gap-3 bg-background px-3 py-2 transition-colors hover:bg-muted/40 sm:grid-cols-[170px_1fr] sm:px-4",
                   )}
                 >
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{row.label}</p>
@@ -538,11 +702,25 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
                       <p className="mt-1 text-base font-semibold tabular-nums">{reportStats.cancelled}</p>
                     </div>
                   </div>
-                  <div className="rounded-md border border-border/70 p-2">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Net kazanç (komisyon)</p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums">
-                      {reportStats.netCommission.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}
-                    </p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-md border border-border/70 p-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Brüt gelir</p>
+                      <p className="mt-1 text-lg font-semibold tabular-nums">
+                        {reportStats.totalGrossRevenue.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-border/70 p-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Komisyon tutarı</p>
+                      <p className="mt-1 text-lg font-semibold tabular-nums">
+                        {reportStats.totalCommission.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-border/70 p-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Toplam kar (net)</p>
+                      <p className="mt-1 text-lg font-semibold tabular-nums">
+                        {reportStats.totalProfit.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
                   </div>
                 </TabsContent>
                 <TabsContent value="monthly" className="space-y-3">
@@ -592,7 +770,7 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
 
                       <div className="rounded-md border border-border/70 p-3">
                         <p className="mb-2 text-[11px] font-medium text-muted-foreground">
-                          Net komisyon trendi ({reportStats.rangeLabel}) (tahsilat - ödeme)
+                          Net kar trendi ({reportStats.rangeLabel}) (brüt gelir - komisyon)
                         </p>
                         <div className="space-y-1">
                           {reportStats.monthlyRows.map((row) => {
@@ -646,6 +824,99 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
         </CardContent>
       </Card>
 
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Araç güncelle</DialogTitle>
+            <DialogDescription>Aracın temel bilgilerini ve durumunu güncelleyebilirsiniz.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-1">
+            <div className="space-y-1">
+              <Label>Plaka</Label>
+              <Input value={editPlate} onChange={(e) => setEditPlate(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label>Marka</Label>
+                <Input value={editBrand} onChange={(e) => setEditBrand(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Model</Label>
+                <Input value={editModel} onChange={(e) => setEditModel(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Model yılı</Label>
+              <Input type="number" min={1950} max={new Date().getFullYear() + 1} value={editYear} onChange={(e) => setEditYear(e.target.value)} />
+            </div>
+            <label className="flex cursor-pointer items-center gap-2 text-xs">
+              <input type="checkbox" checked={editMaintenance} onChange={(e) => setEditMaintenance(e.target.checked)} className="rounded border-input" />
+              Bakımda (kiralanamaz)
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-xs">
+              <input type="checkbox" checked={editExternal} onChange={(e) => setEditExternal(e.target.checked)} className="rounded border-input" />
+              Harici araç
+            </label>
+            {editExternal && (
+              <>
+                <div className="space-y-1">
+                  <Label>Harici firma adı</Label>
+                  <Input value={editExternalCompany} onChange={(e) => setEditExternalCompany(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Komisyon oranı (%)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={editCommissionRate}
+                    onChange={(e) => setEditCommissionRate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Telefon (opsiyonel)</Label>
+                  <Input value={editCommissionPhone} onChange={(e) => setEditCommissionPhone(e.target.value)} />
+                </div>
+              </>
+            )}
+            <div className="space-y-1">
+              <Label>Günlük kiralama fiyatı</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={editRentalPrice}
+                onChange={(e) => setEditRentalPrice(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Ülke</Label>
+              <select
+                value={editCountryCode}
+                onChange={(e) => setEditCountryCode(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value={COUNTRY_NONE}>Atanmadı</option>
+                {countries.map((c) => (
+                  <option key={c.id} value={c.code}>
+                    {c.name} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditOpen(false)} disabled={savingVehicle}>
+              Vazgeç
+            </Button>
+            <Button size="sm" variant="hero" onClick={() => void submitVehicleUpdate()} disabled={savingVehicle}>
+              {savingVehicle ? "Kaydediliyor..." : "Güncelle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
@@ -655,31 +926,113 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-1">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="start">Başlangıç</Label>
-                <Input id="start" type="date" value={pickStart} onChange={(e) => setPickStart(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="end">Bitiş</Label>
-                <Input id="end" type="date" value={pickEnd} onChange={(e) => setPickEnd(e.target.value)} />
-              </div>
+            <div className="space-y-1">
+              <Label>Tarih aralığı</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 w-full justify-start gap-1.5 px-2 text-[11px]"
+                onClick={() => setDateRangeOpen((v) => !v)}
+              >
+                <CalendarDays className="h-3.5 w-3.5" />
+                {pickStart && pickEnd ? `${pickStart} - ${pickEnd}` : "Başlangıç ve bitiş seçin"}
+              </Button>
+              {dateRangeOpen && (
+                <div className="rounded-md border border-border/70 bg-background p-1.5">
+                  <DayPicker
+                    mode="range"
+                    locale={tr}
+                    selected={selectedDateRange}
+                    onSelect={(range) => {
+                      const nextStart = range?.from ? format(range.from, "yyyy-MM-dd") : "";
+                      const nextEnd = range?.to ? format(range.to, "yyyy-MM-dd") : "";
+                      setPickStart(nextStart);
+                      setPickEnd(nextEnd);
+                    }}
+                    numberOfMonths={1}
+                    classNames={{
+                      months: "text-[11px]",
+                      caption_label: "text-xs font-medium",
+                      weekday: "text-[11px] font-semibold text-foreground/90",
+                      day: "h-7 w-7 p-0",
+                      day_button: "h-7 w-7 rounded-full text-[11px]",
+                      selected: "bg-primary text-primary-foreground hover:bg-primary",
+                      range_start: "bg-primary text-primary-foreground rounded-full",
+                      range_end: "bg-primary text-primary-foreground rounded-full",
+                      range_middle: "bg-primary/20 text-foreground",
+                    }}
+                  />
+                  <div className="mt-1 flex justify-end border-t border-border/60 pt-2">
+                    <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setDateRangeOpen(false)}>
+                      Tamam
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <Label htmlFor="fn">İsim soyisim</Label>
               <Input id="fn" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Ad Soyad" />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="tc">Vatandaşlık no (TC)</Label>
+              <Label htmlFor="tc">Vatandaşlık no (Opsiyonel)</Label>
               <Input id="tc" value={nationalId} onChange={(e) => setNationalId(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="pp">Pasaport no</Label>
+              <Label htmlFor="pp">Pasaport</Label>
               <Input id="pp" value={passportNo} onChange={(e) => setPassportNo(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="tel">Cep telefonu</Label>
-              <Input id="tel" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+90 …" />
+              <Label>Ehliyet</Label>
+              <Input value={driverLicenseNo} onChange={(e) => setDriverLicenseNo(e.target.value)} placeholder="Belge no" />
+            </div>
+            <div className="space-y-1">
+              <Label>Cep telefonu</Label>
+              <div className="flex gap-2">
+                <select
+                  value={phoneCountryCode}
+                  onChange={(e) => setPhoneCountryCode(e.target.value)}
+                  className="h-9 w-32 rounded-md border border-input bg-background px-2 text-xs"
+                >
+                  {PHONE_COUNTRY_CODES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  type="tel"
+                  value={phoneLocal}
+                  onChange={(e) => setPhoneLocal(e.target.value)}
+                  placeholder="5xx xxx xx xx"
+                  className="h-9"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Pasaport fotoğrafı</Label>
+              <ImageSourceInput
+                onPick={async (f) => {
+                  try {
+                    setPassportImageDataUrl(await fileToDataUrl(f));
+                  } catch {
+                    toast.error("Pasaport görseli okunamadı.");
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Ehliyet fotoğrafı</Label>
+              <ImageSourceInput
+                onPick={async (f) => {
+                  try {
+                    setDriverLicenseImageDataUrl(await fileToDataUrl(f));
+                  } catch {
+                    toast.error("Ehliyet görseli okunamadı.");
+                  }
+                }}
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="commission">Komisyon tutarı (zorunlu)</Label>
@@ -722,9 +1075,10 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs"
+                  disabled={additionalDrivers.length >= 1}
                   onClick={() => setAdditionalDrivers((prev) => [...prev, blankAdditionalDriver()])}
                 >
-                  Ek sürücü ekle
+                  {additionalDrivers.length >= 1 ? "En fazla 1 ek sürücü" : "Ek sürücü ekle"}
                 </Button>
               </div>
               {additionalDrivers.length === 0 ? (
@@ -738,7 +1092,7 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
                         <Button
                           type="button"
                           size="sm"
-                          variant="ghost"
+                          variant="destructive"
                           className="h-7 px-2 text-xs"
                           onClick={() => setAdditionalDrivers((prev) => prev.filter((_, i) => i !== idx))}
                         >
@@ -755,24 +1109,20 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
                           <Input type="date" value={d.birthDate} onChange={(e) => updateAdditionalDriver(idx, "birthDate", e.target.value)} />
                         </div>
                         <div className="space-y-1">
-                          <Label>Ehliyet no</Label>
+                          <Label>Ehliyet</Label>
                           <Input
                             value={d.driverLicenseNo}
                             onChange={(e) => updateAdditionalDriver(idx, "driverLicenseNo", e.target.value)}
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label>Pasaport no</Label>
+                          <Label>Pasaport</Label>
                           <Input value={d.passportNo} onChange={(e) => updateAdditionalDriver(idx, "passportNo", e.target.value)} />
                         </div>
                         <div className="space-y-1">
                           <Label>Ehliyet foto</Label>
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={async (e) => {
-                              const f = e.target.files?.[0];
-                              if (!f) return;
+                          <ImageSourceInput
+                            onPick={async (f) => {
                               try {
                                 updateAdditionalDriver(idx, "driverLicenseImageDataUrl", await fileToDataUrl(f));
                               } catch {
@@ -783,12 +1133,8 @@ export function VehicleDetailClient({ vehicle, autoOpenNewRental = false }: Prop
                         </div>
                         <div className="space-y-1">
                           <Label>Pasaport foto</Label>
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={async (e) => {
-                              const f = e.target.files?.[0];
-                              if (!f) return;
+                          <ImageSourceInput
+                            onPick={async (f) => {
                               try {
                                 updateAdditionalDriver(idx, "passportImageDataUrl", await fileToDataUrl(f));
                               } catch {

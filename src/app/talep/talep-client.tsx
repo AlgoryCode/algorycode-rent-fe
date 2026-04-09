@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ImageSourceInput } from "@/components/ui/image-source-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -500,12 +501,8 @@ export function TalepClient({ locked = false }: TalepClientProps = {}) {
                 </div>
                 <div className="space-y-1">
                   <Label>Pasaport foto</Label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
+                  <ImageSourceInput
+                    onPick={async (f) => {
                       try {
                         setPassportImageDataUrl(await fileToDataUrl(f));
                       } catch {
@@ -516,12 +513,8 @@ export function TalepClient({ locked = false }: TalepClientProps = {}) {
                 </div>
                 <div className="space-y-1">
                   <Label>Ehliyet foto</Label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
+                  <ImageSourceInput
+                    onPick={async (f) => {
                       try {
                         setDriverLicenseImageDataUrl(await fileToDataUrl(f));
                       } catch {
@@ -558,9 +551,10 @@ export function TalepClient({ locked = false }: TalepClientProps = {}) {
                     size="sm"
                     variant="outline"
                     className="h-7 text-xs"
+                    disabled={additionalDrivers.length >= 1}
                     onClick={() => setAdditionalDrivers((prev) => [...prev, blankDriver()])}
                   >
-                    Ek sürücü ekle
+                    {additionalDrivers.length >= 1 ? "En fazla 1 ek sürücü" : "Ek sürücü ekle"}
                   </Button>
                 </div>
                 {additionalDrivers.length === 0 ? (
@@ -573,7 +567,7 @@ export function TalepClient({ locked = false }: TalepClientProps = {}) {
                           <p className="text-xs font-medium">Ek sürücü #{idx + 1}</p>
                           <Button
                             type="button"
-                            variant="ghost"
+                            variant="destructive"
                             size="sm"
                             className="h-7 px-2 text-xs"
                             onClick={() => setAdditionalDrivers((prev) => prev.filter((_, i) => i !== idx))}
@@ -603,24 +597,16 @@ export function TalepClient({ locked = false }: TalepClientProps = {}) {
                           </div>
                           <div className="space-y-1">
                             <Label>Pasaport foto</Label>
-                            <Input
-                              type="file"
-                              accept="image/*"
-                              onChange={async (e) => {
-                                const f = e.target.files?.[0];
-                                if (!f) return;
+                            <ImageSourceInput
+                              onPick={async (f) => {
                                 updateDriver(idx, "passportImageDataUrl", await fileToDataUrl(f));
                               }}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label>Ehliyet foto</Label>
-                            <Input
-                              type="file"
-                              accept="image/*"
-                              onChange={async (e) => {
-                                const f = e.target.files?.[0];
-                                if (!f) return;
+                            <ImageSourceInput
+                              onPick={async (f) => {
                                 updateDriver(idx, "driverLicenseImageDataUrl", await fileToDataUrl(f));
                               }}
                             />

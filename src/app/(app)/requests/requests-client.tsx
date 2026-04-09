@@ -246,8 +246,8 @@ export function RequestsClient() {
             <p className="py-8 text-center text-xs text-muted-foreground">Kayıt bulunamadı.</p>
           ) : (
             <div className="space-y-2">
-              {rows.map((row, idx) => (
-                <div key={row.id} className={`rounded-md border border-border/70 p-3 ${idx % 2 === 0 ? "bg-muted/20" : "bg-background"}`}>
+              {rows.map((row) => (
+                <div key={row.id} className="rounded-md border border-border/70 bg-background p-3 transition-colors hover:bg-muted/40">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">{row.customer.fullName}</p>

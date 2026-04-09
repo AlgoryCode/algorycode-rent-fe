@@ -1,13 +1,13 @@
-import { format, parseISO } from "date-fns";
-
 import type { RentalSession } from "@/lib/mock-fleet";
 import type { RentalStatus } from "@/lib/rental-status";
 import { sessionCreatedAt } from "@/lib/rental-metadata";
 
 export type RentalLogFilterValues = {
   customerQuery: string;
-  /** yyyy-MM-dd; boş = tarih filtresi yok */
-  anchorDate: string;
+  /** yyyy-MM-dd; boş = başlangıç yok */
+  rangeStart: string;
+  /** yyyy-MM-dd; boş = bitiş yok */
+  rangeEnd: string;
   /** Sadece global log sayfası — plaka parçası */
   vehicleQuery?: string;
   /** Kiralama statüsü; all = filtre yok */
@@ -16,12 +16,13 @@ export type RentalLogFilterValues = {
 
 export const emptyRentalLogFilters = (): RentalLogFilterValues => ({
   customerQuery: "",
-  anchorDate: "",
+  rangeStart: "",
+  rangeEnd: "",
   vehicleQuery: "",
   status: "all",
 });
 
-/** Müşteri metni + isteğe bağlı gün: kayıt o gün veya kiralama dönemi o günü kapsar. */
+/** Müşteri metni + isteğe bağlı tarih aralığı + statü filtresi. */
 export function filterRentalLogSessions(sessions: RentalSession[], f: RentalLogFilterValues): RentalSession[] {
   let out = sessions;
   const q = f.customerQuery.trim().toLowerCase();
@@ -32,12 +33,15 @@ export function filterRentalLogSessions(sessions: RentalSession[], f: RentalLogF
         s.customer.nationalId.toLowerCase().includes(q),
     );
   }
-  if (f.anchorDate) {
-    const d = f.anchorDate;
+  const rangeStartMs = f.rangeStart ? new Date(`${f.rangeStart}T00:00:00`).getTime() : Number.NaN;
+  const rangeEndMs = f.rangeEnd ? new Date(`${f.rangeEnd}T23:59:59`).getTime() : Number.NaN;
+  if (Number.isFinite(rangeStartMs) || Number.isFinite(rangeEndMs)) {
     out = out.filter((s) => {
-      const createdDay = format(parseISO(sessionCreatedAt(s)), "yyyy-MM-dd");
-      const inRentalPeriod = d >= s.startDate && d <= s.endDate;
-      return inRentalPeriod || createdDay === d;
+      const rentalStartMs = new Date(`${s.startDate}T00:00:00`).getTime();
+      const rentalEndMs = new Date(`${s.endDate}T23:59:59`).getTime();
+      const startsBeforeOrAtEnd = !Number.isFinite(rangeEndMs) || rentalStartMs <= rangeEndMs;
+      const endsAfterOrAtStart = !Number.isFinite(rangeStartMs) || rentalEndMs >= rangeStartMs;
+      return startsBeforeOrAtEnd && endsAfterOrAtStart;
     });
   }
   if (f.status !== "all") {

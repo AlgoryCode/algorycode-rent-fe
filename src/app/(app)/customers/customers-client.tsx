@@ -175,12 +175,12 @@ export function CustomersClient() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((row, idx) => (
+                {filtered.map((row) => (
                   <TableRow
                     key={row.key}
                     role="button"
                     tabIndex={0}
-                    className={`cursor-pointer hover:bg-muted/60 ${idx % 2 === 0 ? "bg-muted/20" : "bg-background"}`}
+                    className="cursor-pointer bg-background transition-colors hover:bg-muted/40"
                     onClick={() => router.push(`/customers/${encodeURIComponent(row.key)}`)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {

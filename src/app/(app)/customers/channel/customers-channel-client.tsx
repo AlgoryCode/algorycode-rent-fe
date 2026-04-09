@@ -209,12 +209,10 @@ export function CustomersChannelClient() {
           </div>
 
           <div className="space-y-2">
-            {filtered.map((row, idx) => (
+            {filtered.map((row) => (
               <label
                 key={row.key}
-                className={`flex items-start gap-2 rounded-md border border-border/70 p-2 text-xs ${
-                  idx % 2 === 0 ? "bg-muted/20" : "bg-background"
-                }`}
+                className="flex items-start gap-2 rounded-md border border-border/70 bg-background p-2 text-xs transition-colors hover:bg-muted/40"
               >
                 <input
                   type="checkbox"

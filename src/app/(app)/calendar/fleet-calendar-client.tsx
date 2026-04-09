@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   addDays,
@@ -308,16 +307,15 @@ export function FleetCalendarClient() {
                             const plate = v?.plate ?? s.vehicleId.slice(0, 8);
                             const accent = accentForVehicleId(s.vehicleId);
                             return (
-                              <Link
+                              <div
                                 key={s.id}
-                                href={`/vehicles/${s.vehicleId}`}
-                                className="block truncate rounded-md border border-border/50 bg-muted/30 px-1 py-0.5 text-left text-[10px] transition-colors hover:bg-muted/60 sm:text-xs"
+                                className="block truncate rounded-md border border-border/50 bg-muted/30 px-1 py-0.5 text-left text-[10px] sm:text-xs"
                                 style={{ borderLeftWidth: 3, borderLeftColor: accent }}
                                 title={`${plate}: ${s.startDate} → ${s.endDate} (${durationDays} gün)`}
                               >
                                 <span className="font-mono font-medium">{plate}</span>
                                 <span className="text-muted-foreground"> · {durationDays} gün</span>
-                              </Link>
+                              </div>
                             );
                           })}
                           {more > 0 && (
@@ -336,13 +334,16 @@ export function FleetCalendarClient() {
                 <p className="py-10 text-center text-sm text-muted-foreground">Bu ay için eşleşen kiralama kaydı yok.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <div className="min-w-[980px] rounded-lg border border-border/70 bg-card/40 p-2">
+                  <div className="rounded-lg border border-border/70 bg-card/40 p-2">
                     <div className="mb-2 grid grid-cols-[240px_1fr] gap-2 px-1">
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Kiralama</div>
-                      <div className="grid" style={{ gridTemplateColumns: `repeat(${monthDays.length}, minmax(0, 1fr))` }}>
+                      <div
+                        className="grid min-w-[760px]"
+                        style={{ gridTemplateColumns: `repeat(${monthDays.length}, minmax(24px, 1fr))` }}
+                      >
                         {monthDays.map((d, idx) => (
-                          <div key={`h-${format(d, "yyyy-MM-dd")}`} className="text-center text-[10px] text-muted-foreground">
-                            {idx + 1}.gün
+                          <div key={`h-${format(d, "yyyy-MM-dd")}`} className="text-center text-[9px] text-muted-foreground">
+                            {idx === 0 || idx === monthDays.length - 1 || idx % 3 === 0 ? `${idx + 1}` : "·"}
                           </div>
                         ))}
                       </div>
@@ -372,18 +373,14 @@ export function FleetCalendarClient() {
                                 {s.startDate} → {s.endDate} · {totalDays} gün
                               </p>
                             </div>
-                            <Link
-                              href={`/vehicles/${s.vehicleId}`}
-                              className="relative block h-8 rounded bg-muted/50 transition-colors hover:bg-muted"
-                              title={`${plate}: ${s.startDate} → ${s.endDate} (${totalDays} gün)`}
-                            >
+                            <div className="relative block h-8 min-w-[760px] rounded bg-muted/50" title={`${plate}: ${s.startDate} → ${s.endDate} (${totalDays} gün)`}>
                               <div
-                                className="absolute inset-y-1 rounded px-2 text-[10px] font-semibold text-white"
+                                className="absolute inset-y-1 overflow-hidden rounded px-2 text-[10px] font-semibold text-white"
                                 style={{ left: `${leftPct}%`, width: `${widthPct}%`, backgroundColor: accent }}
                               >
                                 <span className="truncate">{plate}</span>
                               </div>
-                            </Link>
+                            </div>
                           </div>
                         );
                       })}

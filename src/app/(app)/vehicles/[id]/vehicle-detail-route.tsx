@@ -1,10 +1,7 @@
 "use client";
 
 import { use } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-
-import { Button } from "@/components/ui/button";
 import { VehicleDetailClient } from "./vehicle-detail-client";
 import { useIsClient } from "@/hooks/use-is-client";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
@@ -32,9 +29,6 @@ export function VehicleDetailRoute({ params }: Props) {
     return (
       <div className="mx-auto max-w-md space-y-4 py-12 text-center">
         <p className="text-sm text-muted-foreground">Bu araç bulunamadı veya kaldırılmış olabilir.</p>
-        <Button size="sm" variant="outline" asChild>
-          <Link href="/vehicles">Araçlar listesine dön</Link>
-        </Button>
       </div>
     );
   }

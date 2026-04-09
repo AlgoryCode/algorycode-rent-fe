@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,7 +21,6 @@ import { Label } from "@/components/ui/label";
 import { RentalLogEntries } from "@/components/rental-logs/rental-log-entries";
 import { RentalLogFiltersBar } from "@/components/rental-logs/rental-log-filters-bar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import {
   emptyRentalLogFilters,
@@ -28,17 +28,33 @@ import {
   sortSessionsByLogTimeDesc,
   type RentalLogFilterValues,
 } from "@/lib/rental-log-filters";
+import { fetchRentalsFromRentApi, getRentApiErrorMessage } from "@/lib/rent-api";
+import { rentKeys } from "@/lib/rent-query-keys";
 import { vehiclePlate } from "@/lib/rental-metadata";
 
 export function RentalLogsClient() {
   const router = useRouter();
-  const { allSessions } = useFleetSessions();
   const { allVehicles } = useFleetVehicles();
+  const [draftFilters, setDraftFilters] = useState<RentalLogFilterValues>(emptyRentalLogFilters);
   const [filters, setFilters] = useState<RentalLogFilterValues>(emptyRentalLogFilters);
   const [newRentalOpen, setNewRentalOpen] = useState(false);
   const [pickedVehicleId, setPickedVehicleId] = useState<string>("");
 
   const vehiclesById = useMemo(() => new Map(allVehicles.map((v) => [v.id, v])), [allVehicles]);
+
+  const {
+    data: allSessions = [],
+    isPending: sessionsLoading,
+    error: sessionsError,
+  } = useQuery({
+    queryKey: [...rentKeys.rentals(), "logs", filters.rangeStart, filters.rangeEnd, filters.status],
+    queryFn: () =>
+      fetchRentalsFromRentApi({
+        startDate: filters.rangeStart || undefined,
+        endDate: filters.rangeEnd || undefined,
+        status: filters.status === "all" ? undefined : filters.status,
+      }),
+  });
 
   const filteredSessions = useMemo(() => {
     let list = allSessions;
@@ -126,7 +142,12 @@ export function RentalLogsClient() {
         <CardHeader className="py-3">
           <CardTitle className="text-sm">Kiralama günlüğü</CardTitle>
           <CardDescription className="text-xs">
-            {filteredSessions.length} kayıt gösteriliyor · toplam {allSessions.length} seans. Müşteri özetleri için{" "}
+            {sessionsLoading
+              ? "Yükleniyor..."
+              : sessionsError
+                ? getRentApiErrorMessage(sessionsError)
+                : `${filteredSessions.length} kayıt gösteriliyor · toplam ${allSessions.length} seans.`}{" "}
+            Müşteri özetleri için{" "}
             <Link href="/customers" className="font-medium text-primary underline-offset-2 hover:underline">
               Customers
             </Link>
@@ -134,7 +155,13 @@ export function RentalLogsClient() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <RentalLogFiltersBar values={filters} onChange={setFilters} showVehicleQuery />
+          <RentalLogFiltersBar
+            values={draftFilters}
+            onChange={setDraftFilters}
+            showVehicleQuery
+            manualApply
+            onApply={() => setFilters(draftFilters)}
+          />
           <RentalLogEntries
             sessions={filteredSessions}
             plateOf={(s) => ({ plate: vehiclePlate(vehiclesById, s.vehicleId), vehicleId: s.vehicleId })}

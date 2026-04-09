@@ -172,10 +172,10 @@ export function PaymentsClient() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((p, idx) => (
+                    {rows.map((p) => (
                       <tr
                         key={p.id}
-                        className={`border-b border-border/60 last:border-0 hover:bg-muted/20 ${idx % 2 === 0 ? "bg-muted/10" : "bg-background"}`}
+                        className="border-b border-border/60 bg-background transition-colors hover:bg-muted/40 last:border-0"
                       >
                         <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted-foreground">
                           {format(parseISO(p.createdAt), "d MMM yyyy HH:mm", { locale: tr })}
@@ -199,8 +199,8 @@ export function PaymentsClient() {
               </div>
 
               <ul className="space-y-2 md:hidden">
-                {rows.map((p, idx) => (
-                  <li key={p.id} className={`rounded-lg border p-3 text-xs ${idx % 2 === 0 ? "bg-muted/15" : "bg-background"}`}>
+                {rows.map((p) => (
+                  <li key={p.id} className="rounded-lg border bg-background p-3 text-xs transition-colors hover:bg-muted/40">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 space-y-1">
                         <p className="font-semibold tabular-nums">{formatTry(p.amountTry)}</p>

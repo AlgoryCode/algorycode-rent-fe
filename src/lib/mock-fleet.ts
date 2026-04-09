@@ -66,8 +66,16 @@ export type Vehicle = {
   external?: boolean;
   /** Harici araç için firma adı */
   externalCompany?: string;
-  /** Araç bazlı varsayılan komisyon */
-  defaultCommissionAmount?: number;
+  /** Günlük kiralama fiyatı */
+  rentalDailyPrice?: number;
+  /** Araç için komisyon uygulanıyor mu */
+  commissionEnabled?: boolean;
+  /** Komisyon oranı yüzde değeri (örn: 12.5) */
+  commissionRatePercent?: number;
+  /** Komisyoncu adı soyadı */
+  commissionBrokerFullName?: string;
+  /** Komisyoncu telefonu (opsiyonel) */
+  commissionBrokerPhone?: string;
   /** ISO 3166-1 alpha-2 — ülke rengi için */
   countryCode?: string;
   /** Açıdan görüntüler (data URL, demo saklama) */

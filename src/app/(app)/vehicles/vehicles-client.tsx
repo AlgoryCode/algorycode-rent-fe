@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { startOfDay } from "date-fns";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +51,7 @@ const COUNTRY_NONE = "__none__";
 
 export function VehiclesClient() {
   const router = useRouter();
-  const { allVehicles, addVehicle, ready, error: fleetError } = useFleetVehicles();
+  const { allVehicles, addVehicle, deleteVehicle, ready, error: fleetError } = useFleetVehicles();
   const { allSessions } = useFleetSessions();
   const { countries, countryByCode } = useCountries();
   const [tab, setTab] = useState<"all" | FleetStatus>("all");
@@ -64,9 +64,13 @@ export function VehiclesClient() {
   const [maintenance, setMaintenance] = useState(false);
   const [externalVehicle, setExternalVehicle] = useState(false);
   const [externalCompany, setExternalCompany] = useState("");
-  const [defaultCommissionAmount, setDefaultCommissionAmount] = useState("");
+  const [commissionRatePercent, setCommissionRatePercent] = useState("");
+  const [commissionBrokerPhone, setCommissionBrokerPhone] = useState("");
+  const [rentalDailyPrice, setRentalDailyPrice] = useState("");
   const [vehicleCountry, setVehicleCountry] = useState<string>(COUNTRY_NONE);
   const [draftImages, setDraftImages] = useState<VehicleImages>({});
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; plate: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const today = startOfDay(new Date());
 
@@ -107,7 +111,9 @@ export function VehiclesClient() {
     setMaintenance(false);
     setExternalVehicle(false);
     setExternalCompany("");
-    setDefaultCommissionAmount("");
+    setCommissionRatePercent("");
+    setCommissionBrokerPhone("");
+    setRentalDailyPrice("");
     setVehicleCountry(COUNTRY_NONE);
     setDraftImages({});
   };
@@ -130,11 +136,16 @@ export function VehiclesClient() {
       toast.error("Harici araç için firma adı girin.");
       return;
     }
-    const commissionRaw = defaultCommissionAmount.trim();
-    const defaultCommission =
-      commissionRaw.length > 0 ? Number.parseFloat(commissionRaw.replace(",", ".")) : undefined;
-    if (defaultCommission != null && (!Number.isFinite(defaultCommission) || defaultCommission < 0)) {
-      toast.error("Komisyon tutarı sayı olmalı ve negatif olamaz.");
+    const rate = externalVehicle ? Number.parseFloat(commissionRatePercent.trim().replace(",", ".")) : undefined;
+    if (externalVehicle) {
+      if (!Number.isFinite(rate) || (rate ?? 0) <= 0 || (rate ?? 0) > 100) {
+        toast.error("Komisyon oranı yüzde olarak 0 ile 100 arasında olmalı.");
+        return;
+      }
+    }
+    const rentalPrice = Number.parseFloat(rentalDailyPrice.trim().replace(",", "."));
+    if (!Number.isFinite(rentalPrice) || rentalPrice <= 0) {
+      toast.error("Günlük kiralama fiyatı zorunlu ve sıfırdan büyük olmalı.");
       return;
     }
     const images = compactVehicleImages(draftImages);
@@ -147,7 +158,9 @@ export function VehiclesClient() {
         maintenance: Boolean(maintenance),
         external: externalVehicle,
         externalCompany: externalVehicle ? externalCompany.trim() : undefined,
-        defaultCommissionAmount: defaultCommission,
+        commissionRatePercent: externalVehicle ? rate : undefined,
+        commissionBrokerPhone: externalVehicle ? commissionBrokerPhone.trim() : undefined,
+        rentalDailyPrice: rentalPrice,
         countryCode: vehicleCountry !== COUNTRY_NONE ? vehicleCountry : undefined,
         images: images ?? undefined,
       });
@@ -156,6 +169,20 @@ export function VehiclesClient() {
       resetForm();
     } catch (e) {
       toast.error(getRentApiErrorMessage(e));
+    }
+  };
+
+  const confirmDeleteVehicle = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteVehicle(deleteTarget.id);
+      toast.success(`${deleteTarget.plate} silindi.`);
+      setDeleteTarget(null);
+    } catch (e) {
+      toast.error(getRentApiErrorMessage(e));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -225,10 +252,11 @@ export function VehiclesClient() {
                   <TableHead className="h-9 text-xs">Araç</TableHead>
                   <TableHead className="h-9 w-[64px] text-xs">Yıl</TableHead>
                   <TableHead className="h-9 w-[100px] text-xs">Durum</TableHead>
+                  <TableHead className="h-9 w-[90px] text-right text-xs">İşlem</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map(({ v, status }, idx) => {
+                {filtered.map(({ v, status }) => {
                   const cc = v.countryCode?.toUpperCase();
                   const countryMeta = cc ? countryByCode.get(cc) : undefined;
                   const rowAccent = countryMeta?.colorCode ?? (cc ? "#94a3b8" : undefined);
@@ -238,7 +266,7 @@ export function VehiclesClient() {
                       role="link"
                       tabIndex={0}
                       aria-label={`${v.plate} ${v.brand} ${v.model}, detay`}
-                      className={`cursor-pointer text-sm hover:bg-muted/60 ${idx % 2 === 0 ? "bg-muted/20" : "bg-background"}`}
+                      className="cursor-pointer bg-background text-sm transition-colors hover:bg-muted/40"
                       onClick={() => router.push(`/vehicles/${v.id}`)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
@@ -269,6 +297,22 @@ export function VehiclesClient() {
                       </TableCell>
                       <TableCell className="py-2 text-xs text-muted-foreground">{v.year}</TableCell>
                       <TableCell className="py-2">{statusBadge(status)}</TableCell>
+                      <TableCell className="py-2 text-right">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          className="h-7 w-7 p-0"
+                          aria-label={`${v.plate} aracını sil`}
+                          title="Sil"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget({ id: v.id, plate: v.plate });
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -277,6 +321,25 @@ export function VehiclesClient() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => (!open ? setDeleteTarget(null) : undefined)}>
+        <DialogContent className="max-w-md rounded-2xl border border-border/60 bg-card/95 shadow-xl">
+          <DialogHeader>
+            <DialogTitle>Araç silinsin mi?</DialogTitle>
+            <DialogDescription className="text-xs">
+              {deleteTarget ? `${deleteTarget.plate} kalıcı olarak silinecek.` : "Bu işlem geri alınamaz."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="destructive" size="sm" onClick={() => void confirmDeleteVehicle()} disabled={deleting}>
+              {deleting ? "Siliniyor..." : "Evet"}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Vazgeç
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={dialogOpen}
@@ -357,25 +420,49 @@ export function VehiclesClient() {
                 Harici araç (başka firmadan)
               </label>
               {externalVehicle && (
-                <div className="space-y-1">
-                  <Label htmlFor="nv-external-company">Harici firma adı</Label>
-                  <Input
-                    id="nv-external-company"
-                    value={externalCompany}
-                    onChange={(e) => setExternalCompany(e.target.value)}
-                    placeholder="Örn: X Rent A Car"
-                  />
-                </div>
+                <>
+                  <div className="space-y-1">
+                    <Label htmlFor="nv-external-company">Harici firma adı</Label>
+                    <Input
+                      id="nv-external-company"
+                      value={externalCompany}
+                      onChange={(e) => setExternalCompany(e.target.value)}
+                      placeholder="Örn: X Rent A Car"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="nv-commission-rate">Komisyon oranı (%)</Label>
+                    <Input
+                      id="nv-commission-rate"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={commissionRatePercent}
+                      onChange={(e) => setCommissionRatePercent(e.target.value)}
+                      placeholder="Örn: 12.5"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="nv-commission-broker-phone">Komisyoncu telefonu (opsiyonel)</Label>
+                    <Input
+                      id="nv-commission-broker-phone"
+                      value={commissionBrokerPhone}
+                      onChange={(e) => setCommissionBrokerPhone(e.target.value)}
+                      placeholder="+90 5xx ..."
+                    />
+                  </div>
+                </>
               )}
               <div className="space-y-1">
-                <Label htmlFor="nv-default-commission">Varsayılan komisyon (opsiyonel)</Label>
+                <Label htmlFor="nv-rental-price">Günlük kiralama fiyatı</Label>
                 <Input
-                  id="nv-default-commission"
+                  id="nv-rental-price"
                   type="number"
                   min={0}
                   step="0.01"
-                  value={defaultCommissionAmount}
-                  onChange={(e) => setDefaultCommissionAmount(e.target.value)}
+                  value={rentalDailyPrice}
+                  onChange={(e) => setRentalDailyPrice(e.target.value)}
                   placeholder="0.00"
                 />
               </div>

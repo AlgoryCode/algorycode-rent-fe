@@ -152,10 +152,9 @@ export function CountriesClient() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sorted.map((c, idx) => (
+                  {sorted.map((c) => (
                     <CountryColorRow
                       key={c.id}
-                      idx={idx}
                       country={c}
                       saving={savingId === c.id}
                       onSave={(hex) => void onSave(c.id, hex)}
@@ -243,12 +242,10 @@ export function CountriesClient() {
 }
 
 function CountryColorRow({
-  idx,
   country,
   saving,
   onSave,
 }: {
-  idx: number;
   country: { id: string; code: string; name: string; colorCode: string };
   saving: boolean;
   onSave: (hex: string) => void;
@@ -261,7 +258,7 @@ function CountryColorRow({
   }, [country.colorCode]);
 
   return (
-    <TableRow className={`text-sm ${idx % 2 === 0 ? "bg-muted/20" : "bg-background"}`}>
+    <TableRow className="bg-background text-sm transition-colors hover:bg-muted/40">
       <TableCell className="py-2 font-mono text-xs font-medium">{country.code}</TableCell>
       <TableCell className="py-2">{country.name}</TableCell>
       <TableCell className="py-2">

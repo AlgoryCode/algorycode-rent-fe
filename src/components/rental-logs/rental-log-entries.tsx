@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
-import { AlertTriangle, ChevronDown, ImageIcon, MessageSquare } from "lucide-react";
+import { AlertTriangle, ArrowRight, ChevronDown, ImageIcon, MessageSquare } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -63,29 +63,17 @@ function SessionSummary({
           </Badge>
         </div>
         {plateOf && (
-          <p className="text-xs">
-            <Link
-              href={`/vehicles/${plateOf(s).vehicleId}`}
-              className="font-mono font-medium text-primary underline-offset-2 hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {plateOf(s).plate}
-            </Link>
+          <p className="text-xs text-muted-foreground">
+            Plaka: <span className="font-mono font-medium text-foreground">{plateOf(s).plate}</span>
           </p>
         )}
-        <p className="text-xs">
-          <Link
-            href={`/rentals/${s.id}`}
-            className="font-medium text-primary underline-offset-2 hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            Kiralama detayına git
-          </Link>
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Dönem:{" "}
-          <span className="font-mono text-foreground">
-            {s.startDate} → {s.endDate}
+        <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span>
+            Baş: <span className="font-mono text-foreground">{s.startDate}</span>
+          </span>
+          <ArrowRight className="h-4 w-4 text-primary/90" />
+          <span>
+            Bitiş: <span className="font-mono text-foreground">{s.endDate}</span>
           </span>
           {" · "}
           TC <span className="font-mono">{s.customer.nationalId}</span>
@@ -178,6 +166,8 @@ function RentalDetailTabs({ s }: { s: RentalSession }) {
 }
 
 export function RentalLogEntries({ sessions, plateOf, expandableDetails }: Props) {
+  const router = useRouter();
+
   if (sessions.length === 0) {
     return <p className="py-8 text-center text-xs text-muted-foreground">Filtreye uygun günlük kaydı yok.</p>;
   }
@@ -185,13 +175,13 @@ export function RentalLogEntries({ sessions, plateOf, expandableDetails }: Props
   if (expandableDetails) {
     return (
       <ul className="mt-4 space-y-2">
-        {sessions.map((s, idx) => (
-          <li key={s.id} className={`overflow-hidden rounded-lg border ${idx % 2 === 0 ? "bg-muted/20" : "bg-background"}`}>
+        {sessions.map((s) => (
+          <li key={s.id} className="overflow-hidden rounded-lg border bg-background">
             <Collapsible>
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
-                  className="group flex w-full items-start justify-between gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50 sm:px-4"
+                  className="group flex w-full items-start justify-between gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/40 sm:px-4"
                 >
                   <SessionSummary s={s} plateOf={plateOf} />
                   <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
@@ -210,13 +200,21 @@ export function RentalLogEntries({ sessions, plateOf, expandableDetails }: Props
   }
 
   return (
-    <ul className="mt-4 space-y-0 divide-y divide-border rounded-lg border bg-muted/20">
-      {sessions.map((s, idx) => (
+    <ul className="mt-4 space-y-0 divide-y divide-border rounded-lg border bg-background">
+      {sessions.map((s) => (
         <li
           key={s.id}
-          className={`flex flex-col gap-1 px-3 py-3 sm:flex-row sm:items-start sm:gap-4 ${
-            idx % 2 === 0 ? "bg-muted/10" : "bg-background"
-          }`}
+          role="link"
+          tabIndex={0}
+          aria-label={`Kiralama detayı: ${s.customer.fullName}`}
+          className="flex cursor-pointer flex-col gap-1 bg-background px-3 py-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-start sm:gap-4"
+          onClick={() => router.push(`/rentals/${s.id}`)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              router.push(`/rentals/${s.id}`);
+            }
+          }}
         >
           <SessionSummary s={s} plateOf={plateOf} showIdChip />
         </li>

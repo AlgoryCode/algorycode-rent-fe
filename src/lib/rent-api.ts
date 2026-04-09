@@ -30,8 +30,25 @@ export type CreateVehiclePayload = {
   maintenance: boolean;
   external?: boolean;
   externalCompany?: string;
-  defaultCommissionAmount?: number;
+  rentalDailyPrice: number;
+  commissionRatePercent?: number;
+  commissionBrokerPhone?: string;
   /** ISO 3166-1 alpha-2 */
+  countryCode?: string;
+  images?: Record<string, string>;
+};
+
+export type UpdateVehiclePayload = {
+  plate?: string;
+  brand?: string;
+  model?: string;
+  year?: number;
+  maintenance?: boolean;
+  external?: boolean;
+  externalCompany?: string;
+  rentalDailyPrice?: number;
+  commissionRatePercent?: number;
+  commissionBrokerPhone?: string;
   countryCode?: string;
   images?: Record<string, string>;
 };
@@ -76,6 +93,13 @@ export type CreateRentalPayload = {
     passportImageDataUrl: string;
   }[];
   status?: string;
+};
+
+export type FetchRentalsParams = {
+  vehicleId?: string;
+  status?: "active" | "pending" | "completed" | "cancelled";
+  startDate?: string;
+  endDate?: string;
 };
 
 export type UpdateRentalPayload = {
@@ -210,7 +234,11 @@ export function mapVehicleFromApi(raw: Record<string, unknown>): Vehicle {
     maintenance: Boolean(raw.maintenance),
     external: Boolean(raw.external),
     externalCompany: asOptionalString(raw.externalCompany),
-    defaultCommissionAmount: asOptionalNumber(raw.defaultCommissionAmount),
+    rentalDailyPrice: asOptionalNumber(raw.rentalDailyPrice),
+    commissionEnabled: Boolean(raw.commissionEnabled),
+    commissionRatePercent: asOptionalNumber(raw.commissionRatePercent),
+    commissionBrokerFullName: asOptionalString(raw.commissionBrokerFullName),
+    commissionBrokerPhone: asOptionalString(raw.commissionBrokerPhone),
     countryCode: cc != null && String(cc).length > 0 ? String(cc).toUpperCase() : undefined,
     images: mapVehicleImages(raw.images),
   };
@@ -372,8 +400,13 @@ export async function fetchVehiclesFromRentApi(): Promise<Vehicle[]> {
   return data.map((row) => mapVehicleFromApi(row as Record<string, unknown>));
 }
 
-export async function fetchRentalsFromRentApi(): Promise<RentalSession[]> {
-  const { data } = await rentClient().get<unknown[]>("/rentals");
+export async function fetchRentalsFromRentApi(params?: FetchRentalsParams): Promise<RentalSession[]> {
+  const query: Record<string, string> = {};
+  if (params?.vehicleId) query.vehicleId = params.vehicleId;
+  if (params?.status) query.status = params.status;
+  if (params?.startDate) query.startDate = params.startDate;
+  if (params?.endDate) query.endDate = params.endDate;
+  const { data } = await rentClient().get<unknown[]>("/rentals", { params: query });
   if (!Array.isArray(data)) return [];
   return data.map((row) => mapRentalFromApi(row as Record<string, unknown>));
 }
@@ -424,10 +457,12 @@ export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Pro
     maintenance: payload.maintenance,
     external: Boolean(payload.external),
     externalCompany: payload.externalCompany?.trim() || undefined,
-    defaultCommissionAmount:
-      payload.defaultCommissionAmount != null && Number.isFinite(payload.defaultCommissionAmount)
-        ? payload.defaultCommissionAmount
+    rentalDailyPrice: payload.rentalDailyPrice,
+    commissionRatePercent:
+      payload.external && payload.commissionRatePercent != null && Number.isFinite(payload.commissionRatePercent)
+        ? payload.commissionRatePercent
         : undefined,
+    commissionBrokerPhone: payload.external ? payload.commissionBrokerPhone?.trim() || undefined : undefined,
     images: payload.images && Object.keys(payload.images).length > 0 ? payload.images : undefined,
   };
   if (payload.countryCode && payload.countryCode.length === 2) {
@@ -435,6 +470,29 @@ export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Pro
   }
   const { data } = await rentClient().post<unknown>("/vehicles", body);
   return mapVehicleFromApi(data as Record<string, unknown>);
+}
+
+export async function updateVehicleOnRentApi(id: string, payload: UpdateVehiclePayload): Promise<Vehicle> {
+  const body: Record<string, unknown> = {
+    plate: payload.plate?.trim() || undefined,
+    brand: payload.brand?.trim() || undefined,
+    model: payload.model?.trim() || undefined,
+    year: payload.year,
+    maintenance: payload.maintenance,
+    external: payload.external,
+    externalCompany: payload.externalCompany?.trim() || undefined,
+    rentalDailyPrice: payload.rentalDailyPrice,
+    commissionRatePercent: payload.commissionRatePercent,
+    commissionBrokerPhone: payload.commissionBrokerPhone?.trim() || undefined,
+    countryCode: payload.countryCode?.trim()?.toUpperCase() || undefined,
+    images: payload.images && Object.keys(payload.images).length > 0 ? payload.images : undefined,
+  };
+  const { data } = await rentClient().patch<unknown>(`/vehicles/${id}`, body);
+  return mapVehicleFromApi(data as Record<string, unknown>);
+}
+
+export async function deleteVehicleOnRentApi(id: string): Promise<void> {
+  await rentClient().delete(`/vehicles/${id}`);
 }
 
 export async function createRentalOnRentApi(payload: CreateRentalPayload): Promise<RentalSession> {
