@@ -7,13 +7,23 @@ import { resolveRentApiUpstreamUrl } from "@/lib/rent-api-upstream.server";
  * Upstream: `RENT_API_UPSTREAM` veya `resolveRentApiUpstreamUrl()` (`api-base`).
  */
 
+function bearerFromSessionCookies(req: NextRequest): string | undefined {
+  const raw =
+    req.cookies.get("algory_access_token")?.value ||
+    req.cookies.get("accessToken")?.value ||
+    req.cookies.get("access_token")?.value;
+  if (!raw?.trim()) return undefined;
+  const t = raw.trim();
+  return t.toLowerCase().startsWith("bearer ") ? t : `Bearer ${t}`;
+}
+
 function forwardRequestHeaders(req: NextRequest): Headers {
   const h = new Headers();
   const accept = req.headers.get("accept");
   if (accept) h.set("Accept", accept);
   const ct = req.headers.get("content-type");
   if (ct) h.set("Content-Type", ct);
-  const auth = req.headers.get("authorization");
+  const auth = req.headers.get("authorization") ?? bearerFromSessionCookies(req);
   if (auth) h.set("Authorization", auth);
   return h;
 }
