@@ -59,7 +59,9 @@ function rentClient() {
     baseURL: RENT_API_BASE,
     timeout: 20_000,
     headers: { Accept: "application/json", "Content-Type": "application/json" },
-    withCredentials: browserGatewayCrossOrigin(),
+    // Cross-origin: cookie panel origin’de; JWT `Authorization` ile gidiyor. `true` olsa gateway
+    // `Access-Control-Allow-Credentials: true` + dar origin ister (globalcors allowCredentials:false ile çakışır).
+    withCredentials: false,
   });
   if (browserGatewayCrossOrigin()) {
     client.interceptors.request.use(async (config) => {
