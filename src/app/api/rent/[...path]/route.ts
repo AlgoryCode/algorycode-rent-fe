@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveRentApiUpstreamUrl } from "@/lib/rent-api-upstream.server";
 
 /**
- * Rent API BFF: tarayıcı → `/api/rent/...` → sunucuda upstream’e iletilir.
- * Upstream: `RENT_API_UPSTREAM` veya `resolveRentApiUpstreamUrl()` (`api-base`).
+ * Rent BFF (yalnızca Next.js tarafında): tarayıcı `/api/rent/vehicles` gibi çağırır; burada üretilen
+ * upstream URL **`/api` içermez** — örn. `https://…/rent/vehicles` (Spring’de `/vehicles` ile aynı).
+ * `app/api/…` klasörü Next route kuralıdır; Java rent servisinde `/api` prefix’i yoktur.
  */
 
 function bearerFromSessionCookies(req: NextRequest): string | undefined {

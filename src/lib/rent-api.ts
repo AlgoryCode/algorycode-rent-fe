@@ -1,6 +1,46 @@
 import axios from "axios";
 
 import { RENT_API_BASE } from "@/lib/config";
+
+/** Tarayıcı → farklı origin gateway rent; Bearer httpOnly’den `/api/auth/access-token` ile. */
+let gatewayBearerCache: { token: string; exp: number } | null = null;
+const GATEWAY_BEARER_CACHE_MS = 45_000;
+
+export function clearRentApiGatewayAuthCache() {
+  gatewayBearerCache = null;
+}
+
+function browserGatewayCrossOrigin(): boolean {
+  if (typeof window === "undefined") return false;
+  const b = RENT_API_BASE.trim();
+  if (!b.startsWith("http")) return false;
+  try {
+    return new URL(b).origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveGatewayBearerHeader(): Promise<string | undefined> {
+  if (typeof window === "undefined") return undefined;
+  const now = Date.now();
+  if (gatewayBearerCache && gatewayBearerCache.exp > now) {
+    return `Bearer ${gatewayBearerCache.token}`;
+  }
+  const r = await fetch("/api/auth/access-token", { credentials: "same-origin", cache: "no-store" });
+  if (!r.ok) {
+    gatewayBearerCache = null;
+    return undefined;
+  }
+  const j = (await r.json()) as { accessToken?: string | null };
+  const t = j.accessToken?.trim();
+  if (!t) {
+    gatewayBearerCache = null;
+    return undefined;
+  }
+  gatewayBearerCache = { token: t, exp: now + GATEWAY_BEARER_CACHE_MS };
+  return `Bearer ${t}`;
+}
 import type { AdditionalDriverInfo, RentalSession, Vehicle } from "@/lib/mock-fleet";
 import type { PaymentLog, PaymentLogStatus } from "@/lib/mock-payments";
 import type { PanelUser, PanelUserRole } from "@/lib/mock-users";
@@ -12,14 +52,33 @@ const SLOT_KEYS = new Set<string>(VEHICLE_IMAGE_SLOTS.map((s) => s.key));
 function rentClient() {
   if (!RENT_API_BASE) {
     throw new Error(
-      "NEXT_PUBLIC_RENT_API_BASE ayarlı değil. Üretim build’inde .env.production veya hosting ortam değişkeni ile kök API URL’ini verin (örn. https://rent.algorycode.com veya /api/rent).",
+      "NEXT_PUBLIC_RENT_API_BASE ayarlı değil. Üretim build’inde .env.production veya hosting ortam değişkeni ile kök API URL’ini verin (örn. https://gateway.algorycode.com/rent veya /api/rent).",
     );
   }
-  return axios.create({
+  const client = axios.create({
     baseURL: RENT_API_BASE,
     timeout: 20_000,
     headers: { Accept: "application/json", "Content-Type": "application/json" },
+    withCredentials: browserGatewayCrossOrigin(),
   });
+  if (browserGatewayCrossOrigin()) {
+    client.interceptors.request.use(async (config) => {
+      const auth = await resolveGatewayBearerHeader();
+      if (auth) {
+        config.headers.Authorization = auth;
+      }
+      return config;
+    });
+    client.interceptors.response.use(
+      (res) => res,
+      (error: unknown) => {
+        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+        if (status === 401) clearRentApiGatewayAuthCache();
+        return Promise.reject(error);
+      },
+    );
+  }
+  return client;
 }
 
 export type CreateVehiclePayload = {

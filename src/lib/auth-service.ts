@@ -3,6 +3,7 @@
 import axios, { AxiosError } from "axios";
 
 import { ApiError } from "@/lib/api/errors";
+import { clearRentApiGatewayAuthCache } from "@/lib/rent-api";
 
 function toApiError(e: unknown, fallback: string): ApiError {
   const err = e as AxiosError<{ message?: string }>;
@@ -27,6 +28,8 @@ export const authService = {
       await axios.post("/api/auth/logout", null, { withCredentials: true });
     } catch (e) {
       throw toApiError(e, "Çıkış yapılamadı");
+    } finally {
+      clearRentApiGatewayAuthCache();
     }
   },
 

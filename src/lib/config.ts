@@ -7,9 +7,12 @@ export const AUTH_BASE = getAuthApiRoot();
  * Rent API kök URL (sonunda / yok). Tüm filo/kiralama/ödeme/kullanıcı istekleri buraya gider.
  *
  * - `next dev`: `NEXT_PUBLIC_RENT_API_BASE` boşsa `getRentApiRoot()` (`NEXT_PUBLIC_API_BASE_MODE`).
- * - Varsayılan prod: `/api/rent` (BFF proxy).
- * - Prod, doğrudan tarayıcı → API: tam URL (örn. gateway `…/rent` veya `https://rental.…`).
- * - BFF upstream: `RENT_API_UPSTREAM` veya `api-base` modları (`src/lib/api-base.ts`).
+ * - Varsayılan prod: `/api/rent` → bu **panelin kendi URL’i** (Next `app/api/rent` BFF); axios `/vehicles` der,
+ *   tam istek `/api/rent/vehicles` olur, BFF upstream’e **`{kök}/vehicles`** yollar (rent serviste `/api` yok).
+ * - **Doğrudan gateway (tarayıcı):** `NEXT_PUBLIC_RENT_API_BASE=https://gateway.algorycode.com/rent`
+ *   → CORS gateway’de açık olmalı; JWT `rent-api` içinde `/api/auth/access-token` + Bearer ile eklenir.
+ * - Doğrudan rent host: `https://rental.…` (aynı Bearer mantığı farklı origin ise geçerli).
+ * - BFF upstream: `RENT_API_UPSTREAM` veya `api-base` (`src/lib/api-base.ts`).
  */
 const PROD_RENT_API_DEFAULT = "/api/rent";
 

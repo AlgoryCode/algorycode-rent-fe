@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/errors";
 import { authService } from "@/lib/auth-service";
+import { clearRentApiGatewayAuthCache } from "@/lib/rent-api";
 
 export function LoginForm() {
   const [username, setUsername] = useState("");
@@ -36,6 +37,7 @@ export function LoginForm() {
         return;
       }
       toast.success("Giriş yapıldı");
+      clearRentApiGatewayAuthCache();
       router.push(from.startsWith("/") ? from : "/dashboard");
       router.refresh();
     } catch (err) {
