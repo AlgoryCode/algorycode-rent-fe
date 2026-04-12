@@ -56,8 +56,22 @@ async function proxy(req: NextRequest, pathSegments: string[], method: string): 
   const outHeaders = new Headers();
   const resCt = res.headers.get("content-type");
   if (resCt) outHeaders.set("Content-Type", resCt);
+  if (res.status >= 500) {
+    outHeaders.set("X-Rent-Upstream-Base", base);
+  }
 
   const buf = await res.arrayBuffer();
+  if (res.status === 503 && buf.byteLength === 0) {
+    return NextResponse.json(
+      {
+        message:
+          "Rent upstream 503 (bos govde). Genelde gateway Eureka’da rent servisi yok / LB bulamıyor. " +
+          "Vercel’de RENT_API_UPSTREAM ile dogrudan rent public URL kullanin (ornek: https://rental.algorycode.com).",
+        upstream: base,
+      },
+      { status: 503, headers: outHeaders },
+    );
+  }
   return new NextResponse(buf, { status: res.status, headers: outHeaders });
 }
 
