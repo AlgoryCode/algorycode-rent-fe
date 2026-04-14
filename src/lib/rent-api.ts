@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
 
 import { RENT_API_BASE } from "@/lib/config";
 
@@ -49,6 +49,40 @@ import { VEHICLE_IMAGE_SLOTS, type VehicleImageSlot } from "@/lib/vehicle-images
 
 const SLOT_KEYS = new Set<string>(VEHICLE_IMAGE_SLOTS.map((s) => s.key));
 
+type RetryCfg = InternalAxiosRequestConfig & { __rent401Retried?: boolean };
+
+function attachRent401Refresh(client: AxiosInstance) {
+  client.interceptors.response.use(
+    (res) => res,
+    async (error: AxiosError) => {
+      const status = error.response?.status;
+      const cfg = error.config as RetryCfg | undefined;
+      if (status !== 401 || !cfg || cfg.__rent401Retried || typeof window === "undefined") {
+        return Promise.reject(error);
+      }
+      cfg.__rent401Retried = true;
+      try {
+        const r = await axios.post<{ accessTokenExpiresAt?: number }>(
+          "/api/auth/refresh",
+          {},
+          { withCredentials: true, validateStatus: (s) => s < 500 },
+        );
+        if (r.status === 401) {
+          clearRentApiGatewayAuthCache();
+          window.location.assign("/login");
+          return Promise.reject(error);
+        }
+        if (browserGatewayCrossOrigin()) {
+          clearRentApiGatewayAuthCache();
+        }
+        return client.request(cfg);
+      } catch {
+        return Promise.reject(error);
+      }
+    },
+  );
+}
+
 function rentClient() {
   if (!RENT_API_BASE) {
     throw new Error(
@@ -71,15 +105,8 @@ function rentClient() {
       }
       return config;
     });
-    client.interceptors.response.use(
-      (res) => res,
-      (error: unknown) => {
-        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-        if (status === 401) clearRentApiGatewayAuthCache();
-        return Promise.reject(error);
-      },
-    );
   }
+  attachRent401Refresh(client);
   return client;
 }
 

@@ -25,6 +25,7 @@ export function publicAbsoluteUrl(path: string, browserOrigin?: string | null): 
 }
 
 export const COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
-export const ACCESS_TOKEN_EXPIRY_MS = 300_000;
+/** AuthService access JWT ile uyumlu (2 saat). */
+export const ACCESS_TOKEN_EXPIRY_MS = 7_200_000;
 export const ACCESS_TOKEN_EXPIRY_SECONDS = ACCESS_TOKEN_EXPIRY_MS / 1000;
 export const TWO_FACTOR_PENDING_COOKIE_MAX_AGE_SECONDS = ACCESS_TOKEN_EXPIRY_SECONDS;
