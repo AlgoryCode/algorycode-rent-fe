@@ -41,7 +41,13 @@ async function resolveGatewayBearerHeader(): Promise<string | undefined> {
   gatewayBearerCache = { token: t, exp: now + GATEWAY_BEARER_CACHE_MS };
   return `Bearer ${t}`;
 }
-import type { AdditionalDriverInfo, RentalSession, Vehicle } from "@/lib/mock-fleet";
+import type {
+  AdditionalDriverInfo,
+  RentalSession,
+  Vehicle,
+  VehicleHandoverRef,
+  VehicleOptionDefRow,
+} from "@/lib/mock-fleet";
 import type { PaymentLog, PaymentLogStatus } from "@/lib/mock-payments";
 import type { PanelUser, PanelUserRole } from "@/lib/mock-users";
 import { normalizeRentalStatus } from "@/lib/rental-status";
@@ -110,6 +116,15 @@ function rentClient() {
   return client;
 }
 
+export type VehicleOptionDefinitionPayload = {
+  title: string;
+  description?: string;
+  price: number;
+  icon?: string;
+  lineOrder: number;
+  active?: boolean;
+};
+
 export type CreateVehiclePayload = {
   plate: string;
   brand: string;
@@ -123,6 +138,13 @@ export type CreateVehiclePayload = {
   commissionBrokerPhone?: string;
   /** ISO 3166-1 alpha-2 */
   countryCode?: string;
+  /** rent-service şehir (zorunlu) */
+  cityId: string;
+  defaultPickupHandoverLocationId: string;
+  defaultReturnHandoverLocationId?: string;
+  /** Sunucuda şablondan kopyalanır; {@code optionDefinitions} ile birlikte kullanılabilir. */
+  optionTemplateIds?: string[];
+  optionDefinitions?: VehicleOptionDefinitionPayload[];
   images?: Record<string, string>;
 };
 
@@ -138,6 +160,11 @@ export type UpdateVehiclePayload = {
   commissionRatePercent?: number;
   commissionBrokerPhone?: string;
   countryCode?: string;
+  cityId?: string;
+  defaultPickupHandoverLocationId?: string;
+  defaultReturnHandoverLocationId?: string;
+  optionTemplateIds?: string[];
+  optionDefinitions?: VehicleOptionDefinitionPayload[];
   images?: Record<string, string>;
 };
 
@@ -146,6 +173,76 @@ export type CountryRow = {
   code: string;
   name: string;
   colorCode: string;
+};
+
+export type CityRow = {
+  id: string;
+  name: string;
+  countryId: string;
+  countryCode: string;
+  countryName: string;
+};
+
+export type HandoverLocationApiRow = {
+  id: string;
+  kind: string;
+  name: string;
+  description?: string | null;
+  addressLine?: string | null;
+  cityId?: string | null;
+  cityName?: string | null;
+  countryCode?: string | null;
+  lineOrder?: number;
+  active?: boolean;
+};
+
+export type CreateHandoverLocationPayload = {
+  kind: "PICKUP" | "RETURN";
+  name: string;
+  description?: string;
+  addressLine?: string;
+  cityId?: string;
+  active?: boolean;
+  lineOrder: number;
+};
+
+export type UpdateHandoverLocationPayload = {
+  kind?: "PICKUP" | "RETURN";
+  name?: string;
+  description?: string;
+  addressLine?: string;
+  cityId?: string;
+  clearCity?: boolean;
+  active?: boolean;
+  lineOrder?: number;
+};
+
+export type VehicleOptionTemplateApiRow = {
+  id: string;
+  title: string;
+  description?: string | null;
+  price: number;
+  icon?: string | null;
+  lineOrder: number;
+  active: boolean;
+};
+
+export type CreateVehicleOptionTemplatePayload = {
+  title: string;
+  description?: string;
+  price: number;
+  icon?: string;
+  lineOrder: number;
+  active?: boolean;
+};
+
+export type UpdateVehicleOptionTemplatePayload = {
+  title?: string;
+  description?: string;
+  price?: number;
+  icon?: string;
+  lineOrder?: number;
+  active?: boolean;
 };
 
 export type CreateCountryPayload = {
@@ -315,6 +412,43 @@ function asOptionalNumber(v: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function mapHandoverRef(raw: unknown): VehicleHandoverRef | undefined {
+  if (raw == null || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const id = asOptionalString(o.id);
+  if (!id) return undefined;
+  return {
+    id,
+    name: asOptionalString(o.name),
+    kind: asOptionalString(o.kind),
+  };
+}
+
+function mapVehicleOptionDefinitions(raw: unknown): VehicleOptionDefRow[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: VehicleOptionDefRow[] = [];
+  for (const row of raw) {
+    if (row == null || typeof row !== "object") continue;
+    const o = row as Record<string, unknown>;
+    const id = asOptionalString(o.id);
+    const title = asOptionalString(o.title);
+    if (!id || !title) continue;
+    const priceRaw = asOptionalNumber(o.price);
+    const price = priceRaw != null && Number.isFinite(priceRaw) ? priceRaw : 0;
+    const lo = asOptionalNumber(o.lineOrder);
+    out.push({
+      id,
+      title,
+      description: asOptionalString(o.description),
+      price,
+      icon: asOptionalString(o.icon),
+      lineOrder: lo != null && Number.isFinite(lo) ? Math.round(lo) : 0,
+      active: o.active == null ? true : Boolean(o.active),
+    });
+  }
+  return out.length ? out : undefined;
+}
+
 export function mapVehicleFromApi(raw: Record<string, unknown>): Vehicle {
   const cc = raw.countryCode;
   return {
@@ -332,6 +466,10 @@ export function mapVehicleFromApi(raw: Record<string, unknown>): Vehicle {
     commissionBrokerFullName: asOptionalString(raw.commissionBrokerFullName),
     commissionBrokerPhone: asOptionalString(raw.commissionBrokerPhone),
     countryCode: cc != null && String(cc).length > 0 ? String(cc).toUpperCase() : undefined,
+    cityId: asOptionalString(raw.cityId),
+    defaultPickupHandoverLocation: mapHandoverRef(raw.defaultPickupHandoverLocation) ?? null,
+    defaultReturnHandoverLocation: mapHandoverRef(raw.defaultReturnHandoverLocation) ?? null,
+    optionDefinitions: mapVehicleOptionDefinitions(raw.optionDefinitions),
     images: mapVehicleImages(raw.images),
   };
 }
@@ -530,6 +668,160 @@ export async function fetchCountriesFromRentApi(): Promise<CountryRow[]> {
   return data.map((row) => mapCountryFromApi(row as Record<string, unknown>));
 }
 
+export async function fetchCitiesFromRentApi(countryId?: string): Promise<CityRow[]> {
+  const q = countryId ? `?countryId=${encodeURIComponent(countryId)}` : "";
+  const { data } = await rentClient().get<unknown[]>(`/cities${q}`);
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => {
+    const o = row as Record<string, unknown>;
+    return {
+      id: String(o.id ?? ""),
+      name: String(o.name ?? ""),
+      countryId: String(o.countryId ?? ""),
+      countryCode: String(o.countryCode ?? "").toUpperCase(),
+      countryName: String(o.countryName ?? ""),
+    };
+  });
+}
+
+function mapHandoverLocationRow(raw: unknown): HandoverLocationApiRow {
+  const o = raw as Record<string, unknown>;
+  const cityIdRaw = o.cityId;
+  return {
+    id: String(o.id ?? ""),
+    kind: String(o.kind ?? ""),
+    name: String(o.name ?? ""),
+    description: o.description != null ? String(o.description) : undefined,
+    addressLine: o.addressLine != null ? String(o.addressLine) : undefined,
+    cityId: cityIdRaw != null && String(cityIdRaw).length > 0 ? String(cityIdRaw) : undefined,
+    cityName: o.cityName != null ? String(o.cityName) : undefined,
+    countryCode: o.countryCode != null ? String(o.countryCode) : undefined,
+    lineOrder: typeof o.lineOrder === "number" ? o.lineOrder : Number(o.lineOrder) || 0,
+    active: o.active == null ? true : Boolean(o.active),
+  };
+}
+
+export async function fetchHandoverLocationsFromRentApi(
+  kind?: "PICKUP" | "RETURN",
+  opts?: { includeInactive?: boolean },
+): Promise<HandoverLocationApiRow[]> {
+  const q = new URLSearchParams();
+  if (kind) q.set("kind", kind);
+  if (opts?.includeInactive) q.set("includeInactive", "true");
+  const suffix = q.toString();
+  const { data } = await rentClient().get<unknown[]>(`/handover-locations${suffix ? `?${suffix}` : ""}`);
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => mapHandoverLocationRow(row));
+}
+
+export async function createHandoverLocationOnRentApi(payload: CreateHandoverLocationPayload): Promise<HandoverLocationApiRow> {
+  const { data } = await rentClient().post<unknown>("/handover-locations", {
+    kind: payload.kind,
+    name: payload.name.trim(),
+    description: payload.description?.trim() || undefined,
+    addressLine: payload.addressLine?.trim() || undefined,
+    cityId: payload.cityId?.trim() || undefined,
+    active: payload.active,
+    lineOrder: payload.lineOrder,
+  });
+  return mapHandoverLocationRow(data);
+}
+
+export async function updateHandoverLocationOnRentApi(
+  id: string,
+  payload: UpdateHandoverLocationPayload,
+): Promise<HandoverLocationApiRow> {
+  const body: Record<string, unknown> = {};
+  if (payload.kind != null) body.kind = payload.kind;
+  if (payload.name != null) body.name = payload.name.trim();
+  if (payload.description !== undefined) body.description = payload.description.trim() || null;
+  if (payload.addressLine !== undefined) body.addressLine = payload.addressLine.trim() || null;
+  if (payload.cityId !== undefined) body.cityId = payload.cityId.trim() || null;
+  if (payload.clearCity === true) body.clearCity = true;
+  if (payload.active != null) body.active = payload.active;
+  if (payload.lineOrder != null) body.lineOrder = payload.lineOrder;
+  const { data } = await rentClient().patch<unknown>(`/handover-locations/${encodeURIComponent(id)}`, body);
+  return mapHandoverLocationRow(data);
+}
+
+export async function deleteHandoverLocationOnRentApi(id: string): Promise<void> {
+  await rentClient().delete(`/handover-locations/${encodeURIComponent(id)}`);
+}
+
+export async function fetchVehicleOptionTemplatesFromRentApi(opts?: {
+  includeInactive?: boolean;
+}): Promise<VehicleOptionTemplateApiRow[]> {
+  const q = opts?.includeInactive ? "?includeInactive=true" : "";
+  const { data } = await rentClient().get<unknown[]>(`/vehicle-option-templates${q}`);
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => {
+    const o = row as Record<string, unknown>;
+    const price = typeof o.price === "number" ? o.price : Number(o.price);
+    return {
+      id: String(o.id ?? ""),
+      title: String(o.title ?? ""),
+      description: o.description != null ? String(o.description) : undefined,
+      price: Number.isFinite(price) ? price : 0,
+      icon: o.icon != null ? String(o.icon) : undefined,
+      lineOrder: typeof o.lineOrder === "number" ? o.lineOrder : Number(o.lineOrder) || 0,
+      active: o.active == null ? true : Boolean(o.active),
+    };
+  });
+}
+
+export async function createVehicleOptionTemplateOnRentApi(
+  payload: CreateVehicleOptionTemplatePayload,
+): Promise<VehicleOptionTemplateApiRow> {
+  const { data } = await rentClient().post<unknown>("/vehicle-option-templates", {
+    title: payload.title.trim(),
+    description: payload.description?.trim() || undefined,
+    price: payload.price,
+    icon: payload.icon?.trim() || undefined,
+    lineOrder: payload.lineOrder,
+    active: payload.active,
+  });
+  const o = data as Record<string, unknown>;
+  const price = typeof o.price === "number" ? o.price : Number(o.price);
+  return {
+    id: String(o.id ?? ""),
+    title: String(o.title ?? ""),
+    description: o.description != null ? String(o.description) : undefined,
+    price: Number.isFinite(price) ? price : 0,
+    icon: o.icon != null ? String(o.icon) : undefined,
+    lineOrder: typeof o.lineOrder === "number" ? o.lineOrder : 0,
+    active: o.active == null ? true : Boolean(o.active),
+  };
+}
+
+export async function updateVehicleOptionTemplateOnRentApi(
+  id: string,
+  payload: UpdateVehicleOptionTemplatePayload,
+): Promise<VehicleOptionTemplateApiRow> {
+  const body: Record<string, unknown> = {};
+  if (payload.title != null) body.title = payload.title.trim();
+  if (payload.description !== undefined) body.description = payload.description.trim() || null;
+  if (payload.price != null) body.price = payload.price;
+  if (payload.icon !== undefined) body.icon = payload.icon.trim() || null;
+  if (payload.lineOrder != null) body.lineOrder = payload.lineOrder;
+  if (payload.active != null) body.active = payload.active;
+  const { data } = await rentClient().patch<unknown>(`/vehicle-option-templates/${encodeURIComponent(id)}`, body);
+  const o = data as Record<string, unknown>;
+  const price = typeof o.price === "number" ? o.price : Number(o.price);
+  return {
+    id: String(o.id ?? id),
+    title: String(o.title ?? ""),
+    description: o.description != null ? String(o.description) : undefined,
+    price: Number.isFinite(price) ? price : 0,
+    icon: o.icon != null ? String(o.icon) : undefined,
+    lineOrder: typeof o.lineOrder === "number" ? o.lineOrder : 0,
+    active: o.active == null ? true : Boolean(o.active),
+  };
+}
+
+export async function deleteVehicleOptionTemplateOnRentApi(id: string): Promise<void> {
+  await rentClient().delete(`/vehicle-option-templates/${encodeURIComponent(id)}`);
+}
+
 export async function patchCountryColorOnRentApi(id: string, colorCode: string): Promise<CountryRow> {
   const { data } = await rentClient().patch<unknown>(`/countries/${id}`, { colorCode });
   return mapCountryFromApi(data as Record<string, unknown>);
@@ -554,6 +846,9 @@ export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Pro
     external: Boolean(payload.external),
     externalCompany: payload.externalCompany?.trim() || undefined,
     rentalDailyPrice: payload.rentalDailyPrice,
+    cityId: payload.cityId,
+    defaultPickupHandoverLocationId: payload.defaultPickupHandoverLocationId,
+    defaultReturnHandoverLocationId: payload.defaultReturnHandoverLocationId?.trim() || undefined,
     commissionRatePercent:
       payload.external && payload.commissionRatePercent != null && Number.isFinite(payload.commissionRatePercent)
         ? payload.commissionRatePercent
@@ -561,6 +856,19 @@ export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Pro
     commissionBrokerPhone: payload.external ? payload.commissionBrokerPhone?.trim() || undefined : undefined,
     images: payload.images && Object.keys(payload.images).length > 0 ? payload.images : undefined,
   };
+  if (payload.optionTemplateIds && payload.optionTemplateIds.length > 0) {
+    body.optionTemplateIds = payload.optionTemplateIds;
+  }
+  if (payload.optionDefinitions && payload.optionDefinitions.length > 0) {
+    body.optionDefinitions = payload.optionDefinitions.map((o, i) => ({
+      title: o.title.trim(),
+      description: o.description?.trim() || undefined,
+      price: o.price,
+      icon: o.icon?.trim() || undefined,
+      lineOrder: o.lineOrder ?? i,
+      active: o.active !== false,
+    }));
+  }
   if (payload.countryCode && payload.countryCode.length === 2) {
     body.countryCode = payload.countryCode.toUpperCase();
   }
@@ -581,8 +889,24 @@ export async function updateVehicleOnRentApi(id: string, payload: UpdateVehicleP
     commissionRatePercent: payload.commissionRatePercent,
     commissionBrokerPhone: payload.commissionBrokerPhone?.trim() || undefined,
     countryCode: payload.countryCode?.trim()?.toUpperCase() || undefined,
+    cityId: payload.cityId?.trim() || undefined,
+    defaultPickupHandoverLocationId: payload.defaultPickupHandoverLocationId?.trim() || undefined,
+    defaultReturnHandoverLocationId: payload.defaultReturnHandoverLocationId?.trim() || undefined,
     images: payload.images && Object.keys(payload.images).length > 0 ? payload.images : undefined,
   };
+  if (payload.optionTemplateIds !== undefined) {
+    body.optionTemplateIds = payload.optionTemplateIds;
+  }
+  if (payload.optionDefinitions != null) {
+    body.optionDefinitions = payload.optionDefinitions.map((o, i) => ({
+      title: o.title.trim(),
+      description: o.description?.trim() || undefined,
+      price: o.price,
+      icon: o.icon?.trim() || undefined,
+      lineOrder: o.lineOrder ?? i,
+      active: o.active !== false,
+    }));
+  }
   const { data } = await rentClient().patch<unknown>(`/vehicles/${id}`, body);
   return mapVehicleFromApi(data as Record<string, unknown>);
 }

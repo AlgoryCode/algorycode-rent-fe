@@ -89,6 +89,9 @@ function buildBreadcrumbs(
     "/requests": "Talepler",
     "/users": "Kullanıcılar",
     "/settings": "Ayarlar",
+    "/settings/locations/pickup": "Alış noktaları",
+    "/settings/locations/return": "Teslim noktaları",
+    "/settings/option-templates": "Opsiyon şablonları",
   };
 
   const label = staticLabels[path];

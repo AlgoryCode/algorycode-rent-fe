@@ -58,6 +58,18 @@ export type RentalSession = {
   accidentReports?: RentalAccidentReport[];
 };
 
+export type VehicleHandoverRef = { id: string; name?: string; kind?: string };
+
+export type VehicleOptionDefRow = {
+  id: string;
+  title: string;
+  description?: string;
+  price: number;
+  icon?: string;
+  lineOrder: number;
+  active: boolean;
+};
+
 export type Vehicle = {
   id: string;
   plate: string;
@@ -82,6 +94,13 @@ export type Vehicle = {
   commissionBrokerPhone?: string;
   /** ISO 3166-1 alpha-2 — ülke rengi için */
   countryCode?: string;
+  /** rent-service şehir kimliği */
+  cityId?: string;
+  /** Varsayılan alış / teslim handover noktaları */
+  defaultPickupHandoverLocation?: VehicleHandoverRef | null;
+  defaultReturnHandoverLocation?: VehicleHandoverRef | null;
+  /** Araç özel ek seçenek şablonları */
+  optionDefinitions?: VehicleOptionDefRow[];
   /** Açıdan görüntüler (data URL, demo saklama) */
   images?: VehicleImages;
 };

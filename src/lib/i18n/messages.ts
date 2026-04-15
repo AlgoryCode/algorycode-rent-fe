@@ -13,6 +13,9 @@ const tr = {
   "nav.countries": "Ülkeler",
   "nav.bulkMessage": "Toplu mesaj",
   "nav.settings": "Ayarlar",
+  "nav.handoverPickup": "Alış noktaları",
+  "nav.handoverReturn": "Teslim noktaları",
+  "nav.optionTemplates": "Opsiyon şablonları",
   "nav.login": "Giriş",
 
   "shell.subtitle": "Yönetim paneli",
@@ -62,6 +65,9 @@ const en: Record<MessageKey, string> = {
   "nav.countries": "Countries",
   "nav.bulkMessage": "Bulk message",
   "nav.settings": "Settings",
+  "nav.handoverPickup": "Pickup locations",
+  "nav.handoverReturn": "Return locations",
+  "nav.optionTemplates": "Option templates",
   "nav.login": "Sign in",
 
   "shell.subtitle": "Admin console",
@@ -109,6 +115,9 @@ const sq: Record<MessageKey, string> = {
   "nav.countries": "Shtetet",
   "nav.bulkMessage": "Mesazh masiv",
   "nav.settings": "Cilësimet",
+  "nav.handoverPickup": "Pikat e marrjes",
+  "nav.handoverReturn": "Pikat e kthimit",
+  "nav.optionTemplates": "Shabllonet e opsioneve",
   "nav.login": "Hyrje",
 
   "shell.subtitle": "Panel administrimi",

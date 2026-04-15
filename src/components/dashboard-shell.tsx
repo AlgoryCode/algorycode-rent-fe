@@ -16,7 +16,10 @@ import {
   MailCheck,
   MessagesSquare,
   LogOut,
+  MapPin,
+  MapPinned,
   Menu,
+  PackagePlus,
   Search,
   Settings,
   UserCog,
@@ -60,6 +63,9 @@ const ALL_NAV: NavItemDef[] = [
   { href: "/reports", msgKey: "nav.reports", icon: BarChart3 },
   { href: "/countries", msgKey: "nav.countries", icon: Globe2 },
   { href: "/customers/channel", msgKey: "nav.bulkMessage", icon: MessagesSquare },
+  { href: "/settings/locations/pickup", msgKey: "nav.handoverPickup", icon: MapPin },
+  { href: "/settings/locations/return", msgKey: "nav.handoverReturn", icon: MapPinned },
+  { href: "/settings/option-templates", msgKey: "nav.optionTemplates", icon: PackagePlus },
   { href: "/settings", msgKey: "nav.settings", icon: Settings },
 ];
 
@@ -86,7 +92,10 @@ function isNavActive(pathname: string, href: string) {
   if (href === "/payments") return pathname === "/payments" || pathname.startsWith("/payments/");
   if (href === "/requests") return pathname === "/requests" || pathname.startsWith("/requests/");
   if (href === "/users") return pathname === "/users" || pathname.startsWith("/users/");
-  if (href === "/settings") return pathname === "/settings" || pathname.startsWith("/settings/");
+  if (href === "/settings/locations/pickup") return pathname === "/settings/locations/pickup";
+  if (href === "/settings/locations/return") return pathname === "/settings/locations/return";
+  if (href === "/settings/option-templates") return pathname === "/settings/option-templates";
+  if (href === "/settings") return pathname === "/settings";
   return false;
 }
 

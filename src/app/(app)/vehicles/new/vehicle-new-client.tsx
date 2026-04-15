@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCountries } from "@/hooks/use-countries";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
-import { getRentApiErrorMessage } from "@/lib/rent-api";
+import {
+  fetchCitiesFromRentApi,
+  fetchHandoverLocationsFromRentApi,
+  fetchVehicleOptionTemplatesFromRentApi,
+  getRentApiErrorMessage,
+  type CityRow,
+  type HandoverLocationApiRow,
+  type VehicleOptionTemplateApiRow,
+} from "@/lib/rent-api";
 import { compactVehicleImages, type VehicleImages } from "@/lib/vehicle-images";
 import { VehicleImageSlotsEditor } from "@/components/vehicles/vehicle-image-slots-editor";
 
@@ -48,11 +56,58 @@ export function VehicleNewClient() {
   const [rentalDailyPrice, setRentalDailyPrice] = useState("");
   const [vehicleCountry, setVehicleCountry] = useState<string>(COUNTRY_NONE);
   const [draftImages, setDraftImages] = useState<VehicleImages>({});
+  const [cities, setCities] = useState<CityRow[]>([]);
+  const [cityId, setCityId] = useState("");
+  const [pickupLocs, setPickupLocs] = useState<HandoverLocationApiRow[]>([]);
+  const [returnLocs, setReturnLocs] = useState<HandoverLocationApiRow[]>([]);
+  const [defaultPickupId, setDefaultPickupId] = useState("");
+  const [defaultReturnId, setDefaultReturnId] = useState("");
+  const [optionTemplates, setOptionTemplates] = useState<VehicleOptionTemplateApiRow[]>([]);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
+  const [optionSearch, setOptionSearch] = useState("");
 
   const countriesSorted = useMemo(
     () => [...countries].sort((a, b) => a.name.localeCompare(b.name, "tr")),
     [countries],
   );
+
+  const selectedCountryId = useMemo(() => {
+    if (vehicleCountry === COUNTRY_NONE) return "";
+    return countriesSorted.find((c) => c.code === vehicleCountry)?.id ?? "";
+  }, [countriesSorted, vehicleCountry]);
+
+  useEffect(() => {
+    void fetchHandoverLocationsFromRentApi("PICKUP").then((rows) => setPickupLocs(rows.filter((r) => r.active !== false)));
+    void fetchHandoverLocationsFromRentApi("RETURN").then((rows) => setReturnLocs(rows.filter((r) => r.active !== false)));
+    void fetchVehicleOptionTemplatesFromRentApi().then((rows) => setOptionTemplates(rows.filter((r) => r.active)));
+  }, []);
+
+  const filteredOptionTemplates = useMemo(() => {
+    const q = optionSearch.trim().toLocaleLowerCase("tr");
+    if (!q) return optionTemplates;
+    return optionTemplates.filter(
+      (t) =>
+        t.title.toLocaleLowerCase("tr").includes(q) ||
+        (t.description ?? "").toLocaleLowerCase("tr").includes(q),
+    );
+  }, [optionSearch, optionTemplates]);
+
+  useEffect(() => {
+    if (!selectedCountryId) {
+      setCities([]);
+      setCityId("");
+      return;
+    }
+    let cancelled = false;
+    void fetchCitiesFromRentApi(selectedCountryId).then((list) => {
+      if (cancelled) return;
+      setCities(list);
+      if (list.length === 1) setCityId(list[0].id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCountryId]);
 
   const submitNewVehicle = async () => {
     const p = normalizePlate(plate);
@@ -90,6 +145,14 @@ export function VehicleNewClient() {
       toast.error("Araç için ön, arka, sol, sağ, kokpit ve arka koltuk fotoğrafları zorunlu.");
       return;
     }
+    if (!selectedCountryId || !cityId.trim()) {
+      toast.error("Ülke ve şehir seçimi zorunludur (rent-service şehir kaydı).");
+      return;
+    }
+    if (!defaultPickupId.trim()) {
+      toast.error("Varsayılan alış noktası seçin.");
+      return;
+    }
     setSaving(true);
     try {
       const created = await addVehicle({
@@ -104,6 +167,10 @@ export function VehicleNewClient() {
         commissionBrokerPhone: externalVehicle ? commissionBrokerPhone.trim() : undefined,
         rentalDailyPrice: rentalPrice,
         countryCode: vehicleCountry !== COUNTRY_NONE ? vehicleCountry : undefined,
+        cityId: cityId.trim(),
+        defaultPickupHandoverLocationId: defaultPickupId.trim(),
+        defaultReturnHandoverLocationId: defaultReturnId.trim() || undefined,
+        optionTemplateIds: selectedTemplateIds.length > 0 ? selectedTemplateIds : undefined,
         images,
       });
       toast.success("Araç kaydedildi");
@@ -172,6 +239,125 @@ export function VehicleNewClient() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          {selectedCountryId ? (
+            <div className="space-y-1">
+              <Label htmlFor="nv-city">Şehir</Label>
+              <Select value={cityId || undefined} onValueChange={setCityId}>
+                <SelectTrigger id="nv-city" className="w-full">
+                  <SelectValue placeholder={cities.length ? "Şehir seçin" : "Şehir yükleniyor…"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          <div className="space-y-1">
+            <Label>Varsayılan alış noktası</Label>
+            <Select value={defaultPickupId || undefined} onValueChange={setDefaultPickupId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="PICKUP noktası seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {pickupLocs.map((loc) => (
+                  <SelectItem key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Varsayılan teslim noktası (opsiyonel)</Label>
+            <Select
+              value={defaultReturnId.trim() ? defaultReturnId : "__none_return__"}
+              onValueChange={(v) => setDefaultReturnId(v === "__none_return__" ? "" : v)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="RETURN noktası (isteğe bağlı)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none_return__">Atanmadı</SelectItem>
+                {returnLocs.map((loc) => (
+                  <SelectItem key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2 rounded-md border border-border/50 bg-muted/20 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label className="text-xs">Ek opsiyonlar (şablondan)</Label>
+              <Button variant="ghost" className="h-auto px-1 py-0 text-[11px] text-primary" asChild>
+                <Link href="/settings/option-templates">Şablonları yönet</Link>
+              </Button>
+            </div>
+            <Input
+              placeholder="Şablonda ara…"
+              value={optionSearch}
+              onChange={(e) => setOptionSearch(e.target.value)}
+              className="h-8 text-xs"
+            />
+            {selectedTemplateIds.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {selectedTemplateIds.map((id) => {
+                  const t = optionTemplates.find((x) => x.id === id);
+                  return (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[10px]"
+                    >
+                      <span className="max-w-[10rem] truncate">{t?.title ?? id}</span>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label="Kaldır"
+                        onClick={() => setSelectedTemplateIds((prev) => prev.filter((x) => x !== id))}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">İsteğe bağlı. Seçilen sıra ile araca kopyalanır.</p>
+            )}
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded border border-border/40 bg-background/50 p-1">
+              {filteredOptionTemplates.length === 0 ? (
+                <p className="px-2 py-2 text-[11px] text-muted-foreground">
+                  {optionTemplates.length === 0 ? "Önce opsiyon şablonu ekleyin." : "Eşleşen şablon yok."}
+                </p>
+              ) : (
+                filteredOptionTemplates.map((t) => {
+                  const selected = selectedTemplateIds.includes(t.id);
+                  return (
+                    <div key={t.id} className="flex items-center justify-between gap-2 rounded px-1 py-1 hover:bg-muted/60">
+                      <div className="min-w-0">
+                        <p className="truncate text-[11px] font-medium">{t.title}</p>
+                        <p className="text-[10px] text-muted-foreground">{t.price}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={selected ? "secondary" : "outline"}
+                        className="h-7 shrink-0 px-2 text-[10px]"
+                        disabled={selected}
+                        onClick={() => setSelectedTemplateIds((prev) => [...prev, t.id])}
+                      >
+                        {selected ? "Eklendi" : "Ekle"}
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
           <label className="flex cursor-pointer items-center gap-2 text-xs">
             <input type="checkbox" checked={maintenance} onChange={(e) => setMaintenance(e.target.checked)} className="rounded border-input" />
