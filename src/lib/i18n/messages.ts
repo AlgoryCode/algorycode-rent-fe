@@ -15,7 +15,9 @@ const tr = {
   "nav.settings": "Ayarlar",
   "nav.handoverPickup": "Alış noktaları",
   "nav.handoverReturn": "Teslim noktaları",
-  "nav.optionTemplates": "Opsiyon şablonları",
+  "nav.optionsGroup": "Opsiyonlar",
+  "nav.vehicleOptions": "Araç opsiyonları",
+  "nav.rentalOptions": "Kiralama opsiyonları",
   "nav.login": "Giriş",
 
   "shell.subtitle": "Yönetim paneli",
@@ -67,7 +69,9 @@ const en: Record<MessageKey, string> = {
   "nav.settings": "Settings",
   "nav.handoverPickup": "Pickup locations",
   "nav.handoverReturn": "Return locations",
-  "nav.optionTemplates": "Option templates",
+  "nav.optionsGroup": "Options",
+  "nav.vehicleOptions": "Vehicle options",
+  "nav.rentalOptions": "Rental options",
   "nav.login": "Sign in",
 
   "shell.subtitle": "Admin console",
@@ -117,7 +121,9 @@ const sq: Record<MessageKey, string> = {
   "nav.settings": "Cilësimet",
   "nav.handoverPickup": "Pikat e marrjes",
   "nav.handoverReturn": "Pikat e kthimit",
-  "nav.optionTemplates": "Shabllonet e opsioneve",
+  "nav.optionsGroup": "Opsionet",
+  "nav.vehicleOptions": "Opsionet e automjetit",
+  "nav.rentalOptions": "Opsionet e qirasë",
   "nav.login": "Hyrje",
 
   "shell.subtitle": "Panel administrimi",

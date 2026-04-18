@@ -22,6 +22,7 @@ import {
   type VehicleOptionTemplateApiRow,
 } from "@/lib/rent-api";
 import { compactVehicleImages, type VehicleImages } from "@/lib/vehicle-images";
+import { HandoverReturnMultiCombobox } from "@/components/vehicles/handover-return-multi-combobox";
 import { VehicleImageSlotsEditor } from "@/components/vehicles/vehicle-image-slots-editor";
 
 const REQUIRED_VEHICLE_IMAGE_SLOTS: (keyof VehicleImages)[] = [
@@ -61,10 +62,11 @@ export function VehicleNewClient() {
   const [pickupLocs, setPickupLocs] = useState<HandoverLocationApiRow[]>([]);
   const [returnLocs, setReturnLocs] = useState<HandoverLocationApiRow[]>([]);
   const [defaultPickupId, setDefaultPickupId] = useState("");
-  const [defaultReturnId, setDefaultReturnId] = useState("");
+  const [selectedReturnIds, setSelectedReturnIds] = useState<string[]>([]);
   const [optionTemplates, setOptionTemplates] = useState<VehicleOptionTemplateApiRow[]>([]);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const [optionSearch, setOptionSearch] = useState("");
+  const [highlightsText, setHighlightsText] = useState("");
 
   const countriesSorted = useMemo(
     () => [...countries].sort((a, b) => a.name.localeCompare(b.name, "tr")),
@@ -153,6 +155,12 @@ export function VehicleNewClient() {
       toast.error("Varsayılan alış noktası seçin.");
       return;
     }
+    const highlightsFromText = highlightsText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .slice(0, 30);
+
     setSaving(true);
     try {
       const created = await addVehicle({
@@ -169,8 +177,9 @@ export function VehicleNewClient() {
         countryCode: vehicleCountry !== COUNTRY_NONE ? vehicleCountry : undefined,
         cityId: cityId.trim(),
         defaultPickupHandoverLocationId: defaultPickupId.trim(),
-        defaultReturnHandoverLocationId: defaultReturnId.trim() || undefined,
+        returnHandoverLocationIds: selectedReturnIds.length > 0 ? selectedReturnIds : undefined,
         optionTemplateIds: selectedTemplateIds.length > 0 ? selectedTemplateIds : undefined,
+        highlights: highlightsFromText.length > 0 ? highlightsFromText : undefined,
         images,
       });
       toast.success("Araç kaydedildi");
@@ -273,29 +282,23 @@ export function VehicleNewClient() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label>Varsayılan teslim noktası (opsiyonel)</Label>
-            <Select
-              value={defaultReturnId.trim() ? defaultReturnId : "__none_return__"}
-              onValueChange={(v) => setDefaultReturnId(v === "__none_return__" ? "" : v)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="RETURN noktası (isteğe bağlı)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none_return__">Atanmadı</SelectItem>
-                {returnLocs.map((loc) => (
-                  <SelectItem key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Teslim noktaları</Label>
+            <p className="text-[11px] text-muted-foreground">
+              Açılır listede arayıp birden fazla seçebilirsiniz. Boş bırakırsanız bu araç için teslim kısıtı olmaz.
+            </p>
+            <HandoverReturnMultiCombobox
+              locations={returnLocs}
+              value={selectedReturnIds}
+              onChange={setSelectedReturnIds}
+              placeholder="Teslim noktası seçin…"
+              emptyMessage="Ayarlar → Teslim noktalarından RETURN kaydı ekleyin"
+            />
           </div>
           <div className="space-y-2 rounded-md border border-border/50 bg-muted/20 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-xs">Ek opsiyonlar (şablondan)</Label>
               <Button variant="ghost" className="h-auto px-1 py-0 text-[11px] text-primary" asChild>
-                <Link href="/settings/option-templates">Şablonları yönet</Link>
+                <Link href="/settings/options/vehicle">Şablonları yönet</Link>
               </Button>
             </div>
             <Input
@@ -418,6 +421,18 @@ export function VehicleNewClient() {
               onChange={(e) => setRentalDailyPrice(e.target.value)}
               placeholder="0.00"
             />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="nv-highlights">Öne çıkanlar (opsiyonel)</Label>
+            <textarea
+              id="nv-highlights"
+              value={highlightsText}
+              onChange={(e) => setHighlightsText(e.target.value)}
+              placeholder={"Her satır bir madde (en fazla 30).\nÖrn: Kasko dahil\n7/24 yol yardımı"}
+              rows={4}
+              className="flex min-h-[88px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <p className="text-[10px] text-muted-foreground">İlan ve müşteri arayüzünde sırayla gösterilir.</p>
           </div>
           <VehicleImageSlotsEditor value={draftImages} onChange={setDraftImages} />
         </CardContent>

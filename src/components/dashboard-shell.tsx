@@ -11,15 +11,14 @@ import {
   CalendarDays,
   Car,
   CarFront,
+  ChevronDown,
   Globe2,
   LayoutDashboard,
+  Layers,
   MailCheck,
   MessagesSquare,
   LogOut,
-  MapPin,
-  MapPinned,
   Menu,
-  PackagePlus,
   Search,
   Settings,
   UserCog,
@@ -34,6 +33,7 @@ import { useLocale } from "@/components/locale-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { ApiError } from "@/lib/api/errors";
 import { authService } from "@/lib/auth-service";
@@ -49,27 +49,51 @@ import { hrefRequiresRentManager } from "@/lib/rbac/route-policy";
 import { cn } from "@/lib/utils";
 import { useRentFeRoles } from "@/hooks/useRentFeRoles";
 
-type NavItemDef = { href: string; msgKey: MessageKey; icon: LucideIcon };
+type NavLinkDef = { type: "link"; href: string; msgKey: MessageKey; icon: LucideIcon };
+type NavGroupDef = {
+  type: "group";
+  id: string;
+  msgKey: MessageKey;
+  icon: LucideIcon;
+  children: { href: string; msgKey: MessageKey }[];
+};
 
-const ALL_NAV: NavItemDef[] = [
-  { href: "/dashboard", msgKey: "nav.quickMenu", icon: LayoutDashboard },
-  { href: "/vehicles", msgKey: "nav.vehicles", icon: Car },
-  { href: "/logs", msgKey: "nav.logs", icon: CalendarDays },
-  { href: "/calendar", msgKey: "nav.calendar", icon: Calendar },
-  { href: "/customers", msgKey: "nav.customers", icon: Users },
-  { href: "/requests", msgKey: "nav.requests", icon: MailCheck },
-  { href: "/users", msgKey: "nav.users", icon: UserCog },
-  { href: "/payments", msgKey: "nav.payments", icon: Wallet },
-  { href: "/reports", msgKey: "nav.reports", icon: BarChart3 },
-  { href: "/countries", msgKey: "nav.countries", icon: Globe2 },
-  { href: "/customers/channel", msgKey: "nav.bulkMessage", icon: MessagesSquare },
-  { href: "/settings/locations/pickup", msgKey: "nav.handoverPickup", icon: MapPin },
-  { href: "/settings/locations/return", msgKey: "nav.handoverReturn", icon: MapPinned },
-  { href: "/settings/option-templates", msgKey: "nav.optionTemplates", icon: PackagePlus },
-  { href: "/settings", msgKey: "nav.settings", icon: Settings },
+const ALL_NAV: (NavLinkDef | NavGroupDef)[] = [
+  { type: "link", href: "/dashboard", msgKey: "nav.quickMenu", icon: LayoutDashboard },
+  { type: "link", href: "/vehicles", msgKey: "nav.vehicles", icon: Car },
+  { type: "link", href: "/logs", msgKey: "nav.logs", icon: CalendarDays },
+  { type: "link", href: "/calendar", msgKey: "nav.calendar", icon: Calendar },
+  { type: "link", href: "/customers", msgKey: "nav.customers", icon: Users },
+  { type: "link", href: "/requests", msgKey: "nav.requests", icon: MailCheck },
+  { type: "link", href: "/users", msgKey: "nav.users", icon: UserCog },
+  { type: "link", href: "/payments", msgKey: "nav.payments", icon: Wallet },
+  { type: "link", href: "/reports", msgKey: "nav.reports", icon: BarChart3 },
+  { type: "link", href: "/countries", msgKey: "nav.countries", icon: Globe2 },
+  { type: "link", href: "/customers/channel", msgKey: "nav.bulkMessage", icon: MessagesSquare },
+  {
+    type: "group",
+    id: "options",
+    msgKey: "nav.optionsGroup",
+    icon: Layers,
+    children: [
+      { href: "/settings/options/vehicle", msgKey: "nav.vehicleOptions" },
+      { href: "/settings/options/rental", msgKey: "nav.rentalOptions" },
+      { href: "/settings/locations/pickup", msgKey: "nav.handoverPickup" },
+      { href: "/settings/locations/return", msgKey: "nav.handoverReturn" },
+    ],
+  },
+  { type: "link", href: "/settings", msgKey: "nav.settings", icon: Settings },
 ];
 
-const DESKTOP_NAV_DEFS = ALL_NAV.filter((i) => i.href !== "/dashboard");
+const DESKTOP_NAV_DEFS = ALL_NAV.filter((i) => i.type !== "link" || i.href !== "/dashboard");
+
+function navLinkAllows(item: NavLinkDef, hasManagerAccess: boolean): boolean {
+  return !hrefRequiresRentManager(item.href) || hasManagerAccess;
+}
+
+function navGroupAllows(item: NavGroupDef, hasManagerAccess: boolean): boolean {
+  return item.children.some((c) => !hrefRequiresRentManager(c.href) || hasManagerAccess);
+}
 
 function isNavActive(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
@@ -94,9 +118,24 @@ function isNavActive(pathname: string, href: string) {
   if (href === "/users") return pathname === "/users" || pathname.startsWith("/users/");
   if (href === "/settings/locations/pickup") return pathname === "/settings/locations/pickup";
   if (href === "/settings/locations/return") return pathname === "/settings/locations/return";
-  if (href === "/settings/option-templates") return pathname === "/settings/option-templates";
-  if (href === "/settings") return pathname === "/settings";
+  if (href === "/settings/options/vehicle") return pathname === "/settings/options/vehicle";
+  if (href === "/settings/options/rental") return pathname === "/settings/options/rental";
+  if (href === "/settings") {
+    return (
+      pathname === "/settings" &&
+      !pathname.startsWith("/settings/options") &&
+      !pathname.startsWith("/settings/locations/")
+    );
+  }
   return false;
+}
+
+function isOptionsGroupActive(pathname: string) {
+  return (
+    pathname.startsWith("/settings/options") ||
+    pathname.startsWith("/settings/locations/pickup") ||
+    pathname.startsWith("/settings/locations/return")
+  );
 }
 
 function UserAvatarLogoutMenu({
@@ -238,9 +277,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { t, locale } = useLocale();
   const { hasManagerAccess } = useRentFeRoles();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [optionsGroupOpen, setOptionsGroupOpen] = useState(() => isOptionsGroupActive(pathname));
   const [routeSearch, setRouteSearch] = useState("");
   const [sessionIdentity, setSessionIdentity] = useState<SessionIdentityFromJwt | null>(null);
   const showTemplateActions = pathname !== "/dashboard";
+
+  useEffect(() => {
+    if (isOptionsGroupActive(pathname)) setOptionsGroupOpen(true);
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -265,29 +309,30 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const searchLocaleTag = locale === "tr" ? "tr-TR" : locale === "sq" ? "sq-AL" : "en-US";
 
   const filteredDesktopNav = useMemo(
-    () =>
-      DESKTOP_NAV_DEFS.filter((item) => !hrefRequiresRentManager(item.href) || hasManagerAccess).map((item) => ({
-        href: item.href,
-        icon: item.icon,
-        label: t(item.msgKey),
-      })),
-    [hasManagerAccess, t],
+    () => DESKTOP_NAV_DEFS.filter((item) => (item.type === "link" ? navLinkAllows(item, hasManagerAccess) : navGroupAllows(item, hasManagerAccess))),
+    [hasManagerAccess],
   );
 
   const filteredNav = useMemo(
-    () =>
-      ALL_NAV.filter((item) => !hrefRequiresRentManager(item.href) || hasManagerAccess).map((item) => ({
-        href: item.href,
-        icon: item.icon,
-        label: t(item.msgKey),
-      })),
-    [hasManagerAccess, t],
+    () => ALL_NAV.filter((item) => (item.type === "link" ? navLinkAllows(item, hasManagerAccess) : navGroupAllows(item, hasManagerAccess))),
+    [hasManagerAccess],
   );
 
-  const searchableRoutes = useMemo(
-    () => [...filteredNav, { href: "/login", label: t("nav.login") }],
-    [filteredNav, t],
-  );
+  const searchableRoutes = useMemo(() => {
+    const routes: { href: string; label: string }[] = [];
+    for (const item of filteredNav) {
+      if (item.type === "link") {
+        routes.push({ href: item.href, label: t(item.msgKey) });
+      } else {
+        for (const c of item.children) {
+          routes.push({ href: c.href, label: `${t(item.msgKey)} › ${t(c.msgKey)}` });
+        }
+      }
+    }
+    routes.push({ href: "/settings/options", label: `${t("nav.optionsGroup")} (özet)` });
+    routes.push({ href: "/login", label: t("nav.login") });
+    return routes;
+  }, [filteredNav, t]);
 
   const routeSearchResults = useMemo(() => {
     const query = routeSearch.trim().toLocaleLowerCase(searchLocaleTag);
@@ -397,20 +442,62 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
         <nav className="flex flex-col gap-0.5 p-2">
-          {filteredDesktopNav.map(({ href, label, icon: Icon }) => {
-            const active = isNavActive(pathname, href);
+          {filteredDesktopNav.map((item) => {
+            if (item.type === "link") {
+              const active = isNavActive(pathname, item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-colors",
+                    active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {t(item.msgKey)}
+                </Link>
+              );
+            }
+            const GroupIcon = item.icon;
+            const groupActive = isOptionsGroupActive(pathname);
             return (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-colors",
-                  active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {label}
-              </Link>
+              <Collapsible key={item.id} open={optionsGroupOpen} onOpenChange={setOptionsGroupOpen} className="w-full">
+                <CollapsibleTrigger
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    groupActive
+                      ? "bg-primary/15 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <GroupIcon className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate text-left">{t(item.msgKey)}</span>
+                  <ChevronDown
+                    className={cn("h-3.5 w-3.5 shrink-0 opacity-70 transition-transform", optionsGroupOpen && "rotate-180")}
+                    aria-hidden
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="ml-2 mt-0.5 space-y-0.5 border-l border-border/60 pl-2">
+                  {item.children.map((c) => {
+                    const active = isNavActive(pathname, c.href);
+                    return (
+                      <Link
+                        key={c.href}
+                        href={c.href}
+                        className={cn(
+                          "flex items-center rounded-md py-1.5 pl-2 pr-2 text-[11px] font-medium transition-colors",
+                          active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        {t(c.msgKey)}
+                      </Link>
+                    );
+                  })}
+                </CollapsibleContent>
+              </Collapsible>
             );
           })}
         </nav>
@@ -440,21 +527,64 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               </div>
 
               <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-2">
-                {filteredNav.map(({ href, label, icon: Icon }) => {
-                  const active = isNavActive(pathname, href);
+                {filteredNav.map((item) => {
+                  if (item.type === "link") {
+                    const active = isNavActive(pathname, item.href);
+                    const Icon = item.icon;
+                    return (
+                      <SheetClose key={item.href} asChild>
+                        <Link
+                          href={item.href}
+                          className={cn(
+                            "flex min-h-[44px] items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors active:bg-muted/80",
+                            active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                          )}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
+                          {t(item.msgKey)}
+                        </Link>
+                      </SheetClose>
+                    );
+                  }
+                  const GroupIcon = item.icon;
+                  const groupActive = isOptionsGroupActive(pathname);
                   return (
-                    <SheetClose key={href} asChild>
-                      <Link
-                        href={href}
+                    <Collapsible key={item.id} open={optionsGroupOpen} onOpenChange={setOptionsGroupOpen} className="w-full">
+                      <CollapsibleTrigger
+                        type="button"
                         className={cn(
-                          "flex min-h-[44px] items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors active:bg-muted/80",
-                          active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                          "flex min-h-[44px] w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-muted/80",
+                          groupActive
+                            ? "bg-primary/15 text-primary"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
                         )}
                       >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        {label}
-                      </Link>
-                    </SheetClose>
+                        <GroupIcon className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate text-left">{t(item.msgKey)}</span>
+                        <ChevronDown
+                          className={cn("h-4 w-4 shrink-0 opacity-70 transition-transform", optionsGroupOpen && "rotate-180")}
+                          aria-hidden
+                        />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="ml-3 mt-0.5 space-y-0.5 border-l border-border/60 pl-2">
+                        {item.children.map((c) => {
+                          const active = isNavActive(pathname, c.href);
+                          return (
+                            <SheetClose key={c.href} asChild>
+                              <Link
+                                href={c.href}
+                                className={cn(
+                                  "flex min-h-[40px] items-center rounded-md py-2 pl-2 pr-3 text-[13px] font-medium transition-colors active:bg-muted/80",
+                                  active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                )}
+                              >
+                                {t(c.msgKey)}
+                              </Link>
+                            </SheetClose>
+                          );
+                        })}
+                      </CollapsibleContent>
+                    </Collapsible>
                   );
                 })}
               </nav>

@@ -29,6 +29,8 @@ type FormState = {
   description: string;
   addressLine: string;
   lineOrder: string;
+  /** Bu nokta seçildiğinde rezervasyona eklenecek sabit tutar (EUR), virgül veya nokta. */
+  surchargeEur: string;
   active: boolean;
   vehicleCountry: string;
   cityId: string;
@@ -39,10 +41,19 @@ const emptyForm = (): FormState => ({
   description: "",
   addressLine: "",
   lineOrder: "0",
+  surchargeEur: "0",
   active: true,
   vehicleCountry: COUNTRY_NONE,
   cityId: "",
 });
+
+function parseSurchargeEurInput(raw: string): number | null {
+  const t = raw.trim().replace(",", ".");
+  if (t === "") return 0;
+  const n = Number.parseFloat(t);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
 
 export function HandoverLocationsManageClient({
   kind,
@@ -112,11 +123,13 @@ export function HandoverLocationsManageClient({
     setEditingId(row.id);
     const cc = row.countryCode?.trim().toUpperCase() ?? "";
     const country = countriesSorted.find((c) => c.code === cc);
+    const sur = row.surchargeEur ?? 0;
     setForm({
       name: row.name,
       description: row.description ?? "",
       addressLine: row.addressLine ?? "",
       lineOrder: String(row.lineOrder ?? 0),
+      surchargeEur: String(sur),
       active: row.active !== false,
       vehicleCountry: country?.code ?? COUNTRY_NONE,
       cityId: row.cityId ?? "",
@@ -139,6 +152,15 @@ export function HandoverLocationsManageClient({
       toast.error("Sıra numarası geçerli bir tam sayı olmalı.");
       return;
     }
+    const surchargeParsed = parseSurchargeEurInput(form.surchargeEur);
+    if (surchargeParsed === null) {
+      toast.error("Ek ücret (EUR) geçerli bir sayı olmalı.");
+      return;
+    }
+    if (surchargeParsed < 0) {
+      toast.error("Ek ücret (EUR) negatif olamaz.");
+      return;
+    }
     const cityId = form.cityId.trim() || undefined;
     setSaving(true);
     try {
@@ -151,6 +173,7 @@ export function HandoverLocationsManageClient({
           cityId,
           lineOrder: lo,
           active: form.active,
+          surchargeEur: surchargeParsed,
         });
         toast.success("Kayıt oluşturuldu.");
       } else if (editingId) {
@@ -160,6 +183,7 @@ export function HandoverLocationsManageClient({
           addressLine: form.addressLine.trim(),
           lineOrder: lo,
           active: form.active,
+          surchargeEur: surchargeParsed,
         };
         if (cityId) patch.cityId = cityId;
         else patch.clearCity = true;
@@ -201,7 +225,7 @@ export function HandoverLocationsManageClient({
               Teslim noktaları
             </Link>
             <span className="text-muted-foreground">·</span>
-            <Link href="/settings/option-templates" className="text-primary underline-offset-2 hover:underline">
+            <Link href="/settings/options/vehicle" className="text-primary underline-offset-2 hover:underline">
               Opsiyon şablonları
             </Link>
             <span className="text-muted-foreground">·</span>
@@ -272,6 +296,19 @@ export function HandoverLocationsManageClient({
                 </div>
               ) : null}
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Ek ücret (EUR)</Label>
+              <Input
+                inputMode="decimal"
+                value={form.surchargeEur}
+                onChange={(e) => setForm((f) => ({ ...f, surchargeEur: e.target.value }))}
+                className="h-9 text-sm"
+                placeholder="0"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Müşteri bu teslim/alış noktasını seçtiğinde fiyata eklenecek sabit tutar. Boş veya 0 = ek ücret yok.
+              </p>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">Liste sırası</Label>
@@ -324,6 +361,9 @@ export function HandoverLocationsManageClient({
                       {[row.cityName, row.countryCode].filter(Boolean).join(" · ") || "Şehir atanmadı"}
                       {" · "}
                       sıra {row.lineOrder ?? 0}
+                      {(row.surchargeEur ?? 0) > 0
+                        ? ` · ek ücret ${new Intl.NumberFormat("tr-TR", { style: "currency", currency: "EUR" }).format(row.surchargeEur ?? 0)}`
+                        : ""}
                       {row.active === false ? " · pasif" : ""}
                     </p>
                   </div>

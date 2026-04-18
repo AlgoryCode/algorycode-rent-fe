@@ -1,5 +1,5 @@
-import { VehicleOptionTemplatesManageClient } from "@/components/settings/vehicle-option-templates-manage-client";
+import { redirect } from "next/navigation";
 
-export default function OptionTemplatesSettingsPage() {
-  return <VehicleOptionTemplatesManageClient />;
+export default function LegacyOptionTemplatesRedirectPage() {
+  redirect("/settings/options/vehicle");
 }

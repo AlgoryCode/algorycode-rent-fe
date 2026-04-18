@@ -32,6 +32,13 @@ function buildBreadcrumbs(
     return [{ label: "Araçlar", href: "/vehicles" }, { label: "Yeni araç" }];
   }
 
+  const vehicleOptions = path.match(/^\/vehicles\/([^/]+)\/options$/);
+  if (vehicleOptions) {
+    const id = vehicleOptions[1];
+    const shortTitle = vehicleLabelById.get(id) ?? "Araç";
+    return [{ label: "Araçlar", href: "/vehicles" }, { label: shortTitle, href: `/vehicles/${id}` }, { label: "Opsiyon ekle" }];
+  }
+
   const vehicleDetail = path.match(/^\/vehicles\/([^/]+)$/);
   if (vehicleDetail) {
     const id = vehicleDetail[1];
@@ -91,7 +98,9 @@ function buildBreadcrumbs(
     "/settings": "Ayarlar",
     "/settings/locations/pickup": "Alış noktaları",
     "/settings/locations/return": "Teslim noktaları",
-    "/settings/option-templates": "Opsiyon şablonları",
+    "/settings/options": "Opsiyonlar",
+    "/settings/options/vehicle": "Araç opsiyonları",
+    "/settings/options/rental": "Kiralama opsiyonları",
   };
 
   const label = staticLabels[path];

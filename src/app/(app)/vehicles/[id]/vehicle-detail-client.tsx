@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { addDays, addMonths, addYears, differenceInCalendarDays, eachDayOfInterval, format, parseISO, startOfDay, startOfMonth } from "date-fns";
 import { tr } from "date-fns/locale";
 import { DayPicker, type DateRange } from "react-day-picker";
@@ -13,6 +13,7 @@ import {
   Building2,
   CalendarDays,
   KeyRound,
+  PackagePlus,
   ScrollText,
   User,
   UserCircle2,
@@ -21,6 +22,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { HandoverReturnMultiCombobox } from "@/components/vehicles/handover-return-multi-combobox";
 import { VehicleDetailListingGallery } from "@/components/vehicles/vehicle-detail-listing-gallery";
 import { VehicleImageSlotsRemoteEditor } from "@/components/vehicles/vehicle-image-slots-remote-editor";
 import { RentAvailabilityCalendar } from "@/components/rent-calendar/rent-availability-calendar";
@@ -37,13 +39,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ImageSourceInput } from "@/components/ui/image-source-input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCountries } from "@/hooks/use-countries";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
-import { getRentApiErrorMessage } from "@/lib/rent-api";
+import { fetchHandoverLocationsFromRentApi, getRentApiErrorMessage, type HandoverLocationApiRow } from "@/lib/rent-api";
 import {
   bookedDatesForVehicle,
   dateRangesOverlap,
@@ -172,6 +175,36 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     vehicle.rentalDailyPrice != null ? String(vehicle.rentalDailyPrice) : "",
   );
   const [editCountryCode, setEditCountryCode] = useState<string>(vehicle.countryCode ?? COUNTRY_NONE);
+  const [editHighlightsText, setEditHighlightsText] = useState("");
+  const [editPickupHandoverId, setEditPickupHandoverId] = useState("");
+  const [editReturnHandoverIds, setEditReturnHandoverIds] = useState<string[]>([]);
+  const [editPickupHandoverRows, setEditPickupHandoverRows] = useState<HandoverLocationApiRow[]>([]);
+  const [editReturnHandoverRows, setEditReturnHandoverRows] = useState<HandoverLocationApiRow[]>([]);
+  const editHighlightsFieldId = useId();
+
+  useEffect(() => {
+    if (!editOpen) return;
+    setEditHighlightsText((vehicle.highlights ?? []).join("\n"));
+  }, [editOpen, vehicle]);
+
+  useEffect(() => {
+    if (!editOpen) return;
+    setEditPickupHandoverId(vehicle.defaultPickupHandoverLocation?.id ?? "");
+    const fromList = vehicle.returnHandoverLocations?.map((x) => x.id) ?? [];
+    setEditReturnHandoverIds(
+      fromList.length > 0
+        ? fromList
+        : vehicle.defaultReturnHandoverLocation?.id
+          ? [vehicle.defaultReturnHandoverLocation.id]
+          : [],
+    );
+    void fetchHandoverLocationsFromRentApi("PICKUP").then((rows) =>
+      setEditPickupHandoverRows(rows.filter((r) => r.active !== false)),
+    );
+    void fetchHandoverLocationsFromRentApi("RETURN").then((rows) =>
+      setEditReturnHandoverRows(rows.filter((r) => r.active !== false)),
+    );
+  }, [editOpen, vehicle]);
 
   const filteredRentalLogs = useMemo(() => {
     return sortSessionsByLogTimeDesc(filterRentalLogSessions(rentalLogs, logFilters));
@@ -586,6 +619,10 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       toast.error("Günlük kiralama fiyatı sıfırdan büyük olmalı.");
       return;
     }
+    if (!editPickupHandoverId.trim()) {
+      toast.error("Alış noktası seçin.");
+      return;
+    }
     if (editExternal) {
       if (!editExternalCompany.trim()) {
         toast.error("Harici araçta firma adı zorunlu.");
@@ -596,6 +633,12 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         return;
       }
     }
+
+    const highlightsPayload = editHighlightsText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .slice(0, 30);
 
     setSavingVehicle(true);
     try {
@@ -611,6 +654,9 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         commissionBrokerPhone: editExternal ? editCommissionPhone.trim() : "",
         rentalDailyPrice: rentalPrice,
         countryCode: editCountryCode !== COUNTRY_NONE ? editCountryCode : "",
+        defaultPickupHandoverLocationId: editPickupHandoverId.trim(),
+        returnHandoverLocationIds: editReturnHandoverIds,
+        highlights: highlightsPayload,
       });
       toast.success("Araç bilgileri güncellendi.");
       setEditOpen(false);
@@ -1003,16 +1049,24 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
             </p>
           </div>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          className="h-8 w-full shrink-0 gap-1.5 text-xs sm:w-auto"
-          disabled={vehicle.maintenance}
-          onClick={() => openForDay(new Date())}
-        >
-          <KeyRound className="h-3.5 w-3.5" />
-          Kiralama başlat
-        </Button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <Button type="button" size="sm" variant="outline" className="h-8 w-full shrink-0 gap-1.5 text-xs sm:w-auto" asChild>
+            <Link href={`/vehicles/${vehicle.id}/options`}>
+              <PackagePlus className="h-3.5 w-3.5" />
+              Opsiyon ekle
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 w-full shrink-0 gap-1.5 text-xs sm:w-auto"
+            disabled={vehicle.maintenance}
+            onClick={() => openForDay(new Date())}
+          >
+            <KeyRound className="h-3.5 w-3.5" />
+            Kiralama başlat
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start lg:gap-6">
@@ -1071,6 +1125,16 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                 </div>
               ))}
             </div>
+            {vehicle.highlights && vehicle.highlights.length > 0 ? (
+              <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Öne çıkanlar</p>
+                <ul className="mt-2 list-inside list-disc space-y-1 text-sm font-medium text-foreground/90">
+                  {vehicle.highlights.map((h, i) => (
+                    <li key={`${i}-${h.slice(0, 24)}`}>{h}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </div>
@@ -1405,18 +1469,65 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
             </div>
             <div className="space-y-1">
               <Label>Ülke</Label>
-              <select
-                value={editCountryCode}
-                onChange={(e) => setEditCountryCode(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value={COUNTRY_NONE}>Atanmadı</option>
-                {countries.map((c) => (
-                  <option key={c.id} value={c.code}>
-                    {c.name} ({c.code})
-                  </option>
-                ))}
-              </select>
+              <Select value={editCountryCode} onValueChange={setEditCountryCode}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Ülke seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={COUNTRY_NONE}>Atanmadı</SelectItem>
+                  {countries.map((c) => (
+                    <SelectItem key={c.id} value={c.code}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-border/60"
+                          style={{ backgroundColor: c.colorCode }}
+                          aria-hidden
+                        />
+                        {c.name} ({c.code})
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Alış noktası</Label>
+              <Select value={editPickupHandoverId || undefined} onValueChange={setEditPickupHandoverId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="PICKUP seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {editPickupHandoverRows.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Teslim noktaları</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Açılır listede arayıp birden fazla işaretleyebilirsiniz. Hiçbiri yoksa bu araç için teslim kısıtı kalkar.
+              </p>
+              <HandoverReturnMultiCombobox
+                locations={editReturnHandoverRows}
+                value={editReturnHandoverIds}
+                onChange={setEditReturnHandoverIds}
+                placeholder="Teslim noktası seçin…"
+                emptyMessage="Önce ayarlardan RETURN noktası tanımlayın"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={editHighlightsFieldId}>Öne çıkanlar (opsiyonel)</Label>
+              <textarea
+                id={editHighlightsFieldId}
+                value={editHighlightsText}
+                onChange={(e) => setEditHighlightsText(e.target.value)}
+                placeholder={"Her satır bir madde (en fazla 30).\nBoş bırakırsanız listeden kaldırılır."}
+                rows={4}
+                className="flex min-h-[88px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
             </div>
           </div>
           <DialogFooter>

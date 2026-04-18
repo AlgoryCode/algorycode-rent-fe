@@ -98,9 +98,14 @@ export type Vehicle = {
   cityId?: string;
   /** Varsayılan alış / teslim handover noktaları */
   defaultPickupHandoverLocation?: VehicleHandoverRef | null;
+  /** Kirada varsayılan teslim; çoklu listede genelde ilk eleman. */
   defaultReturnHandoverLocation?: VehicleHandoverRef | null;
+  /** Bu araca izin verilen teslim (RETURN) noktaları, sıra korunur. */
+  returnHandoverLocations?: VehicleHandoverRef[];
   /** Araç özel ek seçenek şablonları */
   optionDefinitions?: VehicleOptionDefRow[];
+  /** rent-service: öne çıkanlar (sıralı metinler) */
+  highlights?: string[];
   /** Açıdan görüntüler (data URL, demo saklama) */
   images?: VehicleImages;
 };

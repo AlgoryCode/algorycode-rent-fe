@@ -95,7 +95,7 @@ export function SettingsClient() {
             <CardHeader className="py-3">
               <CardTitle className="text-sm">Kiralama verileri</CardTitle>
               <CardDescription className="text-xs">
-                Alış ve teslim noktaları ile araç opsiyon şablonlarını ayrı sayfalardan yönetin.
+                Alış ve teslim noktaları ile opsiyonları (araç / kiralama) ayrı sayfalardan yönetin.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-2 pb-4 sm:flex-row sm:flex-wrap">
@@ -112,9 +112,9 @@ export function SettingsClient() {
                 </Link>
               </Button>
               <Button variant="outline" size="sm" className="h-9 justify-start gap-2 text-xs" asChild>
-                <Link href="/settings/option-templates">
+                <Link href="/settings/options">
                   <PackagePlus className="h-3.5 w-3.5 shrink-0" />
-                  Opsiyon şablonları
+                  Opsiyonlar
                 </Link>
               </Button>
             </CardContent>

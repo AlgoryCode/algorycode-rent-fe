@@ -141,10 +141,15 @@ export type CreateVehiclePayload = {
   /** rent-service şehir (zorunlu) */
   cityId: string;
   defaultPickupHandoverLocationId: string;
+  /** Boş veya atlanırsa araç için teslim kısıtı yok; doluysa yalnız bu RETURN noktaları geçerli. */
+  returnHandoverLocationIds?: string[];
+  /** Geriye uyumluluk: tek teslim; {@code returnHandoverLocationIds} doluysa kullanılmaz. */
   defaultReturnHandoverLocationId?: string;
   /** Sunucuda şablondan kopyalanır; {@code optionDefinitions} ile birlikte kullanılabilir. */
   optionTemplateIds?: string[];
   optionDefinitions?: VehicleOptionDefinitionPayload[];
+  /** Her satır bir madde; en fazla 30 (opsiyonel). */
+  highlights?: string[];
   images?: Record<string, string>;
 };
 
@@ -162,9 +167,13 @@ export type UpdateVehiclePayload = {
   countryCode?: string;
   cityId?: string;
   defaultPickupHandoverLocationId?: string;
+  /** null/undefined: dokunma; []: tüm teslim atamalarını kaldır. */
+  returnHandoverLocationIds?: string[];
   defaultReturnHandoverLocationId?: string;
   optionTemplateIds?: string[];
   optionDefinitions?: VehicleOptionDefinitionPayload[];
+  /** {@code undefined}: değiştirme; boş dizi: tümünü sil. */
+  highlights?: string[];
   images?: Record<string, string>;
 };
 
@@ -194,6 +203,8 @@ export type HandoverLocationApiRow = {
   countryCode?: string | null;
   lineOrder?: number;
   active?: boolean;
+  /** Bu nokta seçildiğinde eklenen sabit ücret (EUR); farklı bırakış fiyatlaması. */
+  surchargeEur?: number;
 };
 
 export type CreateHandoverLocationPayload = {
@@ -204,6 +215,7 @@ export type CreateHandoverLocationPayload = {
   cityId?: string;
   active?: boolean;
   lineOrder: number;
+  surchargeEur?: number;
 };
 
 export type UpdateHandoverLocationPayload = {
@@ -215,6 +227,7 @@ export type UpdateHandoverLocationPayload = {
   clearCity?: boolean;
   active?: boolean;
   lineOrder?: number;
+  surchargeEur?: number;
 };
 
 export type VehicleOptionTemplateApiRow = {
@@ -243,6 +256,41 @@ export type UpdateVehicleOptionTemplatePayload = {
   icon?: string;
   lineOrder?: number;
   active?: boolean;
+};
+
+/** Kiralama (rezervasyon) ek hizmet şablonları — rent ekranında listelenir. */
+export type ReservationExtraOptionTemplateApiRow = {
+  id: string;
+  code: string;
+  title: string;
+  description?: string | null;
+  price: number;
+  icon?: string | null;
+  lineOrder: number;
+  active: boolean;
+  requiresCoDriverDetails: boolean;
+};
+
+export type CreateReservationExtraOptionTemplatePayload = {
+  code: string;
+  title: string;
+  description?: string;
+  price: number;
+  icon?: string;
+  lineOrder: number;
+  active?: boolean;
+  requiresCoDriverDetails?: boolean;
+};
+
+export type UpdateReservationExtraOptionTemplatePayload = {
+  code?: string;
+  title?: string;
+  description?: string;
+  price?: number;
+  icon?: string;
+  lineOrder?: number;
+  active?: boolean;
+  requiresCoDriverDetails?: boolean;
 };
 
 export type CreateCountryPayload = {
@@ -424,6 +472,20 @@ function mapHandoverRef(raw: unknown): VehicleHandoverRef | undefined {
   };
 }
 
+function mapVehicleReturnHandoverLocations(raw: Record<string, unknown>): VehicleHandoverRef[] {
+  const list = raw.returnHandoverLocations;
+  if (Array.isArray(list) && list.length > 0) {
+    const out: VehicleHandoverRef[] = [];
+    for (const item of list) {
+      const m = mapHandoverRef(item);
+      if (m) out.push(m);
+    }
+    if (out.length > 0) return out;
+  }
+  const single = mapHandoverRef(raw.defaultReturnHandoverLocation);
+  return single ? [single] : [];
+}
+
 function mapVehicleOptionDefinitions(raw: unknown): VehicleOptionDefRow[] | undefined {
   if (!Array.isArray(raw) || raw.length === 0) return undefined;
   const out: VehicleOptionDefRow[] = [];
@@ -449,8 +511,15 @@ function mapVehicleOptionDefinitions(raw: unknown): VehicleOptionDefRow[] | unde
   return out.length ? out : undefined;
 }
 
+function mapVehicleHighlights(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out = raw.map((x) => String(x).trim()).filter((s) => s.length > 0);
+  return out.length > 0 ? out.slice(0, 30) : undefined;
+}
+
 export function mapVehicleFromApi(raw: Record<string, unknown>): Vehicle {
   const cc = raw.countryCode;
+  const returnLocations = mapVehicleReturnHandoverLocations(raw);
   return {
     id: String(raw.id),
     plate: String(raw.plate),
@@ -468,8 +537,10 @@ export function mapVehicleFromApi(raw: Record<string, unknown>): Vehicle {
     countryCode: cc != null && String(cc).length > 0 ? String(cc).toUpperCase() : undefined,
     cityId: asOptionalString(raw.cityId),
     defaultPickupHandoverLocation: mapHandoverRef(raw.defaultPickupHandoverLocation) ?? null,
-    defaultReturnHandoverLocation: mapHandoverRef(raw.defaultReturnHandoverLocation) ?? null,
+    defaultReturnHandoverLocation: returnLocations[0] ?? mapHandoverRef(raw.defaultReturnHandoverLocation) ?? null,
+    returnHandoverLocations: returnLocations.length > 0 ? returnLocations : undefined,
     optionDefinitions: mapVehicleOptionDefinitions(raw.optionDefinitions),
+    highlights: mapVehicleHighlights(raw.highlights),
     images: mapVehicleImages(raw.images),
   };
 }
@@ -687,6 +758,13 @@ export async function fetchCitiesFromRentApi(countryId?: string): Promise<CityRo
 function mapHandoverLocationRow(raw: unknown): HandoverLocationApiRow {
   const o = raw as Record<string, unknown>;
   const cityIdRaw = o.cityId;
+  const sur = o.surchargeEur;
+  const surchargeEur =
+    typeof sur === "number" && Number.isFinite(sur)
+      ? sur
+      : typeof sur === "string"
+        ? Number(sur)
+        : 0;
   return {
     id: String(o.id ?? ""),
     kind: String(o.kind ?? ""),
@@ -698,6 +776,7 @@ function mapHandoverLocationRow(raw: unknown): HandoverLocationApiRow {
     countryCode: o.countryCode != null ? String(o.countryCode) : undefined,
     lineOrder: typeof o.lineOrder === "number" ? o.lineOrder : Number(o.lineOrder) || 0,
     active: o.active == null ? true : Boolean(o.active),
+    surchargeEur: Number.isFinite(surchargeEur) ? surchargeEur : 0,
   };
 }
 
@@ -723,6 +802,7 @@ export async function createHandoverLocationOnRentApi(payload: CreateHandoverLoc
     cityId: payload.cityId?.trim() || undefined,
     active: payload.active,
     lineOrder: payload.lineOrder,
+    surchargeEur: payload.surchargeEur,
   });
   return mapHandoverLocationRow(data);
 }
@@ -740,6 +820,7 @@ export async function updateHandoverLocationOnRentApi(
   if (payload.clearCity === true) body.clearCity = true;
   if (payload.active != null) body.active = payload.active;
   if (payload.lineOrder != null) body.lineOrder = payload.lineOrder;
+  if (payload.surchargeEur !== undefined) body.surchargeEur = payload.surchargeEur;
   const { data } = await rentClient().patch<unknown>(`/handover-locations/${encodeURIComponent(id)}`, body);
   return mapHandoverLocationRow(data);
 }
@@ -822,6 +903,68 @@ export async function deleteVehicleOptionTemplateOnRentApi(id: string): Promise<
   await rentClient().delete(`/vehicle-option-templates/${encodeURIComponent(id)}`);
 }
 
+function mapReservationExtraOptionTemplateRow(row: Record<string, unknown>): ReservationExtraOptionTemplateApiRow {
+  const priceRaw = row.price;
+  const price = typeof priceRaw === "number" ? priceRaw : Number(priceRaw);
+  return {
+    id: String(row.id ?? ""),
+    code: String(row.code ?? ""),
+    title: String(row.title ?? ""),
+    description: row.description != null ? String(row.description) : undefined,
+    price: Number.isFinite(price) ? price : 0,
+    icon: row.icon != null ? String(row.icon) : undefined,
+    lineOrder: typeof row.lineOrder === "number" ? row.lineOrder : Number(row.lineOrder) || 0,
+    active: row.active == null ? true : Boolean(row.active),
+    requiresCoDriverDetails: Boolean(row.requiresCoDriverDetails),
+  };
+}
+
+export async function fetchReservationExtraOptionTemplatesFromRentApi(opts?: {
+  includeInactive?: boolean;
+}): Promise<ReservationExtraOptionTemplateApiRow[]> {
+  const q = opts?.includeInactive ? "?includeInactive=true" : "";
+  const { data } = await rentClient().get<unknown[]>(`/reservation-extra-options${q}`);
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => mapReservationExtraOptionTemplateRow(row as Record<string, unknown>));
+}
+
+export async function createReservationExtraOptionTemplateOnRentApi(
+  payload: CreateReservationExtraOptionTemplatePayload,
+): Promise<ReservationExtraOptionTemplateApiRow> {
+  const { data } = await rentClient().post<unknown>("/reservation-extra-options", {
+    code: payload.code.trim(),
+    title: payload.title.trim(),
+    description: payload.description?.trim() || undefined,
+    price: payload.price,
+    icon: payload.icon?.trim() || undefined,
+    lineOrder: payload.lineOrder,
+    active: payload.active,
+    requiresCoDriverDetails: payload.requiresCoDriverDetails,
+  });
+  return mapReservationExtraOptionTemplateRow(data as Record<string, unknown>);
+}
+
+export async function updateReservationExtraOptionTemplateOnRentApi(
+  id: string,
+  payload: UpdateReservationExtraOptionTemplatePayload,
+): Promise<ReservationExtraOptionTemplateApiRow> {
+  const body: Record<string, unknown> = {};
+  if (payload.code != null) body.code = payload.code.trim();
+  if (payload.title != null) body.title = payload.title.trim();
+  if (payload.description !== undefined) body.description = payload.description.trim() || null;
+  if (payload.price != null) body.price = payload.price;
+  if (payload.icon !== undefined) body.icon = payload.icon.trim() || null;
+  if (payload.lineOrder != null) body.lineOrder = payload.lineOrder;
+  if (payload.active != null) body.active = payload.active;
+  if (payload.requiresCoDriverDetails != null) body.requiresCoDriverDetails = payload.requiresCoDriverDetails;
+  const { data } = await rentClient().patch<unknown>(`/reservation-extra-options/${encodeURIComponent(id)}`, body);
+  return mapReservationExtraOptionTemplateRow(data as Record<string, unknown>);
+}
+
+export async function deleteReservationExtraOptionTemplateOnRentApi(id: string): Promise<void> {
+  await rentClient().delete(`/reservation-extra-options/${encodeURIComponent(id)}`);
+}
+
 export async function patchCountryColorOnRentApi(id: string, colorCode: string): Promise<CountryRow> {
   const { data } = await rentClient().patch<unknown>(`/countries/${id}`, { colorCode });
   return mapCountryFromApi(data as Record<string, unknown>);
@@ -848,7 +991,11 @@ export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Pro
     rentalDailyPrice: payload.rentalDailyPrice,
     cityId: payload.cityId,
     defaultPickupHandoverLocationId: payload.defaultPickupHandoverLocationId,
-    defaultReturnHandoverLocationId: payload.defaultReturnHandoverLocationId?.trim() || undefined,
+    ...(payload.returnHandoverLocationIds != null && payload.returnHandoverLocationIds.length > 0
+      ? { returnHandoverLocationIds: payload.returnHandoverLocationIds }
+      : payload.defaultReturnHandoverLocationId?.trim()
+        ? { defaultReturnHandoverLocationId: payload.defaultReturnHandoverLocationId.trim() }
+        : {}),
     commissionRatePercent:
       payload.external && payload.commissionRatePercent != null && Number.isFinite(payload.commissionRatePercent)
         ? payload.commissionRatePercent
@@ -868,6 +1015,9 @@ export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Pro
       lineOrder: o.lineOrder ?? i,
       active: o.active !== false,
     }));
+  }
+  if (payload.highlights != null && payload.highlights.length > 0) {
+    body.highlights = payload.highlights.map((s) => s.trim()).filter((s) => s.length > 0).slice(0, 30);
   }
   if (payload.countryCode && payload.countryCode.length === 2) {
     body.countryCode = payload.countryCode.toUpperCase();
@@ -891,9 +1041,13 @@ export async function updateVehicleOnRentApi(id: string, payload: UpdateVehicleP
     countryCode: payload.countryCode?.trim()?.toUpperCase() || undefined,
     cityId: payload.cityId?.trim() || undefined,
     defaultPickupHandoverLocationId: payload.defaultPickupHandoverLocationId?.trim() || undefined,
-    defaultReturnHandoverLocationId: payload.defaultReturnHandoverLocationId?.trim() || undefined,
     images: payload.images && Object.keys(payload.images).length > 0 ? payload.images : undefined,
   };
+  if (payload.returnHandoverLocationIds !== undefined) {
+    body.returnHandoverLocationIds = payload.returnHandoverLocationIds;
+  } else if (payload.defaultReturnHandoverLocationId?.trim()) {
+    body.defaultReturnHandoverLocationId = payload.defaultReturnHandoverLocationId.trim();
+  }
   if (payload.optionTemplateIds !== undefined) {
     body.optionTemplateIds = payload.optionTemplateIds;
   }
@@ -906,6 +1060,9 @@ export async function updateVehicleOnRentApi(id: string, payload: UpdateVehicleP
       lineOrder: o.lineOrder ?? i,
       active: o.active !== false,
     }));
+  }
+  if (payload.highlights !== undefined) {
+    body.highlights = payload.highlights.map((s) => s.trim()).filter((s) => s.length > 0).slice(0, 30);
   }
   const { data } = await rentClient().patch<unknown>(`/vehicles/${id}`, body);
   return mapVehicleFromApi(data as Record<string, unknown>);
