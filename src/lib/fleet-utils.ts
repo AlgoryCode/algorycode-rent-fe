@@ -149,11 +149,16 @@ export function bookedDatesFromOccupancyRanges(ranges: { startDate: string; endD
   return [...set.values()];
 }
 
+/** Reddedilmemiş talep, takvim / filo rozeti ile aynı mantıkta aracı meşgul sayılır. */
+function rentalRequestBlocksFleet(req: RentalRequestDto): boolean {
+  return req.status === "pending" || req.status === "approved";
+}
+
 export function bookedDatesFromRentalRequests(requests: RentalRequestDto[], vehicleId: string): Date[] {
   const set = new Map<number, Date>();
   for (const req of requests) {
     if ((req.vehicleId ?? "") !== vehicleId) continue;
-    if (req.status === "rejected") continue;
+    if (!rentalRequestBlocksFleet(req)) continue;
     let start: Date;
     let end: Date;
     try {
@@ -186,6 +191,41 @@ export function isDateBooked(sessions: RentalSession[], vehicleId: string, day: 
   });
 }
 
+/**
+ * Belirtilen günde araç rezerve mi: kesin kiralamalar + (opsiyonel) kiralama talepleri.
+ * Talepler yalnızca {@code pending} ve {@code approved} için dikkate alınır; {@code rejected} hariç.
+ */
+export function isVehicleBookedOnDay(
+  vehicleId: string,
+  sessions: RentalSession[],
+  requests: readonly RentalRequestDto[] | undefined,
+  day: Date,
+): boolean {
+  const d = startOfDay(day);
+  const fromRental = sessions.some((s) => {
+    if (s.vehicleId !== vehicleId || !rentalCountsForCalendar(s)) return false;
+    const start = startOfDay(parseISO(s.startDate));
+    const end = startOfDay(parseISO(s.endDate));
+    return isWithinInterval(d, { start, end });
+  });
+  if (fromRental) return true;
+  if (!requests?.length) return false;
+  return requests.some((req) => {
+    if (!rentalRequestBlocksFleet(req)) return false;
+    if ((req.vehicleId ?? "") !== vehicleId) return false;
+    let start: Date;
+    let end: Date;
+    try {
+      start = startOfDay(parseISO(req.startDate));
+      end = startOfDay(parseISO(req.endDate));
+    } catch {
+      return false;
+    }
+    if (end < start) return false;
+    return isWithinInterval(d, { start, end });
+  });
+}
+
 /** Belirtilen günde devam eden kiralamalar (iptal hariç); süre uçlar dahil gün sayısı. */
 export function rentalsActiveOnDay(sessions: RentalSession[], day: Date): { session: RentalSession; durationDays: number }[] {
   const d = startOfDay(day).getTime();
@@ -203,16 +243,19 @@ export function rentalsActiveOnDay(sessions: RentalSession[], day: Date): { sess
 
 export type FleetStatus = "available" | "rented" | "maintenance";
 
-export function vehicleFleetStatus(v: Vehicle, sessions: RentalSession[], on: Date): FleetStatus {
+/**
+ * Filo listesi / detay rozeti. {@code requests} verilirse onaylı veya bekleyen kiralama talepleri de
+ * “kirada” sayılır (yalnızca {@code /rentals} kullanıldığında talep onaylı ama henüz kira oluşmamış
+ * araçlar yanlışlıkla “Müsait” görünürdü).
+ */
+export function vehicleFleetStatus(
+  v: Vehicle,
+  sessions: RentalSession[],
+  on: Date,
+  requests?: readonly RentalRequestDto[],
+): FleetStatus {
   if (v.maintenance) return "maintenance";
-  const day = startOfDay(on);
-  const active = sessions.some(
-    (s) =>
-      rentalCountsForCalendar(s) &&
-      s.vehicleId === v.id &&
-      isWithinInterval(day, { start: startOfDay(parseISO(s.startDate)), end: startOfDay(parseISO(s.endDate)) }),
-  );
-  return active ? "rented" : "available";
+  return isVehicleBookedOnDay(v.id, sessions, requests, on) ? "rented" : "available";
 }
 
 export function sessionsForVehicle(sessions: RentalSession[], vehicleId: string): RentalSession[] {

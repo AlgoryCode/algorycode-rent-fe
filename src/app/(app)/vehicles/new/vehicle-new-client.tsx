@@ -13,12 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCountries } from "@/hooks/use-countries";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import {
-  fetchCitiesFromRentApi,
   fetchHandoverLocationsFromRentApi,
   fetchVehicleBodyStylesFromRentApi,
+  fetchVehicleFuelTypesFromRentApi,
   fetchVehicleOptionTemplatesFromRentApi,
+  fetchVehicleTransmissionTypesFromRentApi,
   getRentApiErrorMessage,
-  type CityRow,
   type HandoverLocationApiRow,
   type VehicleBodyStyleRow,
   type VehicleOptionTemplateApiRow,
@@ -45,19 +45,11 @@ const SPECS_FUEL_NONE = "__fuel_none__";
 const SPECS_TRANS_NONE = "__trans_none__";
 const SPECS_BODY_NONE = "__body_none__";
 
-const VEHICLE_FUEL_SELECT: { value: string; label: string }[] = [
-  { value: SPECS_FUEL_NONE, label: "Seçilmedi" },
-  { value: "benzin", label: "Benzin" },
-  { value: "dizel", label: "Dizel" },
-  { value: "hibrit", label: "Hibrit" },
-  { value: "elektrik", label: "Elektrik" },
-];
-
-const VEHICLE_TRANSMISSION_SELECT: { value: string; label: string }[] = [
-  { value: SPECS_TRANS_NONE, label: "Seçilmedi" },
-  { value: "otomatik", label: "Otomatik" },
-  { value: "manuel", label: "Manuel" },
-];
+function sortVehicleCatalogRows(rows: VehicleBodyStyleRow[]): VehicleBodyStyleRow[] {
+  return [...rows].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.labelTr.localeCompare(b.labelTr, "tr"),
+  );
+}
 
 export function VehicleNewClient() {
   const router = useRouter();
@@ -76,8 +68,6 @@ export function VehicleNewClient() {
   const [rentalDailyPrice, setRentalDailyPrice] = useState("");
   const [vehicleCountry, setVehicleCountry] = useState<string>(COUNTRY_NONE);
   const [draftImages, setDraftImages] = useState<VehicleImages>({});
-  const [cities, setCities] = useState<CityRow[]>([]);
-  const [cityId, setCityId] = useState("");
   const [pickupLocs, setPickupLocs] = useState<HandoverLocationApiRow[]>([]);
   const [returnLocs, setReturnLocs] = useState<HandoverLocationApiRow[]>([]);
   const [defaultPickupId, setDefaultPickupId] = useState("");
@@ -92,22 +82,23 @@ export function VehicleNewClient() {
   const [seats, setSeats] = useState("");
   const [luggage, setLuggage] = useState("");
   const [bodyStyleOptions, setBodyStyleOptions] = useState<VehicleBodyStyleRow[]>([]);
+  const [fuelTypeOptions, setFuelTypeOptions] = useState<VehicleBodyStyleRow[]>([]);
+  const [transmissionTypeOptions, setTransmissionTypeOptions] = useState<VehicleBodyStyleRow[]>([]);
 
   const countriesSorted = useMemo(
     () => [...countries].sort((a, b) => a.name.localeCompare(b.name, "tr")),
     [countries],
   );
 
-  const selectedCountryId = useMemo(() => {
-    if (vehicleCountry === COUNTRY_NONE) return "";
-    return countriesSorted.find((c) => c.code === vehicleCountry)?.id ?? "";
-  }, [countriesSorted, vehicleCountry]);
-
   useEffect(() => {
     void fetchHandoverLocationsFromRentApi("PICKUP").then((rows) => setPickupLocs(rows.filter((r) => r.active !== false)));
     void fetchHandoverLocationsFromRentApi("RETURN").then((rows) => setReturnLocs(rows.filter((r) => r.active !== false)));
     void fetchVehicleOptionTemplatesFromRentApi().then((rows) => setOptionTemplates(rows.filter((r) => r.active)));
-    void fetchVehicleBodyStylesFromRentApi().then(setBodyStyleOptions);
+    void fetchVehicleBodyStylesFromRentApi().then((rows) => setBodyStyleOptions(sortVehicleCatalogRows(rows)));
+    void fetchVehicleFuelTypesFromRentApi().then((rows) => setFuelTypeOptions(sortVehicleCatalogRows(rows)));
+    void fetchVehicleTransmissionTypesFromRentApi().then((rows) =>
+      setTransmissionTypeOptions(sortVehicleCatalogRows(rows)),
+    );
   }, []);
 
   const filteredOptionTemplates = useMemo(() => {
@@ -119,23 +110,6 @@ export function VehicleNewClient() {
         (t.description ?? "").toLocaleLowerCase("tr").includes(q),
     );
   }, [optionSearch, optionTemplates]);
-
-  useEffect(() => {
-    if (!selectedCountryId) {
-      setCities([]);
-      setCityId("");
-      return;
-    }
-    let cancelled = false;
-    void fetchCitiesFromRentApi(selectedCountryId).then((list) => {
-      if (cancelled) return;
-      setCities(list);
-      if (list.length === 1) setCityId(list[0].id);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedCountryId]);
 
   const submitNewVehicle = async () => {
     const p = normalizePlate(plate);
@@ -211,7 +185,6 @@ export function VehicleNewClient() {
         commissionBrokerPhone: externalVehicle ? commissionBrokerPhone.trim() : undefined,
         rentalDailyPrice: rentalPrice,
         countryCode: vehicleCountry,
-        ...(cityId.trim() ? { cityId: cityId.trim() } : {}),
         defaultPickupHandoverLocationId: defaultPickupId.trim(),
         returnHandoverLocationIds: selectedReturnIds.length > 0 ? selectedReturnIds : undefined,
         optionTemplateIds: selectedTemplateIds.length > 0 ? selectedTemplateIds : undefined,
@@ -279,9 +252,10 @@ export function VehicleNewClient() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {VEHICLE_FUEL_SELECT.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
+                    <SelectItem value={SPECS_FUEL_NONE}>Seçilmedi</SelectItem>
+                    {fuelTypeOptions.map((o) => (
+                      <SelectItem key={o.id || o.code} value={o.code}>
+                        {o.labelTr || o.code}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -294,9 +268,10 @@ export function VehicleNewClient() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {VEHICLE_TRANSMISSION_SELECT.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
+                    <SelectItem value={SPECS_TRANS_NONE}>Seçilmedi</SelectItem>
+                    {transmissionTypeOptions.map((o) => (
+                      <SelectItem key={o.id || o.code} value={o.code}>
+                        {o.labelTr || o.code}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -363,23 +338,6 @@ export function VehicleNewClient() {
               </SelectContent>
             </Select>
           </div>
-          {selectedCountryId ? (
-            <div className="space-y-1">
-              <Label htmlFor="nv-city">Şehir (isteğe bağlı)</Label>
-              <Select value={cityId || undefined} onValueChange={setCityId}>
-                <SelectTrigger id="nv-city" className="w-full">
-                  <SelectValue placeholder={cities.length ? "Şehir seçin" : "Şehir yükleniyor…"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {cities.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
           <div className="space-y-1">
             <Label>Varsayılan alış noktası</Label>
             <Select value={defaultPickupId || undefined} onValueChange={setDefaultPickupId}>

@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import axios from "axios";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
 import { AUTH_BASE } from "@/lib/config";
 import { clearAuthCookies } from "@/lib/server/auth-cookies";
@@ -8,16 +9,20 @@ export async function POST() {
   try {
     const cookieStore = await cookies();
     const refreshToken =
-      cookieStore.get("algory_refresh_token")?.value || cookieStore.get("refreshToken")?.value;
+      cookieStore.get("refreshToken")?.value?.trim() ||
+      cookieStore.get("algory_refresh_token")?.value?.trim() ||
+      null;
     if (refreshToken) {
-      await fetch(`${AUTH_BASE}/basicauth/logout`, {
-        method: "POST",
-        headers: { Cookie: `refresh_token=${refreshToken}; refreshToken=${refreshToken}` },
-        cache: "no-store",
-      }).catch(() => undefined);
+      await axios
+        .post(`${AUTH_BASE}/basicauth/logout`, { refreshToken }, {
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          validateStatus: () => true,
+          timeout: 15_000,
+        })
+        .catch(() => undefined);
     }
   } catch {
-    // Best-effort revoke; cookie clear still logs user out locally.
+    /* best-effort */
   }
 
   const response = NextResponse.json({ success: true }, { status: 200 });

@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import axios from "axios";
+
 import { AUTH_BASE } from "@/lib/config";
 import { decodeJwtPayloadJson, extractRentRolesFromJwtPayload } from "@/lib/rbac/jwt-rent-roles";
 import { hasRentManagerAccess } from "@/lib/rbac/rent-roles";
@@ -25,9 +27,7 @@ export async function POST(req: Request) {
   try {
     const cookieStore = await cookies();
     const token =
-      cookieStore.get("algory_access_token")?.value?.trim() ||
-      cookieStore.get("accessToken")?.value?.trim() ||
-      "";
+      cookieStore.get("accessToken")?.value?.trim() || cookieStore.get("algory_access_token")?.value?.trim() || "";
     if (!token) {
       return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
     }
@@ -48,29 +48,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Ad, soyad, e-posta ve şifre zorunludur" }, { status: 400 });
     }
 
-    const upstream = await fetch(`${AUTH_BASE}/basicauth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
+    const upstream = await axios.post(
+      `${AUTH_BASE}/basicauth/register`,
+      {
         firstName,
         lastName,
         email,
         password,
         phoneNumber: phoneNumber && phoneNumber.length > 0 ? phoneNumber : undefined,
         registrationRole: "RENT_USER",
-      }),
-      cache: "no-store",
-    });
+      },
+      {
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        validateStatus: () => true,
+        timeout: 20_000,
+      },
+    );
 
-    const raw = await upstream.text();
-    let parsed: unknown = {};
-    try {
-      parsed = raw ? JSON.parse(raw) : {};
-    } catch {
-      parsed = { message: raw || "Kayıt yanıtı okunamadı" };
-    }
+    const parsed: unknown = upstream.data;
 
-    if (!upstream.ok) {
+    if (upstream.status < 200 || upstream.status >= 300) {
       return NextResponse.json(
         { message: messageFromBody(parsed, `Kayıt başarısız (${upstream.status})`) },
         { status: upstream.status || 400 },

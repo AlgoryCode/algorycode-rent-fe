@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Layers,
   MailCheck,
+  MapPin,
   MessagesSquare,
   LogOut,
   Menu,
@@ -35,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
+import { getPanelSameOriginAxios } from "@/lib/panel-same-origin-axios";
 import { ApiError } from "@/lib/api/errors";
 import { authService } from "@/lib/auth-service";
 import {
@@ -60,7 +62,17 @@ type NavGroupDef = {
 
 const ALL_NAV: (NavLinkDef | NavGroupDef)[] = [
   { type: "link", href: "/dashboard", msgKey: "nav.quickMenu", icon: LayoutDashboard },
-  { type: "link", href: "/vehicles", msgKey: "nav.vehicles", icon: Car },
+  {
+    type: "group",
+    id: "vehicles",
+    msgKey: "nav.vehiclesGroup",
+    icon: Car,
+    children: [
+      { href: "/vehicles", msgKey: "nav.vehiclesBrowse" },
+      { href: "/settings/options/vehicle", msgKey: "nav.vehicleAddOns" },
+      { href: "/settings/vehicle-catalog", msgKey: "nav.vehicleFeatures" },
+    ],
+  },
   { type: "link", href: "/logs", msgKey: "nav.logs", icon: CalendarDays },
   { type: "link", href: "/calendar", msgKey: "nav.calendar", icon: Calendar },
   { type: "link", href: "/customers", msgKey: "nav.customers", icon: Users },
@@ -70,14 +82,13 @@ const ALL_NAV: (NavLinkDef | NavGroupDef)[] = [
   { type: "link", href: "/reports", msgKey: "nav.reports", icon: BarChart3 },
   { type: "link", href: "/countries", msgKey: "nav.countries", icon: Globe2 },
   { type: "link", href: "/customers/channel", msgKey: "nav.bulkMessage", icon: MessagesSquare },
+  { type: "link", href: "/settings/options/rental", msgKey: "nav.rentalOptions", icon: Layers },
   {
     type: "group",
-    id: "options",
-    msgKey: "nav.optionsGroup",
-    icon: Layers,
+    id: "locations",
+    msgKey: "nav.locationsGroup",
+    icon: MapPin,
     children: [
-      { href: "/settings/options/vehicle", msgKey: "nav.vehicleOptions" },
-      { href: "/settings/options/rental", msgKey: "nav.rentalOptions" },
       { href: "/settings/locations/pickup", msgKey: "nav.handoverPickup" },
       { href: "/settings/locations/return", msgKey: "nav.handoverReturn" },
     ],
@@ -93,6 +104,13 @@ function navLinkAllows(item: NavLinkDef, hasManagerAccess: boolean): boolean {
 
 function navGroupAllows(item: NavGroupDef, hasManagerAccess: boolean): boolean {
   return item.children.some((c) => !hrefRequiresRentManager(c.href) || hasManagerAccess);
+}
+
+function isVehiclesGroupActive(pathname: string) {
+  if (pathname === "/vehicles" || pathname.startsWith("/vehicles/")) return true;
+  if (pathname === "/settings/options/vehicle" || pathname.startsWith("/settings/options/vehicle/")) return true;
+  if (pathname === "/settings/vehicle-catalog" || pathname.startsWith("/settings/vehicle-catalog/")) return true;
+  return false;
 }
 
 function isNavActive(pathname: string, href: string) {
@@ -119,7 +137,12 @@ function isNavActive(pathname: string, href: string) {
   if (href === "/settings/locations/pickup") return pathname === "/settings/locations/pickup";
   if (href === "/settings/locations/return") return pathname === "/settings/locations/return";
   if (href === "/settings/options/vehicle") return pathname === "/settings/options/vehicle";
-  if (href === "/settings/options/rental") return pathname === "/settings/options/rental";
+  if (href === "/settings/vehicle-catalog") {
+    return pathname === "/settings/vehicle-catalog" || pathname.startsWith("/settings/vehicle-catalog/");
+  }
+  if (href === "/settings/options/rental") {
+    return pathname === "/settings/options/rental" || pathname.startsWith("/settings/options/rental/");
+  }
   if (href === "/settings") {
     return (
       pathname === "/settings" &&
@@ -130,12 +153,14 @@ function isNavActive(pathname: string, href: string) {
   return false;
 }
 
-function isOptionsGroupActive(pathname: string) {
-  return (
-    pathname.startsWith("/settings/options") ||
-    pathname.startsWith("/settings/locations/pickup") ||
-    pathname.startsWith("/settings/locations/return")
-  );
+function isLocationsGroupActive(pathname: string) {
+  return pathname.startsWith("/settings/locations/pickup") || pathname.startsWith("/settings/locations/return");
+}
+
+function isNavGroupActive(groupId: string, pathname: string) {
+  if (groupId === "vehicles") return isVehiclesGroupActive(pathname);
+  if (groupId === "locations") return isLocationsGroupActive(pathname);
+  return false;
 }
 
 function UserAvatarLogoutMenu({
@@ -277,23 +302,32 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { t, locale } = useLocale();
   const { hasManagerAccess } = useRentFeRoles();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [optionsGroupOpen, setOptionsGroupOpen] = useState(() => isOptionsGroupActive(pathname));
+  const [openByGroupId, setOpenByGroupId] = useState<Record<string, boolean>>(() => ({
+    vehicles: isVehiclesGroupActive(pathname),
+    locations: isLocationsGroupActive(pathname),
+  }));
   const [routeSearch, setRouteSearch] = useState("");
   const [sessionIdentity, setSessionIdentity] = useState<SessionIdentityFromJwt | null>(null);
   const showTemplateActions = pathname !== "/dashboard";
 
   useEffect(() => {
-    if (isOptionsGroupActive(pathname)) setOptionsGroupOpen(true);
+    setOpenByGroupId((prev) => ({
+      ...prev,
+      vehicles: prev.vehicles || isVehiclesGroupActive(pathname),
+      locations: prev.locations || isLocationsGroupActive(pathname),
+    }));
   }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const r = await fetch("/api/auth/access-token", { credentials: "same-origin", cache: "no-store" });
-        if (!r.ok || cancelled) return;
-        const j = (await r.json()) as { accessToken?: string | null };
-        const t = j.accessToken?.trim();
+        const { data: j, status } = await getPanelSameOriginAxios().get<{ accessToken?: string | null }>(
+          "/api/auth/access-token",
+          { validateStatus: (s) => s < 500 },
+        );
+        if (status !== 200 || cancelled) return;
+        const t = j?.accessToken?.trim();
         if (!t || cancelled) return;
         const identity = parseSessionIdentityFromJwtPayload(decodeJwtPayloadBrowser(t));
         if (!cancelled) setSessionIdentity(identity);
@@ -329,7 +363,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         }
       }
     }
-    routes.push({ href: "/settings/options", label: `${t("nav.optionsGroup")} (özet)` });
+    routes.push({ href: "/settings/options", label: t("nav.settingsOptionsHub") });
     routes.push({ href: "/login", label: t("nav.login") });
     return routes;
   }, [filteredNav, t]);
@@ -461,9 +495,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               );
             }
             const GroupIcon = item.icon;
-            const groupActive = isOptionsGroupActive(pathname);
+            const groupOpen = openByGroupId[item.id] ?? false;
+            const groupActive = isNavGroupActive(item.id, pathname);
             return (
-              <Collapsible key={item.id} open={optionsGroupOpen} onOpenChange={setOptionsGroupOpen} className="w-full">
+              <Collapsible
+                key={item.id}
+                open={groupOpen}
+                onOpenChange={(open) => setOpenByGroupId((prev) => ({ ...prev, [item.id]: open }))}
+                className="w-full"
+              >
                 <CollapsibleTrigger
                   type="button"
                   className={cn(
@@ -476,7 +516,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   <GroupIcon className="h-4 w-4 shrink-0" />
                   <span className="min-w-0 flex-1 truncate text-left">{t(item.msgKey)}</span>
                   <ChevronDown
-                    className={cn("h-3.5 w-3.5 shrink-0 opacity-70 transition-transform", optionsGroupOpen && "rotate-180")}
+                    className={cn("h-3.5 w-3.5 shrink-0 opacity-70 transition-transform", groupOpen && "rotate-180")}
                     aria-hidden
                   />
                 </CollapsibleTrigger>
@@ -547,9 +587,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                     );
                   }
                   const GroupIcon = item.icon;
-                  const groupActive = isOptionsGroupActive(pathname);
+                  const groupOpen = openByGroupId[item.id] ?? false;
+                  const groupActive = isNavGroupActive(item.id, pathname);
                   return (
-                    <Collapsible key={item.id} open={optionsGroupOpen} onOpenChange={setOptionsGroupOpen} className="w-full">
+                    <Collapsible
+                      key={item.id}
+                      open={groupOpen}
+                      onOpenChange={(open) => setOpenByGroupId((prev) => ({ ...prev, [item.id]: open }))}
+                      className="w-full"
+                    >
                       <CollapsibleTrigger
                         type="button"
                         className={cn(
@@ -562,7 +608,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                         <GroupIcon className="h-4 w-4 shrink-0" />
                         <span className="min-w-0 flex-1 truncate text-left">{t(item.msgKey)}</span>
                         <ChevronDown
-                          className={cn("h-4 w-4 shrink-0 opacity-70 transition-transform", optionsGroupOpen && "rotate-180")}
+                          className={cn("h-4 w-4 shrink-0 opacity-70 transition-transform", groupOpen && "rotate-180")}
                           aria-hidden
                         />
                       </CollapsibleTrigger>

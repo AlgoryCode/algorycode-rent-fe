@@ -11,6 +11,17 @@ import {
 } from "@/lib/i18n/locales";
 import { type MessageKey, translate } from "@/lib/i18n/messages";
 
+const LOCALE_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 365;
+
+function writeLocaleCookie(next: AppLocale) {
+  if (typeof document === "undefined") return;
+  try {
+    document.cookie = `${LOCALE_STORAGE_KEY}=${next};path=/;max-age=${LOCALE_COOKIE_MAX_AGE_SEC};samesite=lax`;
+  } catch {
+    /* ignore */
+  }
+}
+
 type LocaleContextValue = {
   locale: AppLocale;
   setLocale: (next: AppLocale) => void;
@@ -19,28 +30,31 @@ type LocaleContextValue = {
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
-function readInitialLocale(): AppLocale {
-  if (typeof window === "undefined") return DEFAULT_LOCALE;
+function readClientPreferredLocale(serverGuess: AppLocale): AppLocale {
   const stored = parseStoredLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY));
   if (stored) return stored;
-  return localeFromNavigatorLang(window.navigator.language) ?? DEFAULT_LOCALE;
+  return localeFromNavigatorLang(window.navigator.language) ?? serverGuess;
 }
 
-export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<AppLocale>(DEFAULT_LOCALE);
+export function LocaleProvider({
+  children,
+  initialLocale,
+}: {
+  children: React.ReactNode;
+  /** Sunucu HTML ile ilk boyama eşleşsin diye çerezden (RootLayout). */
+  initialLocale?: AppLocale;
+}) {
+  const serverGuess = initialLocale ?? DEFAULT_LOCALE;
+  const [locale, setLocaleState] = useState<AppLocale>(() => serverGuess);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      setLocaleState(readInitialLocale());
-      setReady(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    const preferred = readClientPreferredLocale(serverGuess);
+    if (preferred !== serverGuess) {
+      setLocaleState(preferred);
+    }
+    setReady(true);
+  }, [serverGuess]);
 
   useEffect(() => {
     if (!ready || typeof document === "undefined") return;
@@ -50,10 +64,12 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* private mode */
     }
+    writeLocaleCookie(locale);
   }, [locale, ready]);
 
   const setLocale = useCallback((next: AppLocale) => {
     setLocaleState(next);
+    writeLocaleCookie(next);
   }, []);
 
   const t = useCallback((key: MessageKey) => translate(locale, key), [locale]);

@@ -100,7 +100,7 @@ function buildBreadcrumbs(
     "/settings/locations/return": "Teslim noktaları",
     "/settings/options": "Opsiyonlar",
     "/settings/options/vehicle": "Araç opsiyonları",
-    "/settings/options/rental": "Kiralama opsiyonları",
+    "/settings/options/rental": "Kiralama Opsiyonları",
     "/settings/vehicle-catalog": "Araç özellikleri",
   };
 

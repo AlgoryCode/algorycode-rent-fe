@@ -49,8 +49,12 @@ import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import {
   fetchHandoverLocationsFromRentApi,
+  fetchRentalsFromRentApi,
+  fetchRentalRequestsFromRentApi,
   fetchVehicleBodyStylesFromRentApi,
   fetchVehicleCalendarOccupancyFromRentApi,
+  fetchVehicleFuelTypesFromRentApi,
+  fetchVehicleTransmissionTypesFromRentApi,
   getRentApiErrorMessage,
   type HandoverLocationApiRow,
   type VehicleBodyStyleRow,
@@ -105,19 +109,23 @@ const SPECS_FUEL_NONE = "__fuel_none__";
 const SPECS_TRANS_NONE = "__trans_none__";
 const SPECS_BODY_NONE = "__body_none__";
 
-const VEHICLE_FUEL_SELECT: { value: string; label: string }[] = [
-  { value: SPECS_FUEL_NONE, label: "Seçilmedi" },
-  { value: "benzin", label: "Benzin" },
-  { value: "dizel", label: "Dizel" },
-  { value: "hibrit", label: "Hibrit" },
-  { value: "elektrik", label: "Elektrik" },
-];
+function sortVehicleCatalogRows(rows: VehicleBodyStyleRow[]): VehicleBodyStyleRow[] {
+  return [...rows].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.labelTr.localeCompare(b.labelTr, "tr"),
+  );
+}
 
-const VEHICLE_TRANSMISSION_SELECT: { value: string; label: string }[] = [
-  { value: SPECS_TRANS_NONE, label: "Seçilmedi" },
-  { value: "otomatik", label: "Otomatik" },
-  { value: "manuel", label: "Manuel" },
-];
+/** Araçta kayıtlı kod katalogda yoksa veya boşsa `none` döner (Select değeri tutarlı kalsın). */
+function catalogCodeIfKnown(
+  stored: string | undefined,
+  rows: VehicleBodyStyleRow[],
+  noneToken: string,
+): string {
+  const s = (stored ?? "").trim();
+  if (!s) return noneToken;
+  const hit = rows.find((r) => r.code.toLowerCase() === s.toLowerCase());
+  return hit ? hit.code : noneToken;
+}
 
 function blankAdditionalDriver(): AdditionalDriverDraft {
   return {
@@ -158,21 +166,40 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     queryFn: () =>
       fetchVehicleCalendarOccupancyFromRentApi(vehicle.id, occupancyWindow.from, occupancyWindow.to),
   });
+  const { data: rentalRequests = [] } = useQuery({
+    queryKey: rentKeys.rentalRequests(),
+    queryFn: () => fetchRentalRequestsFromRentApi(),
+  });
+  const { data: vehicleRentalSessions, isPending: vehicleRentalsPending } = useQuery({
+    queryKey: rentKeys.rentalsByVehicle(vehicle.id),
+    queryFn: () => fetchRentalsFromRentApi({ vehicleId: vehicle.id }),
+  });
   const countryMeta = useMemo(() => {
     const cc = vehicle.countryCode?.toUpperCase();
     return cc ? countryByCode.get(cc) : undefined;
   }, [vehicle.countryCode, countryByCode]);
-  const status = vehicleFleetStatus(vehicle, allSessions, today);
+  const status = vehicleFleetStatus(vehicle, allSessions, today, rentalRequests);
   const booked = useMemo(() => {
     if (occupancyData?.ranges != null) {
       return bookedDatesFromOccupancyRanges(occupancyData.ranges);
     }
     return bookedDatesForVehicle(allSessions, vehicle.id);
   }, [occupancyData, allSessions, vehicle.id]);
-  const sessions = useMemo(() => sessionsForVehicle(allSessions, vehicle.id), [allSessions, vehicle.id]);
+  /** Günlük: önce bu araç için `GET /rentals?vehicleId=`; yüklenene kadar genel listeden süzüm. */
+  const sessionsForThisVehicle = useMemo(() => {
+    if (vehicleRentalSessions !== undefined) return vehicleRentalSessions;
+    return sessionsForVehicle(allSessions, vehicle.id);
+  }, [vehicleRentalSessions, allSessions, vehicle.id]);
+
+  const vehicleRequestLogRows = useMemo(() => {
+    return rentalRequests
+      .filter((r) => (r.vehicleId ?? "") === vehicle.id && (r.status === "pending" || r.status === "approved"))
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  }, [rentalRequests, vehicle.id]);
+
   const rentalLogs = useMemo(
-    () => [...sessions].sort((a, b) => sessionCreatedAt(b).localeCompare(sessionCreatedAt(a))),
-    [sessions],
+    () => [...sessionsForThisVehicle].sort((a, b) => sessionCreatedAt(b).localeCompare(sessionCreatedAt(a))),
+    [sessionsForThisVehicle],
   );
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -228,6 +255,8 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
   const [editSeats, setEditSeats] = useState("");
   const [editLuggage, setEditLuggage] = useState("");
   const [bodyStyleOptions, setBodyStyleOptions] = useState<VehicleBodyStyleRow[]>([]);
+  const [fuelTypeOptions, setFuelTypeOptions] = useState<VehicleBodyStyleRow[]>([]);
+  const [transmissionTypeOptions, setTransmissionTypeOptions] = useState<VehicleBodyStyleRow[]>([]);
   const editHighlightsFieldId = useId();
 
   useEffect(() => {
@@ -237,26 +266,32 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
 
   useEffect(() => {
     if (!editOpen) return;
-    const f = (vehicle.fuelType ?? "").trim().toLowerCase();
-    setEditFuelType(
-      f && VEHICLE_FUEL_SELECT.some((o) => o.value === f) ? f : SPECS_FUEL_NONE,
-    );
-    const t = (vehicle.transmissionType ?? "").trim().toLowerCase();
-    setEditTransmissionType(
-      t && VEHICLE_TRANSMISSION_SELECT.some((o) => o.value === t) ? t : SPECS_TRANS_NONE,
-    );
+    setEditFuelType(SPECS_FUEL_NONE);
+    setEditTransmissionType(SPECS_TRANS_NONE);
+    setEditBodyStyleCode(SPECS_BODY_NONE);
     setEditSeats(vehicle.seats != null ? String(vehicle.seats) : "");
     setEditLuggage(vehicle.luggage != null ? String(vehicle.luggage) : "");
     let cancelled = false;
-    void fetchVehicleBodyStylesFromRentApi().then((rows) => {
+    void Promise.all([
+      fetchVehicleBodyStylesFromRentApi(),
+      fetchVehicleFuelTypesFromRentApi(),
+      fetchVehicleTransmissionTypesFromRentApi(),
+    ]).then(([bodyRows, fuelRows, transRows]) => {
       if (cancelled) return;
-      setBodyStyleOptions(rows);
+      const bodies = sortVehicleCatalogRows(bodyRows);
+      const fuels = sortVehicleCatalogRows(fuelRows);
+      const trans = sortVehicleCatalogRows(transRows);
+      setBodyStyleOptions(bodies);
+      setFuelTypeOptions(fuels);
+      setTransmissionTypeOptions(trans);
+      setEditFuelType(catalogCodeIfKnown(vehicle.fuelType, fuels, SPECS_FUEL_NONE));
+      setEditTransmissionType(catalogCodeIfKnown(vehicle.transmissionType, trans, SPECS_TRANS_NONE));
       const b = (vehicle.bodyStyleCode ?? "").trim();
       if (!b) {
         setEditBodyStyleCode(SPECS_BODY_NONE);
         return;
       }
-      setEditBodyStyleCode(rows.some((r) => r.code === b) ? b : SPECS_BODY_NONE);
+      setEditBodyStyleCode(catalogCodeIfKnown(b, bodies, SPECS_BODY_NONE));
     });
     return () => {
       cancelled = true;
@@ -342,7 +377,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
             at: d,
           };
         });
-    const filtered = sessions.filter((s) => {
+    const filtered = sessionsForThisVehicle.filter((s) => {
       const d = startOfDay(new Date(s.createdAt ?? `${s.startDate}T00:00:00.000Z`));
       return d.getTime() >= rangeStart.getTime();
     });
@@ -397,7 +432,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       maxCount,
       rangeLabel: rangeMeta.label,
     };
-  }, [sessions, today, reportRange, vehicle.rentalDailyPrice, vehicle.commissionEnabled, vehicle.commissionRatePercent]);
+  }, [sessionsForThisVehicle, today, reportRange, vehicle.rentalDailyPrice, vehicle.commissionEnabled, vehicle.commissionRatePercent]);
 
   const vehicleInfoRows = useMemo(
     () => [
@@ -452,9 +487,9 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         value: vehicle.commissionEnabled ? vehicle.commissionBrokerPhone || "—" : "—",
       },
       ...(vehicle.externalCompany ? [{ label: "Harici firma", value: vehicle.externalCompany }] : []),
-      { label: "Toplam kiralama", value: <span className="tabular-nums">{sessions.length} kayıt</span> },
+      { label: "Toplam kiralama", value: <span className="tabular-nums">{sessionsForThisVehicle.length} kayıt</span> },
     ],
-    [vehicle, countryMeta, status, sessions.length],
+    [vehicle, countryMeta, status, sessionsForThisVehicle.length],
   );
 
   const galleryImages = useMemo(() => mergeVehicleImagesWithDemo(vehicle.images, vehicle.id), [vehicle.images, vehicle.id]);
@@ -595,7 +630,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         return;
       }
     }
-    const conflict = allSessions.find(
+    const conflict = sessionsForThisVehicle.find(
       (s) =>
         rentalCountsForCalendar(s) &&
         s.vehicleId === vehicle.id &&
@@ -604,6 +639,18 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     if (conflict) {
       toast.error(
         `Bu araç ${conflict.startDate} - ${conflict.endDate} arasında kirada (${conflict.customer.fullName}).`,
+      );
+      return;
+    }
+    const requestConflict = rentalRequests.find(
+      (r) =>
+        (r.vehicleId ?? "") === vehicle.id &&
+        (r.status === "pending" || r.status === "approved") &&
+        dateRangesOverlap(start, end, r.startDate, r.endDate),
+    );
+    if (requestConflict) {
+      toast.error(
+        `Bu tarihlerde bu araç için bekleyen veya onaylı bir talep var (${requestConflict.referenceNo}). Talepler sayfasından kontrol edin.`,
       );
       return;
     }
@@ -1429,24 +1476,70 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
 
             <TabsContent value="logs" className="space-y-3">
               <p className="text-[11px] text-muted-foreground">
-                Müşteri özetleri:{" "}
+                Kesin kiralamalar bu araç için sunucudan ayrı yüklenir; bekleyen veya onaylı talepler aşağıda listelenir. Müşteri özetleri:{" "}
                 <Link href="/customers" className="font-medium text-primary underline-offset-2 hover:underline">
                   Customers
                 </Link>
                 {" · "}
-                Tüm kiralamalar:{" "}
                 <Link href="/logs" className="font-medium text-primary underline-offset-2 hover:underline">
-                  Kiralamalar
+                  Tüm kiralamalar
+                </Link>
+                {" · "}
+                <Link href="/requests" className="font-medium text-primary underline-offset-2 hover:underline">
+                  Talepler
                 </Link>
               </p>
-              {rentalLogs.length === 0 ? (
-                <p className="py-6 text-center text-xs text-muted-foreground">Henüz kiralama günlük kaydı yok.</p>
-              ) : (
+              {vehicleRentalsPending &&
+              vehicleRentalSessions === undefined &&
+              rentalLogs.length === 0 &&
+              vehicleRequestLogRows.length === 0 ? (
+                <p className="py-4 text-center text-xs text-muted-foreground">Kiralama günlüğü sunucudan yükleniyor…</p>
+              ) : null}
+              {vehicleRequestLogRows.length > 0 ? (
+                <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2.5">
+                  <p className="text-[11px] font-semibold text-foreground">Kiralama talepleri (bu araç)</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    Kesin kira kaydı oluşmadan önceki rezervasyonlar burada görünür; günlükte yalnızca{" "}
+                    <span className="font-medium text-foreground">/rentals</span> listelenir.
+                  </p>
+                  <ul className="mt-2 space-y-2">
+                    {vehicleRequestLogRows.map((r) => (
+                      <li key={r.id} className="rounded-md border border-border/60 bg-background px-2.5 py-2 text-xs">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-[11px] font-semibold">{r.referenceNo}</span>
+                          <Badge variant={r.status === "approved" ? "success" : "warning"} className="text-[10px]">
+                            {r.status === "approved" ? "Onaylı" : "Beklemede"}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {r.customer.fullName} · {r.startDate} → {r.endDate}
+                          {r.createdAt ? (
+                            <>
+                              {" · "}
+                              <span className="font-mono">{format(parseISO(r.createdAt), "d MMM yyyy HH:mm", { locale: tr })}</span>
+                            </>
+                          ) : null}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {rentalLogs.length === 0 && vehicleRequestLogRows.length === 0 && !vehicleRentalsPending ? (
+                <p className="py-6 text-center text-xs text-muted-foreground">
+                  Bu araç için henüz kesin kiralama veya bekleyen/onaylı talep görünmüyor.
+                </p>
+              ) : null}
+              {rentalLogs.length > 0 ? (
                 <>
                   <RentalLogFiltersBar values={logFilters} onChange={setLogFilters} />
                   <RentalLogEntries sessions={filteredRentalLogs} expandableDetails />
                 </>
-              )}
+              ) : vehicleRequestLogRows.length > 0 && !vehicleRentalsPending ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Kesin kiralama satırı yok. Talep onaylandıktan sonra kira oluşturulduğunda burada listelenir.
+                </p>
+              ) : null}
             </TabsContent>
           </Tabs>
         </CardContent>
@@ -1575,9 +1668,10 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                       <SelectValue placeholder="Seçin" />
                     </SelectTrigger>
                     <SelectContent>
-                      {VEHICLE_FUEL_SELECT.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
+                      <SelectItem value={SPECS_FUEL_NONE}>Seçilmedi</SelectItem>
+                      {fuelTypeOptions.map((o) => (
+                        <SelectItem key={o.id || o.code} value={o.code}>
+                          {o.labelTr || o.code}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1590,9 +1684,10 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                       <SelectValue placeholder="Seçin" />
                     </SelectTrigger>
                     <SelectContent>
-                      {VEHICLE_TRANSMISSION_SELECT.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
+                      <SelectItem value={SPECS_TRANS_NONE}>Seçilmedi</SelectItem>
+                      {transmissionTypeOptions.map((o) => (
+                        <SelectItem key={o.id || o.code} value={o.code}>
+                          {o.labelTr || o.code}
                         </SelectItem>
                       ))}
                     </SelectContent>

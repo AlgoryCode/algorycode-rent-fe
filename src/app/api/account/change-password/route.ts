@@ -1,3 +1,4 @@
+import axios from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
   try {
     const cookieStore = await cookies();
     const accessToken =
-      cookieStore.get("algory_access_token")?.value || cookieStore.get("accessToken")?.value;
+      cookieStore.get("accessToken")?.value || cookieStore.get("algory_access_token")?.value || null;
     if (!accessToken) {
       return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
     }
@@ -27,27 +28,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Mevcut şifre ve yeni şifre gerekli" }, { status: 400 });
     }
 
-    const upstream = await fetch(`${AUTH_BASE}/account/change-password`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "X-User-Id": String(userId),
-        "Content-Type": "application/json",
+    const upstream = await axios.post(
+      `${AUTH_BASE}/account/change-password`,
+      { currentPassword: body.currentPassword, newPassword: body.newPassword },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "X-User-Id": String(userId),
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        validateStatus: () => true,
+        timeout: 20_000,
       },
-      body: JSON.stringify({
-        currentPassword: body.currentPassword,
-        newPassword: body.newPassword,
-      }),
-      cache: "no-store",
-    });
+    );
 
-    if (!upstream.ok) {
-      const text = await upstream.text();
-      let message = text;
-      try {
-        message = getJsonErrorText(JSON.parse(text) as unknown) || text;
-      } catch {
-        /* keep text */
+    if (upstream.status < 200 || upstream.status >= 300) {
+      const raw = upstream.data;
+      let message = typeof raw === "string" ? raw : JSON.stringify(raw);
+      if (raw != null && typeof raw === "object") {
+        message = getJsonErrorText(raw) || message;
       }
       return NextResponse.json({ message: message || "Şifre değiştirilemedi" }, { status: upstream.status });
     }

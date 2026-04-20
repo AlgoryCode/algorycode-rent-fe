@@ -26,7 +26,7 @@ function isProtectedPath(pathname: string) {
 }
 
 function hasAccessToken(req: NextRequest) {
-  return Boolean(req.cookies.get("algory_access_token")?.value || req.cookies.get("accessToken")?.value);
+  return Boolean(req.cookies.get("accessToken")?.value);
 }
 
 export function middleware(req: NextRequest) {
@@ -63,10 +63,7 @@ export function middleware(req: NextRequest) {
       return NextResponse.redirect(url);
     }
     if (requiresRentManagerForPath(pathname)) {
-      const token =
-        req.cookies.get("algory_access_token")?.value?.trim() ||
-        req.cookies.get("accessToken")?.value?.trim() ||
-        "";
+      const token = req.cookies.get("accessToken")?.value?.trim() || "";
       const payload = token ? decodeJwtPayloadJson(token) : null;
       const roles = payload ? extractRentRolesFromJwtPayload(payload) : [];
       if (!hasRentManagerAccess(roles)) {

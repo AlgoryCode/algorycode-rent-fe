@@ -1,47 +1,47 @@
-import { NextResponse } from "next/server";
+import axios from "axios";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
 import { AUTH_BASE, COOKIE_MAX_AGE_SECONDS } from "@/lib/config";
 import { applyRentFeRolesCookie } from "@/lib/rbac/role-cookie";
-import { clearAuthCookies } from "@/lib/server/auth-cookies";
+import { clearAuthCookies, clearLegacyAlgoryAuthCookies } from "@/lib/server/auth-cookies";
 
-/** Panel httpOnly çerezleriyle AuthService refresh; rent-api 401 sonrası same-origin çağrı. */
+/** Panel httpOnly refresh çerezini okur; AuthService’e JSON gövde ile refresh. */
 export async function POST() {
   try {
     const cookieStore = await cookies();
     const refreshToken =
-      cookieStore.get("algory_refresh_token")?.value ||
-      cookieStore.get("refreshToken")?.value ||
+      cookieStore.get("refreshToken")?.value?.trim() ||
+      cookieStore.get("algory_refresh_token")?.value?.trim() ||
       null;
 
-    if (!refreshToken?.trim()) {
+    if (!refreshToken) {
       const res = NextResponse.json({ message: "Refresh token yok" }, { status: 401 });
       clearAuthCookies(res);
       return res;
     }
 
-    const upstream = await fetch(`${AUTH_BASE}/basicauth/refreshToken`, {
-      method: "POST",
-      headers: { Cookie: `refreshToken=${refreshToken.trim()}` },
-      cache: "no-store",
-    });
+    const upstream = await axios.post<Record<string, unknown>>(
+      `${AUTH_BASE}/basicauth/refreshToken`,
+      { refreshToken },
+      {
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        validateStatus: () => true,
+        timeout: 20_000,
+      },
+    );
 
-    const raw = await upstream.text();
-    let data: {
+    const raw = upstream.data;
+    const data = (typeof raw === "object" && raw != null ? raw : {}) as {
       message?: string;
       accessToken?: string;
       refreshToken?: string;
       access_token?: string;
       refresh_token?: string;
-    } = {};
-    try {
-      data = raw ? (JSON.parse(raw) as typeof data) : {};
-    } catch {
-      data = { message: raw || "Beklenmeyen yanıt" };
-    }
+    };
 
-    if (!upstream.ok) {
+    if (upstream.status < 200 || upstream.status >= 300) {
       const status = upstream.status || 401;
       const response = NextResponse.json(
         { message: typeof data?.message === "string" ? data.message : "Token yenilenemedi" },
@@ -66,15 +66,14 @@ export async function POST() {
       path: "/",
       maxAge: COOKIE_MAX_AGE_SECONDS,
     };
-    if (accessToken) {
-      response.cookies.set("algory_access_token", accessToken, cookieOpts);
+    if (typeof accessToken === "string" && accessToken) {
       response.cookies.set("accessToken", accessToken, cookieOpts);
     }
-    if (newRefresh) {
-      response.cookies.set("algory_refresh_token", newRefresh, cookieOpts);
+    if (typeof newRefresh === "string" && newRefresh) {
       response.cookies.set("refreshToken", newRefresh, cookieOpts);
     }
-    if (accessToken) {
+    clearLegacyAlgoryAuthCookies(response);
+    if (typeof accessToken === "string" && accessToken) {
       applyRentFeRolesCookie(response, accessToken, data as Record<string, unknown>);
     }
     return response;

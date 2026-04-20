@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -147,27 +146,6 @@ export function VehicleOptionTemplatesManageClient() {
           <p className="mt-1 max-w-xl text-xs text-muted-foreground">
             Araç eklerken veya araç detayından “Opsiyon ekle” ile seçilecek şablonlar. Seçilenler araca kopyalanır.
           </p>
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-            <Link href="/settings/options/rental" className="text-primary underline-offset-2 hover:underline">
-              Kiralama opsiyonları
-            </Link>
-            <span className="text-muted-foreground">·</span>
-            <Link href="/settings/locations/pickup" className="text-primary underline-offset-2 hover:underline">
-              Alış noktaları
-            </Link>
-            <span className="text-muted-foreground">·</span>
-            <Link href="/settings/locations/return" className="text-primary underline-offset-2 hover:underline">
-              Teslim noktaları
-            </Link>
-            <span className="text-muted-foreground">·</span>
-            <Link href="/settings/options" className="text-muted-foreground underline-offset-2 hover:underline">
-              Opsiyonlar
-            </Link>
-            <span className="text-muted-foreground">·</span>
-            <Link href="/settings" className="text-muted-foreground underline-offset-2 hover:underline">
-              Ayarlara dön
-            </Link>
-          </div>
         </div>
         <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 text-xs" onClick={startCreate} disabled={Boolean(editingId)}>
           Yeni şablon

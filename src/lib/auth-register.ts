@@ -1,3 +1,5 @@
+import { getPanelSameOriginAxios } from "@/lib/panel-same-origin-axios";
+
 export async function registerPanelUser(payload: {
   firstName: string;
   lastName: string;
@@ -5,21 +7,16 @@ export async function registerPanelUser(payload: {
   password: string;
   phoneNumber?: string;
 }): Promise<void> {
-  const res = await fetch("/api/auth/register", {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(payload),
-    cache: "no-store",
+  const { status, data } = await getPanelSameOriginAxios().post<{ message?: string }>("/api/auth/register", payload, {
+    validateStatus: () => true,
   });
-  const text = await res.text();
-  let data: { message?: string } = {};
-  try {
-    data = text ? (JSON.parse(text) as { message?: string }) : {};
-  } catch {
-    data = { message: text || "Kayıt başarısız" };
-  }
-  if (!res.ok) {
-    throw new Error(typeof data.message === "string" ? data.message : `Kayıt başarısız (${res.status})`);
+  const msg =
+    typeof data?.message === "string"
+      ? data.message
+      : typeof data === "object" && data != null && "message" in data
+        ? String((data as { message?: unknown }).message ?? "")
+        : "";
+  if (status < 200 || status >= 300) {
+    throw new Error(msg || `Kayıt başarısız (${status})`);
   }
 }

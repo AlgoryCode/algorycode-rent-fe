@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { startOfDay } from "date-fns";
 import { LayoutGrid, List, Plus, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,8 @@ import { useCountries } from "@/hooks/use-countries";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import { vehicleFleetStatus, type FleetStatus } from "@/lib/fleet-utils";
+import { fetchRentalRequestsFromRentApi } from "@/lib/rent-api";
+import { rentKeys } from "@/lib/rent-query-keys";
 import { mergeVehicleImagesWithDemo } from "@/lib/vehicle-images";
 import type { Vehicle } from "@/lib/mock-fleet";
 import { cn } from "@/lib/utils";
@@ -44,6 +47,10 @@ export function VehiclesClient() {
   const router = useRouter();
   const { allVehicles, ready, error: fleetError } = useFleetVehicles();
   const { allSessions } = useFleetSessions();
+  const { data: rentalRequests = [] } = useQuery({
+    queryKey: rentKeys.rentalRequests(),
+    queryFn: () => fetchRentalRequestsFromRentApi(),
+  });
   const { countryByCode } = useCountries();
   const [tab, setTab] = useState<"all" | FleetStatus>("all");
   const [query, setQuery] = useState("");
@@ -71,10 +78,10 @@ export function VehiclesClient() {
 
   const rows = useMemo(() => {
     return allVehicles.map((v) => {
-      const status = vehicleFleetStatus(v, allSessions, today);
+      const status = vehicleFleetStatus(v, allSessions, today, rentalRequests);
       return { v, status };
     });
-  }, [allVehicles, allSessions, today]);
+  }, [allVehicles, allSessions, today, rentalRequests]);
 
   const filteredByTab = useMemo(() => {
     if (tab === "all") return rows;
@@ -99,7 +106,10 @@ export function VehiclesClient() {
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Araçlar</h1>
           <p className="text-xs text-muted-foreground">
-            Varsayılan galeri görünümü; isterseniz liste görünümüne geçin. Sekmelerle durum, arama ile plaka veya marka/model süzün. Karta tıklayarak detaya gidin.
+            Varsayılan galeri görünümü; isterseniz liste görünümüne geçin. Sekmelerle durum, arama ile plaka veya marka/model süzün. Karta tıklayarak detaya gidin.{" "}
+            <span className="text-muted-foreground/90">
+              “Kirada” rozeti, bugünü kapsayan kesin kiralamalar ile onaylı veya bekleyen kiralama taleplerini birlikte dikkate alır.
+            </span>
           </p>
         </div>
         <Button size="sm" className="h-9 gap-1.5 shrink-0" asChild>

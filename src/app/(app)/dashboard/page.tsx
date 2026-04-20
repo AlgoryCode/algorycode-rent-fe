@@ -8,7 +8,6 @@ import {
   Car,
   ClipboardList,
   Globe2,
-  ListFilter,
   MailCheck,
   MessagesSquare,
   Settings,
@@ -31,12 +30,6 @@ const quickMenuAll = [
   { href: "/customers/channel", label: "Toplu mesaj", icon: MessagesSquare, bg: "from-lime-500/25 to-green-500/10" },
   { href: "/users", label: "Kullanıcılar", icon: UserCog, bg: "from-slate-500/25 to-zinc-500/10" },
   { href: "/countries", label: "Ülkeler", icon: Globe2, bg: "from-purple-500/25 to-blue-500/10" },
-  {
-    href: "/settings/vehicle-catalog",
-    label: "Araç özellikleri",
-    icon: ListFilter,
-    bg: "from-teal-500/25 to-cyan-500/10",
-  },
   { href: "/settings", label: "Ayarlar", icon: Settings, bg: "from-stone-500/25 to-neutral-500/10" },
 ] as const;
 

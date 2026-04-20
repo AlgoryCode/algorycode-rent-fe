@@ -24,6 +24,7 @@ export function useFleetSessions() {
     mutationFn: (payload: CreateRentalPayload) => createRentalOnRentApi(payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: rentKeys.rentals() });
+      void qc.invalidateQueries({ queryKey: rentKeys.rentalRequests() });
       void qc.invalidateQueries({ queryKey: [...rentKeys.all, "vehicleCalendarOccupancy"] });
     },
   });
@@ -32,6 +33,7 @@ export function useFleetSessions() {
     mutationFn: ({ id, payload }: { id: string; payload: UpdateRentalPayload }) => updateRentalOnRentApi(id, payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: rentKeys.rentals() });
+      void qc.invalidateQueries({ queryKey: rentKeys.rentalRequests() });
       void qc.invalidateQueries({ queryKey: [...rentKeys.all, "vehicleCalendarOccupancy"] });
     },
   });

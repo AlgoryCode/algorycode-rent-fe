@@ -15,15 +15,21 @@ const baseOptions = {
 
 const cookieOptions = { ...baseOptions, maxAge: COOKIE_MAX_AGE_SECONDS };
 
+/** Eski `algory_*` auth çerezlerini kaldır (geçiş / tutarlılık). */
+export function clearLegacyAlgoryAuthCookies(response: NextResponse) {
+  const clear = { ...cookieOptions, maxAge: 0 };
+  response.cookies.set("algory_access_token", "", clear);
+  response.cookies.set("algory_refresh_token", "", clear);
+}
+
 export function setAuthCookies(response: NextResponse, accessToken?: string, refreshToken?: string) {
   if (accessToken) {
-    response.cookies.set("algory_access_token", accessToken, cookieOptions);
     response.cookies.set("accessToken", accessToken, cookieOptions);
   }
   if (refreshToken) {
-    response.cookies.set("algory_refresh_token", refreshToken, cookieOptions);
     response.cookies.set("refreshToken", refreshToken, cookieOptions);
   }
+  clearLegacyAlgoryAuthCookies(response);
 }
 
 export function setTwoFactorPendingCookie(response: NextResponse, token: string) {
@@ -35,10 +41,9 @@ export function setTwoFactorPendingCookie(response: NextResponse, token: string)
 
 export function clearAuthCookies(response: NextResponse) {
   const clearOptions = { ...cookieOptions, maxAge: 0 };
-  response.cookies.set("algory_access_token", "", clearOptions);
-  response.cookies.set("algory_refresh_token", "", clearOptions);
   response.cookies.set("accessToken", "", clearOptions);
   response.cookies.set("refreshToken", "", clearOptions);
+  clearLegacyAlgoryAuthCookies(response);
   response.cookies.set("algory_2fa_pending", "", { ...baseOptions, maxAge: 0 });
   clearRentFeRolesCookie(response);
 }

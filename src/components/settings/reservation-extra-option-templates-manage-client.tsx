@@ -159,7 +159,7 @@ export function ReservationExtraOptionTemplatesManageClient() {
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Kiralama opsiyonları</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Kiralama Opsiyonları</h1>
           <p className="mt-1 max-w-xl text-xs text-muted-foreground">
             Rezervasyon sihirbazında listelenen genel ek hizmetler. Araca özel ücretli seçenekler için{" "}
             <Link href="/settings/options/vehicle" className="text-primary underline-offset-2 hover:underline">

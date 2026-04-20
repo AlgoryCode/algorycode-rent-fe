@@ -25,7 +25,7 @@ export default function SettingsOptionsHubPage() {
         <Link href="/settings/options/rental" className="block rounded-lg outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
           <Card className="glow-card h-full transition-colors hover:border-primary/40">
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Kiralama opsiyonları</CardTitle>
+              <CardTitle className="text-sm">Kiralama Opsiyonları</CardTitle>
               <CardDescription className="text-xs">Rezervasyon sihirbazında gösterilen genel ek hizmetler.</CardDescription>
             </CardHeader>
             <CardContent className="pb-4 text-xs font-medium text-primary">Yönet →</CardContent>

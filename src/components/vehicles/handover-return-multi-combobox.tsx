@@ -44,7 +44,7 @@ export function HandoverReturnMultiCombobox({
   value,
   onChange,
   placeholder = "Teslim noktası seçin…",
-  inputPlaceholder = "İsim veya adres ara…",
+  inputPlaceholder = "İsim ara…",
   emptyMessage = "RETURN noktası yok",
   disabled,
 }: HandoverReturnMultiComboboxProps) {
@@ -81,8 +81,7 @@ export function HandoverReturnMultiCombobox({
     return locations.filter((l) => {
       const name = l.name.toLocaleLowerCase("tr");
       const desc = (l.description ?? "").toLocaleLowerCase("tr");
-      const addr = (l.addressLine ?? "").toLocaleLowerCase("tr");
-      return name.includes(q) || desc.includes(q) || addr.includes(q);
+      return name.includes(q) || desc.includes(q);
     });
   }, [locations, query]);
 

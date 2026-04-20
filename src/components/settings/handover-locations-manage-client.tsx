@@ -1,50 +1,35 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCountries } from "@/hooks/use-countries";
 import {
   createHandoverLocationOnRentApi,
   deleteHandoverLocationOnRentApi,
-  fetchCitiesFromRentApi,
   fetchHandoverLocationsFromRentApi,
   getRentApiErrorMessage,
   updateHandoverLocationOnRentApi,
-  type CityRow,
   type HandoverLocationApiRow,
   type UpdateHandoverLocationPayload,
 } from "@/lib/rent-api";
 
-const COUNTRY_NONE = "__none__";
-
 type FormState = {
   name: string;
-  description: string;
-  addressLine: string;
   lineOrder: string;
   /** Bu nokta seçildiğinde rezervasyona eklenecek sabit tutar (EUR), virgül veya nokta. */
   surchargeEur: string;
   active: boolean;
-  vehicleCountry: string;
-  cityId: string;
 };
 
 const emptyForm = (): FormState => ({
   name: "",
-  description: "",
-  addressLine: "",
   lineOrder: "0",
   surchargeEur: "0",
   active: true,
-  vehicleCountry: COUNTRY_NONE,
-  cityId: "",
 });
 
 function parseSurchargeEurInput(raw: string): number | null {
@@ -64,23 +49,11 @@ export function HandoverLocationsManageClient({
   heading: string;
   intro: string;
 }) {
-  const { countries } = useCountries();
   const [rows, setRows] = useState<HandoverLocationApiRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cities, setCities] = useState<CityRow[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  const countriesSorted = useMemo(
-    () => [...countries].sort((a, b) => a.name.localeCompare(b.name, "tr")),
-    [countries],
-  );
-
-  const selectedCountryId = useMemo(() => {
-    if (form.vehicleCountry === COUNTRY_NONE) return "";
-    return countriesSorted.find((c) => c.code === form.vehicleCountry)?.id ?? "";
-  }, [countriesSorted, form.vehicleCountry]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,22 +71,6 @@ export function HandoverLocationsManageClient({
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (!selectedCountryId) {
-      setCities([]);
-      if (!editingId) setForm((f) => ({ ...f, cityId: "" }));
-      return;
-    }
-    let cancelled = false;
-    void fetchCitiesFromRentApi(selectedCountryId).then((list) => {
-      if (cancelled) return;
-      setCities(list);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedCountryId, editingId]);
-
   const startCreate = () => {
     setEditingId("new");
     setForm(emptyForm());
@@ -121,18 +78,12 @@ export function HandoverLocationsManageClient({
 
   const startEdit = (row: HandoverLocationApiRow) => {
     setEditingId(row.id);
-    const cc = row.countryCode?.trim().toUpperCase() ?? "";
-    const country = countriesSorted.find((c) => c.code === cc);
     const sur = row.surchargeEur ?? 0;
     setForm({
       name: row.name,
-      description: row.description ?? "",
-      addressLine: row.addressLine ?? "",
       lineOrder: String(row.lineOrder ?? 0),
       surchargeEur: String(sur),
       active: row.active !== false,
-      vehicleCountry: country?.code ?? COUNTRY_NONE,
-      cityId: row.cityId ?? "",
     });
   };
 
@@ -161,16 +112,12 @@ export function HandoverLocationsManageClient({
       toast.error("Ek ücret (EUR) negatif olamaz.");
       return;
     }
-    const cityId = form.cityId.trim() || undefined;
     setSaving(true);
     try {
       if (editingId === "new") {
         await createHandoverLocationOnRentApi({
           kind,
           name,
-          description: form.description.trim() || undefined,
-          addressLine: form.addressLine.trim() || undefined,
-          cityId,
           lineOrder: lo,
           active: form.active,
           surchargeEur: surchargeParsed,
@@ -179,14 +126,10 @@ export function HandoverLocationsManageClient({
       } else if (editingId) {
         const patch: UpdateHandoverLocationPayload = {
           name,
-          description: form.description.trim(),
-          addressLine: form.addressLine.trim(),
           lineOrder: lo,
           active: form.active,
           surchargeEur: surchargeParsed,
         };
-        if (cityId) patch.cityId = cityId;
-        else patch.clearCity = true;
         await updateHandoverLocationOnRentApi(editingId, patch);
         toast.success("Güncellendi.");
       }
@@ -216,23 +159,6 @@ export function HandoverLocationsManageClient({
         <div>
           <h1 className="text-lg font-semibold tracking-tight">{heading}</h1>
           <p className="mt-1 max-w-xl text-xs text-muted-foreground">{intro}</p>
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-            <Link href="/settings/locations/pickup" className="text-primary underline-offset-2 hover:underline">
-              Alış noktaları
-            </Link>
-            <span className="text-muted-foreground">·</span>
-            <Link href="/settings/locations/return" className="text-primary underline-offset-2 hover:underline">
-              Teslim noktaları
-            </Link>
-            <span className="text-muted-foreground">·</span>
-            <Link href="/settings/options/vehicle" className="text-primary underline-offset-2 hover:underline">
-              Opsiyon şablonları
-            </Link>
-            <span className="text-muted-foreground">·</span>
-            <Link href="/settings" className="text-muted-foreground underline-offset-2 hover:underline">
-              Ayarlara dön
-            </Link>
-          </div>
         </div>
         <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 text-xs" onClick={startCreate} disabled={Boolean(editingId)}>
           Yeni ekle
@@ -249,52 +175,6 @@ export function HandoverLocationsManageClient({
             <div className="space-y-1">
               <Label className="text-xs">Ad</Label>
               <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Açıklama</Label>
-              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Adres satırı</Label>
-              <Input value={form.addressLine} onChange={(e) => setForm((f) => ({ ...f, addressLine: e.target.value }))} className="h-9 text-sm" />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Ülke (şehir için)</Label>
-                <Select
-                  value={form.vehicleCountry}
-                  onValueChange={(v) => setForm((f) => ({ ...f, vehicleCountry: v, cityId: "" }))}
-                >
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="—" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={COUNTRY_NONE}>Şehir bağlama</SelectItem>
-                    {countriesSorted.map((c) => (
-                      <SelectItem key={c.id} value={c.code}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {selectedCountryId ? (
-                <div className="space-y-1">
-                  <Label className="text-xs">Şehir</Label>
-                  <Select value={form.cityId || undefined} onValueChange={(v) => setForm((f) => ({ ...f, cityId: v }))}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder={cities.length ? "Seçin" : "Yükleniyor…"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cities.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Ek ücret (EUR)</Label>
@@ -353,19 +233,23 @@ export function HandoverLocationsManageClient({
             <p className="text-xs text-muted-foreground">Henüz kayıt yok.</p>
           ) : (
             <ul className="divide-y divide-border/60">
-              {rows.map((row) => (
+              {rows.map((row) => {
+                const cc = row.countryCode?.trim();
+                const metaParts = [
+                  ...(cc ? [cc] : []),
+                  `sıra ${row.lineOrder ?? 0}`,
+                  ...((row.surchargeEur ?? 0) > 0
+                    ? [
+                        `ek ücret ${new Intl.NumberFormat("tr-TR", { style: "currency", currency: "EUR" }).format(row.surchargeEur ?? 0)}`,
+                      ]
+                    : []),
+                  ...(row.active === false ? ["pasif"] : []),
+                ];
+                return (
                 <li key={row.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{row.name}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {[row.cityName, row.countryCode].filter(Boolean).join(" · ") || "Şehir atanmadı"}
-                      {" · "}
-                      sıra {row.lineOrder ?? 0}
-                      {(row.surchargeEur ?? 0) > 0
-                        ? ` · ek ücret ${new Intl.NumberFormat("tr-TR", { style: "currency", currency: "EUR" }).format(row.surchargeEur ?? 0)}`
-                        : ""}
-                      {row.active === false ? " · pasif" : ""}
-                    </p>
+                    <p className="text-[11px] text-muted-foreground">{metaParts.join(" · ")}</p>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => startEdit(row)} disabled={Boolean(editingId)}>
@@ -378,7 +262,8 @@ export function HandoverLocationsManageClient({
                     ) : null}
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </CardContent>

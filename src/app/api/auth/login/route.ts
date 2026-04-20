@@ -1,3 +1,4 @@
+import axios from "axios";
 import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
@@ -22,16 +23,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "E-posta ve şifre gerekli" }, { status: 400 });
     }
 
-    const upstream = await fetch(`${AUTH_BASE}/basicauth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(loginPayload),
-      cache: "no-store",
-    });
+    const upstream = await axios.post<Record<string, unknown>>(
+      `${AUTH_BASE}/basicauth/login`,
+      loginPayload,
+      {
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        validateStatus: () => true,
+        timeout: 20_000,
+      },
+    );
 
-    const data = (await upstream
-      .json()
-      .catch(async () => ({ message: await upstream.text().catch(() => "Giriş başarısız") }))) as Record<
+    const data = (typeof upstream.data === "object" && upstream.data != null ? upstream.data : {}) as Record<
       string,
       unknown
     > & {
@@ -48,7 +50,7 @@ export async function POST(req: Request) {
       refresh_token?: string;
     };
 
-    if (!upstream.ok) {
+    if (upstream.status < 200 || upstream.status >= 300) {
       return NextResponse.json(
         { message: typeof data?.message === "string" ? data.message : "Giriş başarısız" },
         { status: upstream.status || 401 },
@@ -66,7 +68,7 @@ export async function POST(req: Request) {
         },
         { status: 200 },
       );
-      setTwoFactorPendingCookie(response, data.twoFactorToken);
+      setTwoFactorPendingCookie(response, String(data.twoFactorToken));
       return response;
     }
 

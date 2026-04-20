@@ -1,14 +1,10 @@
 import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
 
 import { RENT_API_BASE } from "@/lib/config";
+import { refreshPanelSession } from "@/lib/panel-same-origin-axios";
+import { clearRentApiGatewayAuthCache, resolveGatewayBearerHeader } from "@/lib/rent-gateway-bearer-cache";
 
-/** Tarayıcı → farklı origin gateway rent; Bearer httpOnly’den `/api/auth/access-token` ile. */
-let gatewayBearerCache: { token: string; exp: number } | null = null;
-const GATEWAY_BEARER_CACHE_MS = 45_000;
-
-export function clearRentApiGatewayAuthCache() {
-  gatewayBearerCache = null;
-}
+export { clearRentApiGatewayAuthCache } from "@/lib/rent-gateway-bearer-cache";
 
 function browserGatewayCrossOrigin(): boolean {
   if (typeof window === "undefined") return false;
@@ -19,27 +15,6 @@ function browserGatewayCrossOrigin(): boolean {
   } catch {
     return false;
   }
-}
-
-async function resolveGatewayBearerHeader(): Promise<string | undefined> {
-  if (typeof window === "undefined") return undefined;
-  const now = Date.now();
-  if (gatewayBearerCache && gatewayBearerCache.exp > now) {
-    return `Bearer ${gatewayBearerCache.token}`;
-  }
-  const r = await fetch("/api/auth/access-token", { credentials: "same-origin", cache: "no-store" });
-  if (!r.ok) {
-    gatewayBearerCache = null;
-    return undefined;
-  }
-  const j = (await r.json()) as { accessToken?: string | null };
-  const t = j.accessToken?.trim();
-  if (!t) {
-    gatewayBearerCache = null;
-    return undefined;
-  }
-  gatewayBearerCache = { token: t, exp: now + GATEWAY_BEARER_CACHE_MS };
-  return `Bearer ${t}`;
 }
 import type {
   AdditionalDriverInfo,
@@ -68,14 +43,8 @@ function attachRent401Refresh(client: AxiosInstance) {
       }
       cfg.__rent401Retried = true;
       try {
-        const r = await axios.post<{ accessTokenExpiresAt?: number }>(
-          "/api/auth/refresh",
-          {},
-          { withCredentials: true, validateStatus: (s) => s < 500 },
-        );
-        if (r.status === 401) {
-          clearRentApiGatewayAuthCache();
-          window.location.assign("/login");
+        const ok = await refreshPanelSession();
+        if (!ok) {
           return Promise.reject(error);
         }
         if (browserGatewayCrossOrigin()) {
@@ -117,6 +86,8 @@ function rentClient() {
 }
 
 export type VehicleBodyStyleRow = {
+  /** Veritabanı otomatik artan kimlik; silme isteğinde kullanılır (UI’da göstermek zorunlu değil). */
+  id: string;
   code: string;
   labelTr: string;
   sortOrder: number;
@@ -126,7 +97,15 @@ export type VehicleBodyStyleRow = {
 export type VehicleCatalogRow = VehicleBodyStyleRow;
 
 function mapVehicleCatalogRow(o: Record<string, unknown>): VehicleCatalogRow {
+  const rawId = o.id;
+  const idStr =
+    typeof rawId === "number" && Number.isFinite(rawId)
+      ? String(Math.trunc(rawId))
+      : typeof rawId === "string" && rawId.trim()
+        ? rawId.trim()
+        : "";
   return {
+    id: idStr,
     code: String(o.code ?? ""),
     labelTr: String(o.labelTr ?? o.label_tr ?? ""),
     sortOrder: typeof o.sortOrder === "number" ? o.sortOrder : Number(o.sort_order ?? 0) || 0,
@@ -142,7 +121,8 @@ const VEHICLE_CATALOG_API = {
 export type VehicleCatalogKind = keyof typeof VEHICLE_CATALOG_API;
 
 export type VehicleCatalogCreatePayload = {
-  code: string;
+  /** Boş bırakılırsa sunucu özellik adından benzersiz kod üretir. */
+  code?: string;
   labelTr: string;
   sortOrder: number;
 };
@@ -247,7 +227,6 @@ export type HandoverLocationApiRow = {
   kind: string;
   name: string;
   description?: string | null;
-  addressLine?: string | null;
   cityId?: string | null;
   cityName?: string | null;
   countryCode?: string | null;
@@ -261,7 +240,6 @@ export type CreateHandoverLocationPayload = {
   kind: "PICKUP" | "RETURN";
   name: string;
   description?: string;
-  addressLine?: string;
   cityId?: string;
   active?: boolean;
   lineOrder: number;
@@ -272,7 +250,6 @@ export type UpdateHandoverLocationPayload = {
   kind?: "PICKUP" | "RETURN";
   name?: string;
   description?: string;
-  addressLine?: string;
   cityId?: string;
   clearCity?: boolean;
   active?: boolean;
@@ -670,7 +647,12 @@ export async function createVehicleCatalogEntryOnRentApi(
   kind: VehicleCatalogKind,
   payload: VehicleCatalogCreatePayload,
 ): Promise<VehicleCatalogRow> {
-  const { data } = await rentClient().post<unknown>(VEHICLE_CATALOG_API[kind], payload);
+  const body: Record<string, unknown> = { labelTr: payload.labelTr, sortOrder: payload.sortOrder };
+  const trimmedCode = payload.code?.trim();
+  if (trimmedCode) {
+    body.code = trimmedCode;
+  }
+  const { data } = await rentClient().post<unknown>(VEHICLE_CATALOG_API[kind], body);
   return mapVehicleCatalogRow(data as Record<string, unknown>);
 }
 
@@ -684,8 +666,8 @@ export async function updateVehicleCatalogEntryOnRentApi(
   return mapVehicleCatalogRow(data as Record<string, unknown>);
 }
 
-export async function deleteVehicleCatalogEntryOnRentApi(kind: VehicleCatalogKind, code: string): Promise<void> {
-  const path = `${VEHICLE_CATALOG_API[kind]}/${encodeURIComponent(code)}`;
+export async function deleteVehicleCatalogEntryOnRentApi(kind: VehicleCatalogKind, id: string): Promise<void> {
+  const path = `${VEHICLE_CATALOG_API[kind]}/by-id/${encodeURIComponent(id)}`;
   await rentClient().delete(path);
 }
 
@@ -978,7 +960,6 @@ function mapHandoverLocationRow(raw: unknown): HandoverLocationApiRow {
     kind: String(o.kind ?? ""),
     name: String(o.name ?? ""),
     description: o.description != null ? String(o.description) : undefined,
-    addressLine: o.addressLine != null ? String(o.addressLine) : undefined,
     cityId: cityIdRaw != null && String(cityIdRaw).length > 0 ? String(cityIdRaw) : undefined,
     cityName: o.cityName != null ? String(o.cityName) : undefined,
     countryCode: o.countryCode != null ? String(o.countryCode) : undefined,
@@ -1006,7 +987,6 @@ export async function createHandoverLocationOnRentApi(payload: CreateHandoverLoc
     kind: payload.kind,
     name: payload.name.trim(),
     description: payload.description?.trim() || undefined,
-    addressLine: payload.addressLine?.trim() || undefined,
     cityId: payload.cityId?.trim() || undefined,
     active: payload.active,
     lineOrder: payload.lineOrder,
@@ -1023,7 +1003,6 @@ export async function updateHandoverLocationOnRentApi(
   if (payload.kind != null) body.kind = payload.kind;
   if (payload.name != null) body.name = payload.name.trim();
   if (payload.description !== undefined) body.description = payload.description.trim() || null;
-  if (payload.addressLine !== undefined) body.addressLine = payload.addressLine.trim() || null;
   if (payload.cityId !== undefined) body.cityId = payload.cityId.trim() || null;
   if (payload.clearCity === true) body.clearCity = true;
   if (payload.active != null) body.active = payload.active;
@@ -1189,8 +1168,8 @@ export async function createCountryOnRentApi(payload: CreateCountryPayload): Pro
 
 export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Promise<Vehicle> {
   const countryCode = payload.countryCode?.trim().toUpperCase();
-  if (!countryCode || countryCode.length !== 2) {
-    throw new Error("Ülke kodu (ISO alpha-2) zorunludur.");
+  if (!countryCode || countryCode.length < 2 || countryCode.length > 5) {
+    throw new Error("Ülke kodu 2–5 harf olmalıdır.");
   }
   const body: Record<string, unknown> = {
     plate: payload.plate,

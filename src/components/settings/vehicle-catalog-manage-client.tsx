@@ -19,27 +19,31 @@ import {
   type VehicleCatalogRow,
 } from "@/lib/rent-api";
 
+const FEATURE_NAME_LABEL = "Özellik adı";
+const SORT_LABEL = "Sıra no";
+const SORT_HINT = "Açılır listede üstten alta sıra; küçük sayı daha önde gösterilir.";
+
 const TAB_META: { value: VehicleCatalogKind; label: string; hint: string }[] = [
   {
     value: "bodyStyle",
     label: "Araç türü",
-    hint: "Sedan, SUV vb. Kodlar büyük harfe normalize edilir (örn. SUV).",
+    hint: "Sedan, SUV vb. Sistem kodu özellik adından otomatik üretilir (büyük harf).",
   },
   {
     value: "fuelType",
     label: "Yakıt",
-    hint: "Benzin, dizel vb. Kodlar küçük harfe normalize edilir (örn. benzin).",
+    hint: "Benzin, dizel vb. Sistem kodu özellik adından otomatik üretilir (küçük harf).",
   },
   {
     value: "transmissionType",
     label: "Vites",
-    hint: "Otomatik, manuel vb. Kodlar küçük harfe normalize edilir.",
+    hint: "Otomatik, manuel vb. Sistem kodu özellik adından otomatik üretilir (küçük harf).",
   },
 ];
 
-type FormState = { code: string; labelTr: string; sortOrder: string };
+type FormState = { labelTr: string; sortOrder: string };
 
-const emptyForm = (): FormState => ({ code: "", labelTr: "", sortOrder: "0" });
+const emptyForm = (): FormState => ({ labelTr: "", sortOrder: "0" });
 
 export function VehicleCatalogManageClient() {
   const [tab, setTab] = useState<VehicleCatalogKind>("bodyStyle");
@@ -74,7 +78,6 @@ export function VehicleCatalogManageClient() {
   const startEdit = (row: VehicleCatalogRow) => {
     setEditingCode(row.code);
     setForm({
-      code: row.code,
       labelTr: row.labelTr,
       sortOrder: String(row.sortOrder ?? 0),
     });
@@ -88,7 +91,7 @@ export function VehicleCatalogManageClient() {
   const submitForm = async () => {
     const labelTr = form.labelTr.trim();
     if (!labelTr) {
-      toast.error("Türkçe etiket zorunludur.");
+      toast.error(`${FEATURE_NAME_LABEL} zorunludur.`);
       return;
     }
     const sortOrder = Number.parseInt(form.sortOrder, 10);
@@ -99,13 +102,7 @@ export function VehicleCatalogManageClient() {
     setSaving(true);
     try {
       if (editingCode === "new") {
-        const code = form.code.trim();
-        if (!code) {
-          toast.error("Kod zorunludur.");
-          setSaving(false);
-          return;
-        }
-        await createVehicleCatalogEntryOnRentApi(tab, { code, labelTr, sortOrder });
+        await createVehicleCatalogEntryOnRentApi(tab, { labelTr, sortOrder });
         toast.success("Kayıt oluşturuldu.");
       } else if (editingCode) {
         await updateVehicleCatalogEntryOnRentApi(tab, editingCode, { labelTr, sortOrder });
@@ -120,12 +117,17 @@ export function VehicleCatalogManageClient() {
     }
   };
 
-  const removeRow = async (code: string) => {
-    if (!window.confirm(`“${code}” silinsin mi? Araçlarda kullanılıyorsa sunucu reddeder.`)) {
+  const removeRow = async (row: VehicleCatalogRow) => {
+    if (!row.id) {
+      toast.error("Kayıt kimliği eksik; listeyi yenileyip tekrar deneyin.");
+      return;
+    }
+    const name = row.labelTr.trim() || row.code;
+    if (!window.confirm(`“${name}” silinsin mi? Araçlarda kullanılıyorsa sunucu reddeder.`)) {
       return;
     }
     try {
-      await deleteVehicleCatalogEntryOnRentApi(tab, code);
+      await deleteVehicleCatalogEntryOnRentApi(tab, row.id);
       toast.success("Silindi.");
       await load(tab);
     } catch (e) {
@@ -140,8 +142,8 @@ export function VehicleCatalogManageClient() {
         <p className="mt-1 text-xs text-muted-foreground">
           Araç eklerken seçilen <span className="font-medium text-foreground">yakıt</span>,{" "}
           <span className="font-medium text-foreground">vites</span> ve{" "}
-          <span className="font-medium text-foreground">araç türü</span> listeleri buradan yönetilir. Silme, ilgili kodu
-          kullanan silinmemiş araç varsa engellenir.
+          <span className="font-medium text-foreground">araç türü</span> listeleri buradan yönetilir. Silme, ilgili
+          sistem kodunu kullanan silinmemiş araç varsa engellenir.
         </p>
       </div>
 
@@ -173,22 +175,13 @@ export function VehicleCatalogManageClient() {
                       <CardTitle className="text-sm">{editingCode === "new" ? "Yeni kayıt" : "Düzenle"}</CardTitle>
                       <CardDescription className="text-xs">
                         {editingCode === "new"
-                          ? "Kod benzersiz olmalı; yalnız harf, rakam, tire ve alt çizgi (en fazla 32 karakter)."
-                          : "Kod değişmez; etiket ve sıra güncellenir."}
+                          ? "Kod özellik adından otomatik üretilir; çakışırsa sunucu sonek ekler."
+                          : `Kod değişmez: ${editingCode}. ${FEATURE_NAME_LABEL} ve ${SORT_LABEL} güncellenir.`}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 pb-4">
                       <div className="space-y-1">
-                        <Label className="text-xs">Kod</Label>
-                        <Input
-                          className="h-9 text-xs"
-                          value={form.code}
-                          disabled={editingCode !== "new"}
-                          onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Türkçe etiket</Label>
+                        <Label className="text-xs">{FEATURE_NAME_LABEL}</Label>
                         <Input
                           className="h-9 text-xs"
                           value={form.labelTr}
@@ -196,7 +189,8 @@ export function VehicleCatalogManageClient() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs">Sıra</Label>
+                        <Label className="text-xs">{SORT_LABEL}</Label>
+                        <p className="text-[10px] leading-snug text-muted-foreground">{SORT_HINT}</p>
                         <Input
                           className="h-9 text-xs"
                           inputMode="numeric"
@@ -236,15 +230,15 @@ export function VehicleCatalogManageClient() {
                         <table className="w-full min-w-[280px] border-collapse text-left text-xs">
                           <thead>
                             <tr className="border-b border-border/60 bg-muted/40">
-                              <th className="px-2 py-2 font-medium">Kod</th>
-                              <th className="px-2 py-2 font-medium">Etiket</th>
-                              <th className="px-2 py-2 font-medium">Sıra</th>
+                              <th className="px-2 py-2 font-medium">Kod (otomatik)</th>
+                              <th className="px-2 py-2 font-medium">{FEATURE_NAME_LABEL}</th>
+                              <th className="px-2 py-2 font-medium">{SORT_LABEL}</th>
                               <th className="px-2 py-2 font-medium text-right">İşlem</th>
                             </tr>
                           </thead>
                           <tbody>
                             {rows.map((r) => (
-                              <tr key={r.code} className="border-b border-border/40 last:border-0">
+                              <tr key={r.id} className="border-b border-border/40 last:border-0">
                                 <td className="px-2 py-2 font-mono text-[11px]">{r.code}</td>
                                 <td className="px-2 py-2">{r.labelTr}</td>
                                 <td className="px-2 py-2 tabular-nums">{r.sortOrder}</td>
@@ -266,7 +260,7 @@ export function VehicleCatalogManageClient() {
                                       size="sm"
                                       className="h-7 px-2 text-[11px] text-destructive hover:text-destructive"
                                       disabled={editingCode != null}
-                                      onClick={() => void removeRow(r.code)}
+                                      onClick={() => void removeRow(r)}
                                     >
                                       Sil
                                     </Button>

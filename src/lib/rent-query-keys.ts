@@ -3,6 +3,8 @@ export const rentKeys = {
   all: ["rent"] as const,
   vehicles: () => [...rentKeys.all, "vehicles"] as const,
   rentals: () => [...rentKeys.all, "rentals"] as const,
+  /** Araç detayı günlüğü: `GET /rentals?vehicleId=` ile hizalı tam liste. */
+  rentalsByVehicle: (vehicleId: string) => [...rentKeys.rentals(), "byVehicle", vehicleId] as const,
   rental: (id: string) => [...rentKeys.all, "rental", id] as const,
   rentalRequests: () => [...rentKeys.all, "rentalRequests"] as const,
   countries: () => [...rentKeys.all, "countries"] as const,

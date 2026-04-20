@@ -66,11 +66,11 @@ export function CountriesClient() {
   }, []);
 
   const submitNewCountry = useCallback(async () => {
-    const code = addCode.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
+    const code = addCode.replace(/[^A-Za-z]/g, "").slice(0, 5).toUpperCase();
     const name = addName.trim();
     const hex = addHex.trim();
-    if (code.length !== 2) {
-      toast.error("Ülke kodu tam 2 harf olmalıdır (örn. TR, DE).");
+    if (code.length < 2 || code.length > 5) {
+      toast.error("Ülke kodu 2–5 harf olmalıdır (örn. TR, DE, ABCDE).");
       return;
     }
     if (!name) {
@@ -187,7 +187,7 @@ export function CountriesClient() {
           <DialogHeader>
             <DialogTitle>Yeni ülke</DialogTitle>
             <DialogDescription className="text-xs">
-              Kod benzersiz olmalıdır (ISO 3166-1 alpha-2, iki harf). Aynı kod tekrar eklenemez.
+              Kod benzersiz olmalıdır; 2–5 harf (ör. TR, DE veya daha uzun dahili kodlar). Aynı kod tekrar eklenemez.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-1">
@@ -196,9 +196,9 @@ export function CountriesClient() {
               <Input
                 id="add-country-code"
                 className="font-mono uppercase"
-                maxLength={2}
+                maxLength={5}
                 value={addCode}
-                onChange={(e) => setAddCode(e.target.value.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase())}
+                onChange={(e) => setAddCode(e.target.value.replace(/[^A-Za-z]/g, "").slice(0, 5).toUpperCase())}
                 placeholder="TR"
               />
             </div>
