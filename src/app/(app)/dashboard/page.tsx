@@ -16,6 +16,7 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { DashboardDummySeedClient } from "@/components/dashboard/dashboard-dummy-seed-client";
 import { useRentFeRoles } from "@/hooks/useRentFeRoles";
 import { hrefRequiresRentManager } from "@/lib/rbac/route-policy";
 
@@ -61,6 +62,9 @@ export default function DashboardPage() {
             </Link>
           );
         })}
+        <div className="col-span-2 px-0 pb-3 pt-1">
+          <DashboardDummySeedClient />
+        </div>
       </div>
       <div className="hidden flex-col items-center justify-center gap-4 p-6 sm:flex">
         <div className="w-full max-w-lg rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-cyan-500/10 p-5 shadow-sm">
@@ -77,6 +81,9 @@ export default function DashboardPage() {
               Taleplere git
             </Link>
           </div>
+        </div>
+        <div className="w-full max-w-lg">
+          <DashboardDummySeedClient />
         </div>
         <p className="text-center text-xs text-muted-foreground">Mobilde hızlı erişim için yukarıdaki kare menüyü kullanın.</p>
       </div>

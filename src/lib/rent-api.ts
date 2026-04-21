@@ -179,7 +179,7 @@ export type CreateVehiclePayload = {
   rentalDailyPrice: number;
   commissionRatePercent?: number;
   commissionBrokerPhone?: string;
-  /** ISO 3166-1 alpha-2 (zorunlu). */
+  /** Ülke tablosundaki kod ile eşleşir (en fazla 64 karakter). */
   countryCode: string;
   /** rent-service şehir (opsiyonel). */
   cityId?: string;
@@ -972,6 +972,30 @@ export async function fetchCitiesFromRentApi(countryId?: string): Promise<CityRo
   });
 }
 
+export type CreateCityPayload = {
+  name: string;
+  countryId: string;
+};
+
+export async function createCityOnRentApi(payload: CreateCityPayload): Promise<CityRow> {
+  const countryId = rentApiLongValue(payload.countryId);
+  if (countryId == null) {
+    throw new Error("Ülke kimliği geçersiz.");
+  }
+  const { data } = await rentClient().post<unknown>("/cities", {
+    name: payload.name.trim(),
+    countryId,
+  });
+  const o = data as Record<string, unknown>;
+  return {
+    id: String(o.id ?? ""),
+    name: String(o.name ?? ""),
+    countryId: String(o.countryId ?? ""),
+    countryCode: String(o.countryCode ?? "").toUpperCase(),
+    countryName: String(o.countryName ?? ""),
+  };
+}
+
 function mapHandoverLocationRow(raw: unknown): HandoverLocationApiRow {
   const o = raw as Record<string, unknown>;
   const cityIdRaw = o.cityId;
@@ -1195,8 +1219,8 @@ export async function createCountryOnRentApi(payload: CreateCountryPayload): Pro
 
 export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Promise<Vehicle> {
   const countryCode = payload.countryCode?.trim().toUpperCase();
-  if (!countryCode || countryCode.length < 2 || countryCode.length > 5) {
-    throw new Error("Ülke kodu 2–5 harf olmalıdır.");
+  if (!countryCode || countryCode.length > 64) {
+    throw new Error("Ülke kodu gerekli (en fazla 64 karakter).");
   }
   const pickupLong = rentApiLongValue(payload.defaultPickupHandoverLocationId);
   if (pickupLong == null) {

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound, MapPin, MapPinned, PackagePlus, Settings2 } from "lucide-react";
-import Link from "next/link";
+import { KeyRound, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -88,38 +87,6 @@ export function SettingsClient() {
             <CardContent className="pb-4 text-xs text-muted-foreground">
               Oturumu kapatmak için üst menüdeki hesap avatarına tıklayıp{" "}
               <span className="font-medium text-foreground">Çıkış</span> öğesini seçin.
-            </CardContent>
-          </Card>
-
-          <Card className="glow-card">
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Kiralama verileri</CardTitle>
-              <CardDescription className="text-xs">
-                Alış ve teslim noktaları ile opsiyonları (araç / kiralama) ayrı sayfalardan yönetin.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2 pb-4 sm:flex-row sm:flex-wrap">
-              <Button variant="outline" size="sm" className="h-9 justify-start gap-2 text-xs" asChild>
-                <Link href="/settings/locations/pickup">
-                  <MapPin className="h-3.5 w-3.5 shrink-0" />
-                  Alış noktaları
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" className="h-9 justify-start gap-2 text-xs" asChild>
-                <Link href="/settings/locations/return">
-                  <MapPinned className="h-3.5 w-3.5 shrink-0" />
-                  Teslim noktaları
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" className="h-9 justify-start gap-2 text-xs" asChild>
-                <Link href="/settings/options">
-                  <PackagePlus className="h-3.5 w-3.5 shrink-0" />
-                  Opsiyonlar
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" className="h-9 justify-start gap-2 text-xs" asChild>
-                <Link href="/settings/vehicle-catalog">Araç özellikleri (yakıt / vites / tür)</Link>
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
