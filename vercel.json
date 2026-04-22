@@ -1,6 +1,9 @@
 {
   "functions": {
-    "api/**/*.java": {
+    "src/app/api/**/*": {
+      "maxDuration": 60
+    },
+    "pages/api/**/*": {
       "maxDuration": 60
     }
   }
