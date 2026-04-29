@@ -18,7 +18,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   createCouponOnRentApi,
@@ -303,11 +302,14 @@ export function CouponsClient() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Switch
-                checked={form.active}
-                onCheckedChange={(v) => setForm((f) => ({ ...f, active: v }))}
-              />
-              <Label>Aktif</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant={form.active ? "default" : "outline"}
+                onClick={() => setForm((f) => ({ ...f, active: !f.active }))}
+              >
+                {form.active ? "Aktif" : "Pasif"}
+              </Button>
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
