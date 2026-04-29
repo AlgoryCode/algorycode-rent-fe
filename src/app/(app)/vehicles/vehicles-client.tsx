@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { startOfDay } from "date-fns";
 import { LayoutGrid, List, Plus, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ import { useCountries } from "@/hooks/use-countries";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import { vehicleFleetStatus, type FleetStatus } from "@/lib/fleet-utils";
-import { fetchRentalRequestsFromRentApi } from "@/lib/rent-api";
+import { fetchRentalRequestsFromRentApi, fetchVehicleFormCatalogFromRentApi } from "@/lib/rent-api";
 import { rentKeys } from "@/lib/rent-query-keys";
 import { mergeVehicleImagesWithDemo } from "@/lib/vehicle-images";
 import type { Vehicle } from "@/lib/mock-fleet";
@@ -45,6 +45,7 @@ function statusBadge(status: FleetStatus) {
 
 export function VehiclesClient() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { allVehicles, ready, error: fleetError } = useFleetVehicles();
   const { allSessions } = useFleetSessions();
   const { data: rentalRequests = [] } = useQuery({
@@ -113,7 +114,15 @@ export function VehiclesClient() {
           </p>
         </div>
         <Button size="sm" className="h-9 gap-1.5 shrink-0" asChild>
-          <Link href="/vehicles/new">
+          <Link
+            href="/vehicles/new"
+            onClick={() => {
+              void queryClient.prefetchQuery({
+                queryKey: rentKeys.vehicleFormCatalog(),
+                queryFn: fetchVehicleFormCatalogFromRentApi,
+              });
+            }}
+          >
             <Plus className="h-4 w-4" />
             Yeni araç
           </Link>

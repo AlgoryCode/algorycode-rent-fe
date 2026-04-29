@@ -34,7 +34,7 @@ const tr = {
   "shell.menuOpen": "Menüyü aç",
   "shell.menuClose": "Menüyü kapat",
   "shell.accountMenu": "Hesap menüsü",
-  "shell.logout": "Çıkış",
+  "shell.logout": "Çıkış yap",
   "shell.back": "Geri",
   "shell.rbacToast": "Bu sayfa için RENT_MANAGER veya RENT_ADMIN rolü gerekir.",
 

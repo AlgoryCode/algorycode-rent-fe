@@ -294,6 +294,38 @@ export type VehicleOptionTemplateApiRow = {
   active: boolean;
 };
 
+export type VehicleFormCatalogModelRow = {
+  id: string;
+  name: string;
+  sortOrder: number;
+};
+
+export type VehicleFormCatalogBrandRow = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  models: VehicleFormCatalogModelRow[];
+};
+
+export type VehicleFormCatalogVehicleStatusRow = {
+  id: string;
+  code: string;
+  labelTr: string;
+  sortOrder: number;
+};
+
+export type VehicleFormCatalog = {
+  brands: VehicleFormCatalogBrandRow[];
+  fuelTypes: VehicleCatalogRow[];
+  transmissionTypes: VehicleCatalogRow[];
+  bodyStyles: VehicleCatalogRow[];
+  vehicleStatuses: VehicleFormCatalogVehicleStatusRow[];
+  countries: CountryRow[];
+  pickupHandoverLocations: HandoverLocationApiRow[];
+  returnHandoverLocations: HandoverLocationApiRow[];
+  optionTemplates: VehicleOptionTemplateApiRow[];
+};
+
 export type CreateVehicleOptionTemplatePayload = {
   title: string;
   description?: string;
@@ -698,6 +730,36 @@ export async function deleteVehicleCatalogEntryOnRentApi(kind: VehicleCatalogKin
   await rentClient().delete(path);
 }
 
+const VEHICLE_STATUSES_API = "/vehicle-statuses";
+
+export async function fetchVehicleStatusesFromRentApi(): Promise<VehicleCatalogRow[]> {
+  const { data } = await rentClient().get<unknown[]>(VEHICLE_STATUSES_API);
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => mapVehicleCatalogRow(row as Record<string, unknown>));
+}
+
+export async function fetchVehicleStatusByCodeFromRentApi(code: string): Promise<VehicleCatalogRow> {
+  const { data } = await rentClient().get<unknown>(`${VEHICLE_STATUSES_API}/${encodeURIComponent(code)}`);
+  return mapVehicleCatalogRow(data as Record<string, unknown>);
+}
+
+export async function createVehicleStatusOnRentApi(payload: VehicleCatalogCreatePayload): Promise<VehicleCatalogRow> {
+  const body: Record<string, unknown> = { labelTr: payload.labelTr, sortOrder: payload.sortOrder };
+  const trimmedCode = payload.code?.trim();
+  if (trimmedCode) body.code = trimmedCode;
+  const { data } = await rentClient().post<unknown>(VEHICLE_STATUSES_API, body);
+  return mapVehicleCatalogRow(data as Record<string, unknown>);
+}
+
+export async function updateVehicleStatusOnRentApi(code: string, payload: VehicleCatalogUpdatePayload): Promise<VehicleCatalogRow> {
+  const { data } = await rentClient().put<unknown>(`${VEHICLE_STATUSES_API}/${encodeURIComponent(code)}`, payload);
+  return mapVehicleCatalogRow(data as Record<string, unknown>);
+}
+
+export async function deleteVehicleStatusOnRentApi(id: string): Promise<void> {
+  await rentClient().delete(`${VEHICLE_STATUSES_API}/by-id/${encodeURIComponent(id)}`);
+}
+
 export function mapCountryFromApi(raw: Record<string, unknown>): CountryRow {
   return {
     id: String(raw.id),
@@ -1020,6 +1082,101 @@ function mapHandoverLocationRow(raw: unknown): HandoverLocationApiRow {
   };
 }
 
+function sortVehicleCatalogRowsByOrder(rows: VehicleCatalogRow[]): VehicleCatalogRow[] {
+  return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.labelTr.localeCompare(b.labelTr, "tr"));
+}
+
+function mapVehicleOptionTemplateFromApiRow(row: unknown): VehicleOptionTemplateApiRow {
+  const o = row as Record<string, unknown>;
+  const price = typeof o.price === "number" ? o.price : Number(o.price);
+  return {
+    id: String(o.id ?? ""),
+    title: String(o.title ?? ""),
+    description: o.description != null ? String(o.description) : undefined,
+    price: Number.isFinite(price) ? price : 0,
+    icon: o.icon != null ? String(o.icon) : undefined,
+    lineOrder: typeof o.lineOrder === "number" ? o.lineOrder : Number(o.lineOrder) || 0,
+    active: o.active == null ? true : Boolean(o.active),
+  };
+}
+
+function mapVehicleFormCatalog(raw: Record<string, unknown>): VehicleFormCatalog {
+  const brandsRaw = Array.isArray(raw.brands) ? raw.brands : [];
+  const brands: VehicleFormCatalogBrandRow[] = brandsRaw.map((b) => {
+    const o = b as Record<string, unknown>;
+    const modelsRaw = Array.isArray(o.models) ? o.models : [];
+    const models: VehicleFormCatalogModelRow[] = modelsRaw.map((m) => {
+      const r = m as Record<string, unknown>;
+      return {
+        id: String(r.id ?? ""),
+        name: String(r.name ?? ""),
+        sortOrder: typeof r.sortOrder === "number" ? r.sortOrder : Number(r.sortOrder) || 0,
+      };
+    });
+    models.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "tr"));
+    return {
+      id: String(o.id ?? ""),
+      name: String(o.name ?? ""),
+      sortOrder: typeof o.sortOrder === "number" ? o.sortOrder : Number(o.sortOrder) || 0,
+      models,
+    };
+  });
+  brands.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "tr"));
+
+  const fuelTypes = Array.isArray(raw.fuelTypes)
+    ? sortVehicleCatalogRowsByOrder(raw.fuelTypes.map((x) => mapVehicleCatalogRow(x as Record<string, unknown>)))
+    : [];
+  const transmissionTypes = Array.isArray(raw.transmissionTypes)
+    ? sortVehicleCatalogRowsByOrder(raw.transmissionTypes.map((x) => mapVehicleCatalogRow(x as Record<string, unknown>)))
+    : [];
+  const bodyStyles = Array.isArray(raw.bodyStyles)
+    ? sortVehicleCatalogRowsByOrder(raw.bodyStyles.map((x) => mapVehicleCatalogRow(x as Record<string, unknown>)))
+    : [];
+
+  const vehicleStatuses = Array.isArray(raw.vehicleStatuses)
+    ? (raw.vehicleStatuses as Record<string, unknown>[])
+        .map((o) => ({
+          id: String(o.id ?? ""),
+          code: String(o.code ?? ""),
+          labelTr: String(o.labelTr ?? ""),
+          sortOrder: typeof o.sortOrder === "number" ? o.sortOrder : Number(o.sortOrder) || 0,
+        }))
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.labelTr.localeCompare(b.labelTr, "tr"))
+    : [];
+
+  const countries = Array.isArray(raw.countries)
+    ? (raw.countries as Record<string, unknown>[]).map((c) => mapCountryFromApi(c))
+    : [];
+
+  const pickupHandoverLocations = Array.isArray(raw.pickupHandoverLocations)
+    ? raw.pickupHandoverLocations.map((x) => mapHandoverLocationRow(x)).filter((r) => r.active !== false)
+    : [];
+  const returnHandoverLocations = Array.isArray(raw.returnHandoverLocations)
+    ? raw.returnHandoverLocations.map((x) => mapHandoverLocationRow(x)).filter((r) => r.active !== false)
+    : [];
+
+  const optionTemplates = Array.isArray(raw.optionTemplates)
+    ? raw.optionTemplates.map((row) => mapVehicleOptionTemplateFromApiRow(row)).filter((t) => t.active)
+    : [];
+
+  return {
+    brands,
+    fuelTypes,
+    transmissionTypes,
+    bodyStyles,
+    vehicleStatuses,
+    countries,
+    pickupHandoverLocations,
+    returnHandoverLocations,
+    optionTemplates,
+  };
+}
+
+export async function fetchVehicleFormCatalogFromRentApi(): Promise<VehicleFormCatalog> {
+  const { data } = await rentClient().get<Record<string, unknown>>("/vehicles/form-catalog");
+  return mapVehicleFormCatalog(data ?? {});
+}
+
 export async function fetchHandoverLocationsFromRentApi(
   kind?: "PICKUP" | "RETURN",
   opts?: { includeInactive?: boolean },
@@ -1073,19 +1230,9 @@ export async function fetchVehicleOptionTemplatesFromRentApi(opts?: {
   const q = opts?.includeInactive ? "?includeInactive=true" : "";
   const { data } = await rentClient().get<unknown[]>(`/vehicle-option-templates${q}`);
   if (!Array.isArray(data)) return [];
-  return data.map((row) => {
-    const o = row as Record<string, unknown>;
-    const price = typeof o.price === "number" ? o.price : Number(o.price);
-    return {
-      id: String(o.id ?? ""),
-      title: String(o.title ?? ""),
-      description: o.description != null ? String(o.description) : undefined,
-      price: Number.isFinite(price) ? price : 0,
-      icon: o.icon != null ? String(o.icon) : undefined,
-      lineOrder: typeof o.lineOrder === "number" ? o.lineOrder : Number(o.lineOrder) || 0,
-      active: o.active == null ? true : Boolean(o.active),
-    };
-  });
+  return data
+    .map((row) => mapVehicleOptionTemplateFromApiRow(row))
+    .filter((t) => opts?.includeInactive === true || t.active);
 }
 
 export async function createVehicleOptionTemplateOnRentApi(

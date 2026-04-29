@@ -120,21 +120,54 @@ export function RentalLogsClient() {
           Kiralamalar
         </h1>
         <p className="text-xs text-muted-foreground">
-          Araç seçerek kiralama başlatın veya tüm filo için günlük kayıtlarını inceleyin.
+          Tüm filo kiralama kayıtlarını inceleyin; araç seçerek yeni kiralama başlatmak için «Kiralama başlat» sekmesine geçin.
         </p>
       </div>
 
-      <Tabs defaultValue="start" className="w-full">
+      <Tabs defaultValue="logs" className="w-full">
         <TabsList className="h-9 w-full justify-start gap-1 overflow-x-auto sm:w-auto">
+          <TabsTrigger value="logs" className="gap-1.5 text-xs">
+            <ScrollText className="h-3.5 w-3.5" />
+            Kiralamalar
+          </TabsTrigger>
           <TabsTrigger value="start" className="gap-1.5 text-xs">
             <KeyRound className="h-3.5 w-3.5" />
             Kiralama başlat
           </TabsTrigger>
-          <TabsTrigger value="logs" className="gap-1.5 text-xs">
-            <ScrollText className="h-3.5 w-3.5" />
-            Kiralama günlüğü
-          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="logs" className="mt-4">
+          <Card className="glow-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Kiralamalar</CardTitle>
+              <CardDescription className="text-xs">
+                {sessionsLoading
+                  ? "Yükleniyor..."
+                  : sessionsError
+                    ? getRentApiErrorMessage(sessionsError)
+                    : `${filteredSessions.length} kayıt gösteriliyor · toplam ${allSessions.length} seans.`}{" "}
+                Müşteri özetleri için{" "}
+                <Link href="/customers" className="font-medium text-primary underline-offset-2 hover:underline">
+                  Müşteriler
+                </Link>
+                .
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <RentalLogFiltersBar
+                values={draftFilters}
+                onChange={setDraftFilters}
+                showVehicleQuery
+                manualApply
+                onApply={() => setFilters(draftFilters)}
+              />
+              <RentalLogEntries
+                sessions={filteredSessions}
+                plateOf={(s) => ({ plate: vehiclePlate(vehiclesById, s.vehicleId), vehicleId: s.vehicleId })}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="start" className="mt-4 space-y-4">
           <Card className="glow-card">
@@ -328,39 +361,6 @@ export function RentalLogsClient() {
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="logs" className="mt-4">
-          <Card className="glow-card">
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Kiralama günlüğü</CardTitle>
-              <CardDescription className="text-xs">
-                {sessionsLoading
-                  ? "Yükleniyor..."
-                  : sessionsError
-                    ? getRentApiErrorMessage(sessionsError)
-                    : `${filteredSessions.length} kayıt gösteriliyor · toplam ${allSessions.length} seans.`}{" "}
-                Müşteri özetleri için{" "}
-                <Link href="/customers" className="font-medium text-primary underline-offset-2 hover:underline">
-                  Müşteriler
-                </Link>
-                .
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RentalLogFiltersBar
-                values={draftFilters}
-                onChange={setDraftFilters}
-                showVehicleQuery
-                manualApply
-                onApply={() => setFilters(draftFilters)}
-              />
-              <RentalLogEntries
-                sessions={filteredSessions}
-                plateOf={(s) => ({ plate: vehiclePlate(vehiclesById, s.vehicleId), vehicleId: s.vehicleId })}
-              />
             </CardContent>
           </Card>
         </TabsContent>

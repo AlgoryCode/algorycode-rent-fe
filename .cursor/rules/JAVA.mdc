@@ -1,0 +1,249 @@
+---
+alwaysApply: true
+---
+
+# Java Spring Boot — Agent Rules
+
+> Bu kurallar her Java/Spring Boot projesinde **istisnasız** uygulanır.
+> Agent bu kuralları her kod üretiminde, refactor'da ve test yazımında gözetir.
+
+---
+
+## 1. FRAMEWORK & VERSİYON KURALLARI
+
+### 1.1 Spring Boot Versiyonu
+- **Her projede Spring Boot 4.0.2 kullanılır.** Başka bir versiyon talep edilse bile önce bu kural hatırlatılır.
+- `pom.xml` veya `build.gradle` dosyasında versiyon sabittir:
+  ```xml
+  <parent>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-parent</artifactId>
+      <version>4.0.2</version>
+  </parent>
+  ```
+- Java versiyonu: **Java 21** (Spring Boot 4.x minimum gereksinimi).
+- Dependency management Spring Boot BOM üzerinden yapılır; bağımlılıklara manuel versiyon yazılmaz.
+
+### 1.2 Zorunlu Starter'lar
+Her projede aşağıdaki starter'lar bulunur:
+- `spring-boot-starter-web` — REST API
+- `spring-boot-starter-validation` — Bean Validation
+- `spring-boot-starter-test` — JUnit 5, Mockito, AssertJ
+- `spring-boot-starter-actuator` — Health & metrics
+- `spring-boot-devtools` (scope: runtime, optional: true) — Geliştirme ortamı
+
+---
+
+## 2. SOLID PRENSİPLERİ
+
+### S — Single Responsibility Principle
+- Her sınıfın **tek bir değişim sebebi** olur.
+- Controller → sadece HTTP katmanı. Service → sadece iş mantığı. Repository → sadece veri erişimi.
+- Bir sınıf 200 satırı geçiyorsa bölünmesi değerlendirilir.
+- Yardımcı işlemler `*Helper` veya `*Util` sınıflarına taşınır, bu sınıflar `static` metot içermez; Spring Bean olarak inject edilir.
+
+### O — Open/Closed Principle
+- Mevcut koda dokunmadan yeni davranış eklenmesi için **interface + strateji/dekoratör** pattern kullanılır.
+- `if/else` zinciri yerine `Map<String, Strategy>` veya `@Component` + polimorfizm tercih edilir.
+- Enum'lara davranış eklenmesi yerine interface implement eden sınıflar tercih edilir.
+
+### L — Liskov Substitution Principle
+- Alt sınıf, üst sınıfın davranışını bozmaz.
+- Override edilen metotlar üst sınıf kontratını (pre/post koşullar) korur.
+- Kalıtım yerine **kompozisyon** tercih edilir; kalıtım yalnızca "is-a" ilişkisi gerçekten varsa kullanılır.
+
+### I — Interface Segregation Principle
+- Interface'ler küçük ve odaklı tutulur; bir interface maksimum 5–7 metot içerir.
+- Kullanılmayan metotları `UnsupportedOperationException` ile implement etmek yasaktır; bunun yerine interface bölünür.
+- `*Repository`, `*Service`, `*Gateway` interface'leri ayrı ayrı tanımlanır.
+
+### D — Dependency Inversion Principle
+- Sınıflar **concrete sınıflara değil interface'lere** bağımlıdır.
+- Tüm bağımlılıklar **constructor injection** ile alınır; `@Autowired` alan veya setter injection kullanılmaz.
+  ```java
+  // DOĞRU
+  private final UserService userService;
+  public UserController(UserService userService) {
+      this.userService = userService;
+  }
+
+  // YANLIŞ — @Autowired field injection
+  @Autowired
+  private UserService userService;
+  ```
+- `new` ile nesne oluşturma yalnızca Value Object ve DTO'larda kabul edilir.
+
+---
+
+## 3. DRY — DON'T REPEAT YOURSELF
+
+- Aynı mantık ikiden fazla yerde tekrarlanırsa **ortak bir metot/sınıfa** taşınır.
+- String sabitleri `final static` ile tanımlanır veya `enum` kullanılır; "magic string" ve "magic number" yasaktır.
+- Validation kuralları `@Valid` + özel `@Constraint` annotation'ları ile merkezi tutulur.
+- Hata mesajları `messages.properties` dosyasından okunur; kod içine gömülmez.
+- Mapping işlemleri (Entity ↔ DTO) `*Mapper` arayüzü + MapStruct ile yapılır; elle mapping tekrarlanmaz.
+- Spring `@Configuration` sınıfları modüler tutulur; aynı Bean farklı yerlerde tanımlanmaz.
+
+---
+
+## 4. KISS — KEEP IT SIMPLE, STUPID
+
+- Metotlar tek bir iş yapar; 20 satırı geçen metotlar bölünmesi için işaretlenir.
+- Erken return (guard clause) tercih edilir; iç içe if bloklarından kaçınılır.
+  ```java
+  // DOĞRU
+  if (user == null) return Optional.empty();
+  if (!user.isActive()) throw new UserNotActiveException();
+  return Optional.of(process(user));
+
+  // YANLIŞ
+  if (user != null) {
+      if (user.isActive()) {
+          return Optional.of(process(user));
+      }
+  }
+  return Optional.empty();
+  ```
+- Ternary operatör yalnızca tek satırlık basit koşullarda kullanılır; iç içe ternary yasaktır.
+- Stream pipeline'ları 3 adımı geçiyorsa okunabilirlik için ara değişkenlere atanır.
+- Generic tip parametreleri anlamlı isimlendirilir (`T`, `E` değil; `TEntity`, `TResult`).
+
+---
+
+## 5. FACTORY DESIGN PATTERN KURALLARI
+
+### 5.1 Factory Method
+- Nesne oluşturma mantığı karmaşıklaştığında (koşullu oluşturma, default değerler, validasyon) **Factory Method** kullanılır.
+- Factory sınıfları `*Factory` suffix'i alır.
+  ```java
+  @Component
+  public class NotificationFactory {
+      public Notification create(NotificationType type, String message) {
+          return switch (type) {
+              case EMAIL   -> new EmailNotification(message);
+              case SMS     -> new SmsNotification(message);
+              case PUSH    -> new PushNotification(message);
+          };
+      }
+  }
+  ```
+
+### 5.2 Abstract Factory
+- Birbirine bağlı nesne aileleri oluşturulacaksa **Abstract Factory** kullanılır.
+- Interface `*AbstractFactory`, implementasyonlar `*ConcreteFactory` adını alır.
+
+### 5.3 Spring Bean Fabrikası
+- Spring context içinde koşullu Bean üretimi için `@Bean` + `@ConditionalOn*` annotation'ları tercih edilir; manuel `if/else` ile Bean oluşturulmaz.
+- Prototype-scope Bean'ler için `ObjectProvider<T>` veya `@Lookup` kullanılır.
+
+### 5.4 Builder Pattern (Factory ile birlikte)
+- 3'ten fazla alanı olan nesne oluşturma işlemlerinde **Builder** pattern uygulanır.
+- Lombok `@Builder` tercih edilir; elle Builder yazılmaz.
+- Builder'lar doğrudan `new` ile değil Factory üzerinden çağrılır.
+
+---
+
+## 6. KATMAN MİMARİSİ KURALLARI
+
+```
+Controller  →  Service (Interface)  →  Repository (Interface)  →  Database
+                   ↓
+              Domain Model / Entity
+                   ↓
+              DTO / Request / Response
+```
+
+- **Controller:** `@RestController`, HTTP statü kodları, `@Valid` annotation, DTO kullanımı. Domain/Entity nesnesini direkt dönmez.
+- **Service:** `@Service`, iş mantığı, transaction yönetimi (`@Transactional`). Repository'ye doğrudan `@Autowired` ile değil, interface üzerinden erişir.
+- **Repository:** `JpaRepository` veya `CrudRepository` extend eder. Custom query'ler `@Query` ile yazılır; Native SQL mümkün olduğunca kaçınılır.
+- **DTO:** Record (`record` keyword) veya immutable sınıf olarak tanımlanır. Lombok `@Value` kabul edilir.
+- **Exception Handling:** `@ControllerAdvice` + `@ExceptionHandler` merkezi hata yönetimi. Her katman kendi exception'ını fırlatır; üst katman catch eder.
+
+---
+
+## 7. TEST YAZIM KURALLARI
+
+### 7.1 Genel
+- **Her public metot için en az bir unit test yazılır.** Test coverage hedefi: **%80 line, %70 branch.**
+- Test sınıfı adı: `<SınıfAdı>Test` (unit) veya `<SınıfAdı>IT` (integration).
+- Test metot adı: `methodName_whenCondition_thenExpected` formatı kullanılır.
+  ```java
+  @Test
+  void findById_whenUserExists_thenReturnUser() { ... }
+
+  @Test
+  void findById_whenUserNotFound_thenThrowException() { ... }
+  ```
+
+### 7.2 Unit Test
+- **JUnit 5** (`@Test`, `@ParameterizedTest`, `@ExtendWith`) kullanılır.
+- **Mockito** ile bağımlılıklar mock'lanır (`@Mock`, `@InjectMocks`, `@Captor`).
+- **AssertJ** ile assertion yazılır (`assertThat(...)` — JUnit `assertEquals` kullanılmaz).
+- Her test bağımsızdır; test sırası önemli olmamalıdır.
+- `@BeforeEach` ile ortak setup yapılır; tekrar eden kod test metoduna yazılmaz.
+
+### 7.3 Controller Test
+- `@WebMvcTest` ile slice test yapılır; tüm context ayağa kaldırılmaz.
+- `MockMvc` ile HTTP request/response simüle edilir.
+- Service katmanı `@MockBean` ile mock'lanır.
+  ```java
+  @WebMvcTest(UserController.class)
+  class UserControllerTest {
+      @Autowired MockMvc mockMvc;
+      @MockBean  UserService userService;
+
+      @Test
+      void getUser_whenExists_thenReturn200() throws Exception {
+          given(userService.findById(1L)).willReturn(mockUser());
+          mockMvc.perform(get("/users/1"))
+                 .andExpect(status().isOk())
+                 .andExpect(jsonPath("$.id").value(1));
+      }
+  }
+  ```
+
+### 7.4 Service Test
+- `@ExtendWith(MockitoExtension.class)` ile pure unit test.
+- Repository ve dış bağımlılıklar mock'lanır.
+- `@Captor` ile metota geçilen argümanlar doğrulanır.
+
+### 7.5 Repository / Integration Test
+- `@DataJpaTest` ile in-memory H2 veritabanı kullanılır.
+- `@SpringBootTest` yalnızca gerçek context gerektiren senaryo için kullanılır.
+- `@Sql` annotation'ı ile test verisi yüklenir; test metodu içinde `save()` ile veri eklemek kabul edilir.
+
+### 7.6 Test Yasak Listesi
+- Production kodu test kolaylaştırmak için değiştirilmez (visibility artırmak dahil).
+- `Thread.sleep()` ile bekleme yapılmaz; `Awaitility` kullanılır.
+- Test içinde `System.out.println` kullanılmaz; `@Slf4j` + log kullanılır.
+- Bir test başka bir testin state'ine bağımlı olamaz.
+
+---
+
+## 8. KOD KALİTESİ KURALLARI
+
+- **Checkstyle** ve **SpotBugs** CI pipeline'da çalışır; hata build'i kırar.
+- Her public sınıf ve metot için **Javadoc** yazılır (Controller ve Test sınıfları hariç).
+- `null` dönüş yerine `Optional<T>` kullanılır.
+- Collection'lar `null` yerine boş collection döner (`Collections.emptyList()`).
+- `@Deprecated` methodlar yeni alternatif belirtilmeden işaretlenemez.
+- `var` keyword'ü yalnızca tip açık olduğunda kullanılır.
+
+---
+
+## 9. GÜVENLİK KURALLARI
+
+- Hassas veri (şifre, token, API key) asla log'a yazılmaz.
+- `@Value` ile okunan secret'lar environment variable'dan gelir; `application.properties`'e gömülmez.
+- SQL sorguları parameterized (JPA / `@Query` parametreleri); string concatenation ile SQL yasaktır.
+- DTO'larda `@JsonIgnore` ile hassas alanlar serileştirmeden çıkarılır.
+
+---
+
+## 10. LOGLAMA KURALLARI
+
+- **SLF4J + Logback** kullanılır; `System.out` yasaktır.
+- Her sınıfta `private static final Logger log = LoggerFactory.getLogger(...)` veya Lombok `@Slf4j`.
+- Log seviyeleri: ERROR (sistem hatası), WARN (beklenmedik durum), INFO (iş akışı adımı), DEBUG (geliştirici detayı).
+- `log.debug()` çağrısı öncesinde `if (log.isDebugEnabled())` kontrolü yapılır (string concatenation maliyeti).
+- Request/response log'lama `OncePerRequestFilter` ile merkezi tutulur.

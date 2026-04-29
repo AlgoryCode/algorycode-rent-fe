@@ -31,8 +31,9 @@ export function useFleetSessions() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateRentalPayload }) => updateRentalOnRentApi(id, payload),
-    onSuccess: () => {
+    onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: rentKeys.rentals() });
+      void qc.invalidateQueries({ queryKey: rentKeys.rental(id) });
       void qc.invalidateQueries({ queryKey: rentKeys.rentalRequests() });
       void qc.invalidateQueries({ queryKey: [...rentKeys.all, "vehicleCalendarOccupancy"] });
     },

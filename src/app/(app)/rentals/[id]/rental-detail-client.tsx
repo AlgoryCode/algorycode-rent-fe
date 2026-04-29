@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { AlertTriangle, ImageIcon, MessageSquare, Save, UserPlus } from "lucide-react";
@@ -11,6 +11,14 @@ import { CustomerPickerDialog } from "@/components/customers/customer-picker-dia
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,10 +28,15 @@ import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import { fetchRentalByIdFromRentApi, getRentApiErrorMessage, type UpdateRentalPayload } from "@/lib/rent-api";
 import { rentKeys } from "@/lib/rent-query-keys";
+import { normalizeRentalStatus, type RentalStatus } from "@/lib/rental-status";
 import { customerRecordKey, type CustomerAggregateRow } from "@/lib/rental-metadata";
 import type { RentalSession } from "@/lib/mock-fleet";
 
 type Props = { rentalId: string };
+
+function statusChangeNeedsConfirmation(target: RentalStatus): boolean {
+  return target === "cancelled" || target === "completed";
+}
 
 function customerSnapshotIncomplete(c: RentalSession["customer"]): boolean {
   return !c.fullName?.trim() || !c.phone?.trim();
@@ -57,7 +70,10 @@ export function RentalDetailClient({ rentalId }: Props) {
   const [driverLicenseNo, setDriverLicenseNo] = useState("");
   const [passportImageDataUrl, setPassportImageDataUrl] = useState("");
   const [driverLicenseImageDataUrl, setDriverLicenseImageDataUrl] = useState("");
-  const [status, setStatus] = useState<"active" | "pending" | "completed" | "cancelled">("active");
+  const [status, setStatus] = useState<RentalStatus>("active");
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
+  const pendingRiskyIntentRef = useRef<null | "status" | "fullSave">(null);
 
   const rentalAmount = useMemo(() => {
     if (!rental || vehicle?.rentalDailyPrice == null) return undefined;
@@ -104,7 +120,7 @@ export function RentalDetailClient({ rentalId }: Props) {
     setDriverLicenseNo(rental.customer.driverLicenseNo ?? "");
     setPassportImageDataUrl(rental.customer.passportImageDataUrl ?? "");
     setDriverLicenseImageDataUrl(rental.customer.driverLicenseImageDataUrl ?? "");
-    setStatus((rental.status as "active" | "pending" | "completed" | "cancelled") ?? "active");
+    setStatus(normalizeRentalStatus(rental.status));
     setCustomerDocsDirty(false);
   }, [rental]);
 
@@ -123,16 +139,22 @@ export function RentalDetailClient({ rentalId }: Props) {
     toast.success(`${c.fullName} bu kiralamaya atandı (kaydet ile onaylayın).`);
   };
 
-  const save = async () => {
+  const serverStatus: RentalStatus | null = rental ? normalizeRentalStatus(rental.status) : null;
+  const statusUnchanged = serverStatus !== null && status === serverStatus;
+
+  const riskyDialogCopy =
+    status === "cancelled"
+      ? {
+          title: "Kiralamayı iptal et?",
+          body: "Bu kiralama iptal edilecek; takvimdeki ilgili günler müsait sayılır. Emin misiniz?",
+        }
+      : {
+          title: "Tamamlandı olarak işaretle?",
+          body: "Kiralama tamamlandı statüsüne alınacak. Emin misiniz?",
+        };
+
+  const performSave = async () => {
     if (!rental) return;
-    if (!fullName.trim() || !phone.trim()) {
-      toast.error("Müşteri adı ve telefon zorunludur.");
-      return;
-    }
-    if (!passportNo.trim()) {
-      toast.error("Pasaport no zorunludur.");
-      return;
-    }
     setSaving(true);
     try {
       const customerPayload: NonNullable<UpdateRentalPayload["customer"]> = {
@@ -165,6 +187,62 @@ export function RentalDetailClient({ rentalId }: Props) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const save = async () => {
+    if (!rental) return;
+    if (!fullName.trim() || !phone.trim()) {
+      toast.error("Müşteri adı ve telefon zorunludur.");
+      return;
+    }
+    if (!passportNo.trim()) {
+      toast.error("Pasaport no zorunludur.");
+      return;
+    }
+    const srv = normalizeRentalStatus(rental.status);
+    if (statusChangeNeedsConfirmation(status) && status !== srv) {
+      pendingRiskyIntentRef.current = "fullSave";
+      setStatusConfirmOpen(true);
+      return;
+    }
+    await performSave();
+  };
+
+  const executeStatusUpdate = async () => {
+    if (!rental) return;
+    setStatusSaving(true);
+    try {
+      await updateRental(rental.id, { status });
+      await refetch();
+      toast.success("Statü güncellendi.");
+    } catch (e) {
+      toast.error(getRentApiErrorMessage(e));
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
+  const requestStatusUpdate = () => {
+    if (!rental) return;
+    if (statusChangeNeedsConfirmation(status) && status !== serverStatus) {
+      pendingRiskyIntentRef.current = "status";
+      setStatusConfirmOpen(true);
+      return;
+    }
+    void executeStatusUpdate();
+  };
+
+  const confirmRiskyStatus = () => {
+    const intent = pendingRiskyIntentRef.current;
+    pendingRiskyIntentRef.current = null;
+    setStatusConfirmOpen(false);
+    if (intent === "status") void executeStatusUpdate();
+    else if (intent === "fullSave") void performSave();
+  };
+
+  const cancelRiskyStatusDialog = () => {
+    pendingRiskyIntentRef.current = null;
+    setStatusConfirmOpen(false);
   };
 
   return (
@@ -283,16 +361,27 @@ export function RentalDetailClient({ rentalId }: Props) {
                 </div>
                 <div className="space-y-1 sm:col-span-2">
                   <Label className="text-xs">Durum</Label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as "active" | "pending" | "completed" | "cancelled")}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="active">Aktif</option>
-                    <option value="pending">Beklemede</option>
-                    <option value="completed">Tamamlandı</option>
-                    <option value="cancelled">İptal</option>
-                  </select>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as RentalStatus)}
+                      className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                    >
+                      <option value="active">Aktif</option>
+                      <option value="pending">Beklemede</option>
+                      <option value="completed">Tamamlandı</option>
+                      <option value="cancelled">İptal</option>
+                    </select>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-9 shrink-0 px-3 text-xs sm:w-auto"
+                      disabled={statusUnchanged || statusSaving || !rental}
+                      onClick={() => requestStatusUpdate()}
+                    >
+                      {statusSaving ? "Güncelleniyor…" : "Statü güncelle"}
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -397,6 +486,27 @@ export function RentalDetailClient({ rentalId }: Props) {
         title="Kayıtlı müşteri seç"
         description="Listeden müşteriyi seçin; bilgiler forma yazılır. Ardından «Değişiklikleri kaydet» ile kiralamaya uygulayın."
       />
+
+      <Dialog open={statusConfirmOpen} onOpenChange={(open) => !open && cancelRiskyStatusDialog()}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{riskyDialogCopy.title}</DialogTitle>
+            <DialogDescription>{riskyDialogCopy.body}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={cancelRiskyStatusDialog}>
+              Vazgeç
+            </Button>
+            <Button
+              type="button"
+              variant={status === "cancelled" ? "destructive" : "default"}
+              onClick={() => void confirmRiskyStatus()}
+            >
+              Onayla
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

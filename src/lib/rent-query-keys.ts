@@ -16,4 +16,6 @@ export const rentKeys = {
   /** Araç müsaitlik takvimi: `GET /vehicles/{id}/calendar/occupancy` */
   vehicleCalendarOccupancy: (vehicleId: string, from: string, to: string) =>
     [...rentKeys.all, "vehicleCalendarOccupancy", vehicleId, from, to] as const,
+  /** Yeni araç formu: `GET /vehicles/form-catalog` */
+  vehicleFormCatalog: () => [...rentKeys.all, "vehicleFormCatalog"] as const,
 };

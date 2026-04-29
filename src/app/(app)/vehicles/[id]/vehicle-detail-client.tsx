@@ -1612,10 +1612,29 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
               <Label>Model yılı</Label>
               <Input type="number" min={1950} max={new Date().getFullYear() + 1} value={editYear} onChange={(e) => setEditYear(e.target.value)} />
             </div>
-            <label className="flex cursor-pointer items-center gap-2 text-xs">
-              <input type="checkbox" checked={editMaintenance} onChange={(e) => setEditMaintenance(e.target.checked)} className="rounded border-input" />
-              Bakımda (kiralanamaz)
-            </label>
+            <div className="space-y-1">
+              <Label htmlFor="vd-edit-fleet-op" className="text-xs">
+                Filo durumu
+              </Label>
+              <Select
+                value={editMaintenance ? "maintenance" : "available"}
+                onValueChange={(v) => setEditMaintenance(v === "maintenance")}
+              >
+                <SelectTrigger id="vd-edit-fleet-op" className="h-9 w-full text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="available">Müsait</SelectItem>
+                  <SelectItem value="maintenance">Bakımda</SelectItem>
+                  <SelectItem value="rented" disabled>
+                    Kirada (kiralama veya taleple oluşur)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {status === "rented" && !editMaintenance ? (
+                <p className="text-[11px] text-muted-foreground">Kirada rozeti etkin kiralama veya talebe göre gösterilir.</p>
+              ) : null}
+            </div>
             <label className="flex cursor-pointer items-center gap-2 text-xs">
               <input type="checkbox" checked={editExternal} onChange={(e) => setEditExternal(e.target.checked)} className="rounded border-input" />
               Harici araç

@@ -11,10 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   createVehicleCatalogEntryOnRentApi,
+  createVehicleStatusOnRentApi,
   deleteVehicleCatalogEntryOnRentApi,
+  deleteVehicleStatusOnRentApi,
   fetchVehicleCatalogFromRentApi,
+  fetchVehicleStatusesFromRentApi,
   getRentApiErrorMessage,
   updateVehicleCatalogEntryOnRentApi,
+  updateVehicleStatusOnRentApi,
   type VehicleCatalogKind,
   type VehicleCatalogRow,
 } from "@/lib/rent-api";
@@ -23,7 +27,9 @@ const FEATURE_NAME_LABEL = "Özellik adı";
 const SORT_LABEL = "Sıra no";
 const SORT_HINT = "Açılır listede üstten alta sıra; küçük sayı daha önde gösterilir.";
 
-const TAB_META: { value: VehicleCatalogKind; label: string; hint: string }[] = [
+type CatalogTab = VehicleCatalogKind | "vehicleStatus";
+
+const TAB_META: { value: CatalogTab; label: string; hint: string }[] = [
   {
     value: "bodyStyle",
     label: "Araç türü",
@@ -39,25 +45,31 @@ const TAB_META: { value: VehicleCatalogKind; label: string; hint: string }[] = [
     label: "Vites",
     hint: "Otomatik, manuel vb. Sistem kodu özellik adından otomatik üretilir (küçük harf).",
   },
+  {
+    value: "vehicleStatus",
+    label: "Filo statüsü",
+    hint: "Müsait, bakımda, kirada vb. Kod isteğe bağlı; boş bırakılırsa sunucu üretir. Silmede kod yerine kayıt kimliği kullanılır.",
+  },
 ];
 
-type FormState = { labelTr: string; sortOrder: string };
+type FormState = { labelTr: string; sortOrder: string; codeOptional: string };
 
-const emptyForm = (): FormState => ({ labelTr: "", sortOrder: "0" });
+const emptyForm = (): FormState => ({ labelTr: "", sortOrder: "0", codeOptional: "" });
 
 export function VehicleCatalogManageClient() {
-  const [tab, setTab] = useState<VehicleCatalogKind>("bodyStyle");
+  const [tab, setTab] = useState<CatalogTab>("bodyStyle");
   const [rows, setRows] = useState<VehicleCatalogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [editingCode, setEditingCode] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async (kind: VehicleCatalogKind) => {
+  const load = useCallback(async (kind: CatalogTab) => {
     setRows([]);
     setLoading(true);
     try {
-      const list = await fetchVehicleCatalogFromRentApi(kind);
+      const list =
+        kind === "vehicleStatus" ? await fetchVehicleStatusesFromRentApi() : await fetchVehicleCatalogFromRentApi(kind);
       setRows(list);
     } catch (e) {
       toast.error(getRentApiErrorMessage(e));
@@ -80,6 +92,7 @@ export function VehicleCatalogManageClient() {
     setForm({
       labelTr: row.labelTr,
       sortOrder: String(row.sortOrder ?? 0),
+      codeOptional: "",
     });
   };
 
@@ -102,10 +115,23 @@ export function VehicleCatalogManageClient() {
     setSaving(true);
     try {
       if (editingCode === "new") {
-        await createVehicleCatalogEntryOnRentApi(tab, { labelTr, sortOrder });
+        if (tab === "vehicleStatus") {
+          const optCode = form.codeOptional.trim();
+          await createVehicleStatusOnRentApi({
+            labelTr,
+            sortOrder,
+            ...(optCode ? { code: optCode } : {}),
+          });
+        } else {
+          await createVehicleCatalogEntryOnRentApi(tab, { labelTr, sortOrder });
+        }
         toast.success("Kayıt oluşturuldu.");
       } else if (editingCode) {
-        await updateVehicleCatalogEntryOnRentApi(tab, editingCode, { labelTr, sortOrder });
+        if (tab === "vehicleStatus") {
+          await updateVehicleStatusOnRentApi(editingCode, { labelTr, sortOrder });
+        } else {
+          await updateVehicleCatalogEntryOnRentApi(tab, editingCode, { labelTr, sortOrder });
+        }
         toast.success("Güncellendi.");
       }
       cancelForm();
@@ -127,7 +153,11 @@ export function VehicleCatalogManageClient() {
       return;
     }
     try {
-      await deleteVehicleCatalogEntryOnRentApi(tab, row.id);
+      if (tab === "vehicleStatus") {
+        await deleteVehicleStatusOnRentApi(row.id);
+      } else {
+        await deleteVehicleCatalogEntryOnRentApi(tab, row.id);
+      }
       toast.success("Silindi.");
       await load(tab);
     } catch (e) {
@@ -141,16 +171,17 @@ export function VehicleCatalogManageClient() {
         <h1 className="text-lg font-semibold tracking-tight">Araç özellikleri kataloğu</h1>
         <p className="mt-1 text-xs text-muted-foreground">
           Araç eklerken seçilen <span className="font-medium text-foreground">yakıt</span>,{" "}
-          <span className="font-medium text-foreground">vites</span> ve{" "}
-          <span className="font-medium text-foreground">araç türü</span> listeleri buradan yönetilir. Silme, ilgili
-          sistem kodunu kullanan silinmemiş araç varsa engellenir.
+          <span className="font-medium text-foreground">vites</span>,{" "}
+          <span className="font-medium text-foreground">araç türü</span> ve{" "}
+          <span className="font-medium text-foreground">filo statüsü</span> listeleri buradan yönetilir. Silme, ilgili
+          kaydı kullanan silinmemiş araç varsa sunucu reddeder (409).
         </p>
       </div>
 
       <Tabs
         value={tab}
         onValueChange={(v) => {
-          setTab(v as VehicleCatalogKind);
+          setTab(v as CatalogTab);
           cancelForm();
         }}
         className="w-full"
@@ -175,11 +206,24 @@ export function VehicleCatalogManageClient() {
                       <CardTitle className="text-sm">{editingCode === "new" ? "Yeni kayıt" : "Düzenle"}</CardTitle>
                       <CardDescription className="text-xs">
                         {editingCode === "new"
-                          ? "Kod özellik adından otomatik üretilir; çakışırsa sunucu sonek ekler."
+                          ? tab === "vehicleStatus"
+                            ? "Kod isteğe bağlıdır; boş bırakılırsa sunucu üretir."
+                            : "Kod özellik adından otomatik üretilir; çakışırsa sunucu sonek ekler."
                           : `Kod değişmez: ${editingCode}. ${FEATURE_NAME_LABEL} ve ${SORT_LABEL} güncellenir.`}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 pb-4">
+                      {tab === "vehicleStatus" && editingCode === "new" ? (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Kod (isteğe bağlı)</Label>
+                          <Input
+                            className="h-9 font-mono text-xs"
+                            placeholder="Örn: fleet_hold"
+                            value={form.codeOptional}
+                            onChange={(e) => setForm((f) => ({ ...f, codeOptional: e.target.value }))}
+                          />
+                        </div>
+                      ) : null}
                       <div className="space-y-1">
                         <Label className="text-xs">{FEATURE_NAME_LABEL}</Label>
                         <Input
@@ -230,7 +274,7 @@ export function VehicleCatalogManageClient() {
                         <table className="w-full min-w-[280px] border-collapse text-left text-xs">
                           <thead>
                             <tr className="border-b border-border/60 bg-muted/40">
-                              <th className="px-2 py-2 font-medium">Kod (otomatik)</th>
+                              <th className="px-2 py-2 font-medium">{tab === "vehicleStatus" ? "Kod" : "Kod (otomatik)"}</th>
                               <th className="px-2 py-2 font-medium">{FEATURE_NAME_LABEL}</th>
                               <th className="px-2 py-2 font-medium">{SORT_LABEL}</th>
                               <th className="px-2 py-2 font-medium text-right">İşlem</th>
@@ -238,7 +282,7 @@ export function VehicleCatalogManageClient() {
                           </thead>
                           <tbody>
                             {rows.map((r) => (
-                              <tr key={r.id} className="border-b border-border/40 last:border-0">
+                              <tr key={r.id || r.code} className="border-b border-border/40 last:border-0">
                                 <td className="px-2 py-2 font-mono text-[11px]">{r.code}</td>
                                 <td className="px-2 py-2">{r.labelTr}</td>
                                 <td className="px-2 py-2 tabular-nums">{r.sortOrder}</td>

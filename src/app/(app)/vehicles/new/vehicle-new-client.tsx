@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -10,22 +11,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCountries } from "@/hooks/use-countries";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
-import {
-  fetchHandoverLocationsFromRentApi,
-  fetchVehicleBodyStylesFromRentApi,
-  fetchVehicleFuelTypesFromRentApi,
-  fetchVehicleOptionTemplatesFromRentApi,
-  fetchVehicleTransmissionTypesFromRentApi,
-  getRentApiErrorMessage,
-  type HandoverLocationApiRow,
-  type VehicleBodyStyleRow,
-  type VehicleOptionTemplateApiRow,
-} from "@/lib/rent-api";
+import { fetchVehicleFormCatalogFromRentApi, getRentApiErrorMessage } from "@/lib/rent-api";
+import { rentKeys } from "@/lib/rent-query-keys";
 import { compactVehicleImages, type VehicleImages } from "@/lib/vehicle-images";
 import { HandoverReturnMultiCombobox } from "@/components/vehicles/handover-return-multi-combobox";
 import { VehicleImageSlotsEditor } from "@/components/vehicles/vehicle-image-slots-editor";
+import { cn } from "@/lib/utils";
 
 const REQUIRED_VEHICLE_IMAGE_SLOTS: (keyof VehicleImages)[] = [
   "front",
@@ -44,23 +36,29 @@ const COUNTRY_NONE = "__none__";
 const SPECS_FUEL_NONE = "__fuel_none__";
 const SPECS_TRANS_NONE = "__trans_none__";
 const SPECS_BODY_NONE = "__body_none__";
-
-function sortVehicleCatalogRows(rows: VehicleBodyStyleRow[]): VehicleBodyStyleRow[] {
-  return [...rows].sort(
-    (a, b) => a.sortOrder - b.sortOrder || a.labelTr.localeCompare(b.labelTr, "tr"),
-  );
-}
+const BRAND_NONE = "__brand_none__";
+const MODEL_NONE = "__model_none__";
 
 export function VehicleNewClient() {
   const router = useRouter();
   const { allVehicles, addVehicle } = useFleetVehicles();
-  const { countries } = useCountries();
+  const {
+    data: catalog,
+    isPending: catalogLoading,
+    error: catalogError,
+    refetch: refetchCatalog,
+  } = useQuery({
+    queryKey: rentKeys.vehicleFormCatalog(),
+    queryFn: fetchVehicleFormCatalogFromRentApi,
+  });
   const [saving, setSaving] = useState(false);
   const [plate, setPlate] = useState("");
-  const [brand, setBrand] = useState("");
-  const [model, setModel] = useState("");
+  const [brandId, setBrandId] = useState(BRAND_NONE);
+  const [modelId, setModelId] = useState(MODEL_NONE);
+  const [brandManual, setBrandManual] = useState("");
+  const [modelManual, setModelManual] = useState("");
   const [year, setYear] = useState(String(new Date().getFullYear()));
-  const [maintenance, setMaintenance] = useState(false);
+  const [fleetStatusCode, setFleetStatusCode] = useState("available");
   const [externalVehicle, setExternalVehicle] = useState(false);
   const [externalCompany, setExternalCompany] = useState("");
   const [commissionRatePercent, setCommissionRatePercent] = useState("");
@@ -68,11 +66,8 @@ export function VehicleNewClient() {
   const [rentalDailyPrice, setRentalDailyPrice] = useState("");
   const [vehicleCountry, setVehicleCountry] = useState<string>(COUNTRY_NONE);
   const [draftImages, setDraftImages] = useState<VehicleImages>({});
-  const [pickupLocs, setPickupLocs] = useState<HandoverLocationApiRow[]>([]);
-  const [returnLocs, setReturnLocs] = useState<HandoverLocationApiRow[]>([]);
   const [defaultPickupId, setDefaultPickupId] = useState("");
   const [selectedReturnIds, setSelectedReturnIds] = useState<string[]>([]);
-  const [optionTemplates, setOptionTemplates] = useState<VehicleOptionTemplateApiRow[]>([]);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const [optionSearch, setOptionSearch] = useState("");
   const [highlightsText, setHighlightsText] = useState("");
@@ -81,25 +76,44 @@ export function VehicleNewClient() {
   const [bodyStyleCode, setBodyStyleCode] = useState(SPECS_BODY_NONE);
   const [seats, setSeats] = useState("");
   const [luggage, setLuggage] = useState("");
-  const [bodyStyleOptions, setBodyStyleOptions] = useState<VehicleBodyStyleRow[]>([]);
-  const [fuelTypeOptions, setFuelTypeOptions] = useState<VehicleBodyStyleRow[]>([]);
-  const [transmissionTypeOptions, setTransmissionTypeOptions] = useState<VehicleBodyStyleRow[]>([]);
+  const pickupLocs = catalog?.pickupHandoverLocations ?? [];
+  const returnLocs = catalog?.returnHandoverLocations ?? [];
+  const optionTemplates = useMemo(() => catalog?.optionTemplates ?? [], [catalog]);
+  const fuelTypeOptions = catalog?.fuelTypes ?? [];
+  const transmissionTypeOptions = catalog?.transmissionTypes ?? [];
+  const bodyStyleOptions = catalog?.bodyStyles ?? [];
 
   const countriesSorted = useMemo(
-    () => [...countries].sort((a, b) => a.name.localeCompare(b.name, "tr")),
-    [countries],
+    () => [...(catalog?.countries ?? [])].sort((a, b) => a.name.localeCompare(b.name, "tr")),
+    [catalog?.countries],
   );
 
+  const selectedBrandRow = useMemo(
+    () => (catalog?.brands ?? []).find((b) => b.id === brandId),
+    [catalog?.brands, brandId],
+  );
+
+  const modelOptionsForBrand = selectedBrandRow?.models ?? [];
+
+  const fleetStatusRows = useMemo(() => {
+    const rows = catalog?.vehicleStatuses ?? [];
+    if (rows.length > 0) return rows;
+    return [
+      { id: "fb1", code: "available", labelTr: "Müsait", sortOrder: 1 },
+      { id: "fb2", code: "maintenance", labelTr: "Bakımda", sortOrder: 2 },
+      { id: "fb3", code: "rented", labelTr: "Kirada", sortOrder: 3 },
+    ];
+  }, [catalog?.vehicleStatuses]);
+
+  const useBrandModelCatalog = Boolean(catalog && catalog.brands.length > 0);
+  const formLocked = catalogLoading || !!catalogError || !catalog;
+
   useEffect(() => {
-    void fetchHandoverLocationsFromRentApi("PICKUP").then((rows) => setPickupLocs(rows.filter((r) => r.active !== false)));
-    void fetchHandoverLocationsFromRentApi("RETURN").then((rows) => setReturnLocs(rows.filter((r) => r.active !== false)));
-    void fetchVehicleOptionTemplatesFromRentApi().then((rows) => setOptionTemplates(rows.filter((r) => r.active)));
-    void fetchVehicleBodyStylesFromRentApi().then((rows) => setBodyStyleOptions(sortVehicleCatalogRows(rows)));
-    void fetchVehicleFuelTypesFromRentApi().then((rows) => setFuelTypeOptions(sortVehicleCatalogRows(rows)));
-    void fetchVehicleTransmissionTypesFromRentApi().then((rows) =>
-      setTransmissionTypeOptions(sortVehicleCatalogRows(rows)),
-    );
-  }, []);
+    if (fleetStatusRows.length === 0) return;
+    if (fleetStatusRows.some((s) => s.code === fleetStatusCode)) return;
+    const pref = fleetStatusRows.find((s) => s.code === "available") ?? fleetStatusRows[0];
+    if (pref) setFleetStatusCode(pref.code);
+  }, [fleetStatusRows, fleetStatusCode]);
 
   const filteredOptionTemplates = useMemo(() => {
     const q = optionSearch.trim().toLocaleLowerCase("tr");
@@ -112,9 +126,21 @@ export function VehicleNewClient() {
   }, [optionSearch, optionTemplates]);
 
   const submitNewVehicle = async () => {
+    if (!catalog) {
+      toast.error("Form katalogu yüklenemedi.");
+      return;
+    }
     const p = normalizePlate(plate);
-    const b = brand.trim();
-    const m = model.trim();
+    let b = "";
+    let m = "";
+    if (useBrandModelCatalog) {
+      b = selectedBrandRow?.name?.trim() ?? "";
+      const modelRow = modelOptionsForBrand.find((x) => x.id === modelId);
+      m = modelRow?.name?.trim() ?? "";
+    } else {
+      b = brandManual.trim();
+      m = modelManual.trim();
+    }
     const y = parseInt(year, 10);
     if (!p || !b || !m || !Number.isFinite(y) || y < 1950 || y > new Date().getFullYear() + 1) {
       toast.error("Plaka, marka, model ve geçerli model yılı gerekli.");
@@ -178,7 +204,7 @@ export function VehicleNewClient() {
         brand: b,
         model: m,
         year: y,
-        maintenance: Boolean(maintenance),
+        maintenance: fleetStatusCode === "maintenance",
         external: externalVehicle,
         externalCompany: externalVehicle ? externalCompany.trim() : undefined,
         commissionRatePercent: externalVehicle ? rate : undefined,
@@ -215,19 +241,93 @@ export function VehicleNewClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 px-4 py-4 sm:px-6">
+          {catalogLoading ? (
+            <p className="text-xs text-muted-foreground">Araç formu için katalog yükleniyor…</p>
+          ) : null}
+          {catalogError ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs">
+              <span className="text-destructive">{getRentApiErrorMessage(catalogError)}</span>
+              <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => void refetchCatalog()}>
+                Yeniden dene
+              </Button>
+            </div>
+          ) : null}
           <div className="space-y-1">
             <Label htmlFor="nv-plate">Plaka</Label>
-            <Input id="nv-plate" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="34 ABC 123" className="font-mono" />
+            <Input
+              id="nv-plate"
+              value={plate}
+              onChange={(e) => setPlate(e.target.value)}
+              placeholder="34 ABC 123"
+              className="font-mono"
+              disabled={formLocked}
+            />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="nv-brand">Marka</Label>
-              <Input id="nv-brand" value={brand} onChange={(e) => setBrand(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="nv-model">Model</Label>
-              <Input id="nv-model" value={model} onChange={(e) => setModel(e.target.value)} />
-            </div>
+            {useBrandModelCatalog ? (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs">Marka</Label>
+                  <Select
+                    value={brandId}
+                    onValueChange={(v) => {
+                      setBrandId(v);
+                      setModelId(MODEL_NONE);
+                    }}
+                    disabled={formLocked}
+                  >
+                    <SelectTrigger className="h-9 w-full text-xs">
+                      <SelectValue placeholder="Seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={BRAND_NONE}>Seçin</SelectItem>
+                      {(catalog?.brands ?? []).map((br) => (
+                        <SelectItem key={br.id} value={br.id}>
+                          {br.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Model</Label>
+                  <Select value={modelId} onValueChange={setModelId} disabled={formLocked || brandId === BRAND_NONE}>
+                    <SelectTrigger className="h-9 w-full text-xs">
+                      <SelectValue placeholder={brandId === BRAND_NONE ? "Önce marka seçin" : "Seçin"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={MODEL_NONE}>Seçin</SelectItem>
+                      {modelOptionsForBrand.map((mo) => (
+                        <SelectItem key={mo.id} value={mo.id}>
+                          {mo.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="nv-brand">Marka</Label>
+                  <Input
+                    id="nv-brand"
+                    value={brandManual}
+                    onChange={(e) => setBrandManual(e.target.value)}
+                    disabled={formLocked}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="nv-model">Model</Label>
+                  <Input
+                    id="nv-model"
+                    value={modelManual}
+                    onChange={(e) => setModelManual(e.target.value)}
+                    disabled={formLocked}
+                  />
+                </div>
+              </>
+            )}
           </div>
           <div className="space-y-1">
             <Label htmlFor="nv-year">Model yılı</Label>
@@ -238,6 +338,7 @@ export function VehicleNewClient() {
               max={new Date().getFullYear() + 1}
               value={year}
               onChange={(e) => setYear(e.target.value)}
+              disabled={formLocked}
             />
           </div>
           <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
@@ -247,7 +348,7 @@ export function VehicleNewClient() {
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">Yakıt türü</Label>
-                <Select value={fuelType} onValueChange={setFuelType}>
+                <Select value={fuelType} onValueChange={setFuelType} disabled={formLocked}>
                   <SelectTrigger className="h-9 w-full text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -263,7 +364,7 @@ export function VehicleNewClient() {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Vites türü</Label>
-                <Select value={transmissionType} onValueChange={setTransmissionType}>
+                <Select value={transmissionType} onValueChange={setTransmissionType} disabled={formLocked}>
                   <SelectTrigger className="h-9 w-full text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -279,7 +380,7 @@ export function VehicleNewClient() {
               </div>
               <div className="space-y-1 sm:col-span-2">
                 <Label className="text-xs">Araç türü</Label>
-                <Select value={bodyStyleCode} onValueChange={setBodyStyleCode}>
+                <Select value={bodyStyleCode} onValueChange={setBodyStyleCode} disabled={formLocked}>
                   <SelectTrigger className="h-9 w-full text-xs">
                     <SelectValue placeholder="Seçin" />
                   </SelectTrigger>
@@ -301,6 +402,7 @@ export function VehicleNewClient() {
                   placeholder="Örn. 5"
                   value={seats}
                   onChange={(e) => setSeats(e.target.value)}
+                  disabled={formLocked}
                 />
               </div>
               <div className="space-y-1">
@@ -311,13 +413,14 @@ export function VehicleNewClient() {
                   placeholder="Örn. 5"
                   value={luggage}
                   onChange={(e) => setLuggage(e.target.value)}
+                  disabled={formLocked}
                 />
               </div>
             </div>
           </div>
           <div className="space-y-1">
             <Label htmlFor="nv-country">Ülke</Label>
-            <Select value={vehicleCountry} onValueChange={setVehicleCountry}>
+            <Select value={vehicleCountry} onValueChange={setVehicleCountry} disabled={formLocked}>
               <SelectTrigger id="nv-country" className="w-full">
                 <SelectValue placeholder="Ülke seçin" />
               </SelectTrigger>
@@ -340,7 +443,7 @@ export function VehicleNewClient() {
           </div>
           <div className="space-y-1">
             <Label>Varsayılan alış noktası</Label>
-            <Select value={defaultPickupId || undefined} onValueChange={setDefaultPickupId}>
+            <Select value={defaultPickupId || undefined} onValueChange={setDefaultPickupId} disabled={formLocked}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="PICKUP noktası seçin" />
               </SelectTrigger>
@@ -363,7 +466,12 @@ export function VehicleNewClient() {
               value={selectedReturnIds}
               onChange={setSelectedReturnIds}
               placeholder="Teslim noktası seçin…"
-              emptyMessage="Ayarlar → Teslim noktalarından RETURN kaydı ekleyin"
+              disabled={formLocked}
+              emptyMessage={
+                catalog && returnLocs.length === 0
+                  ? "Katalogda teslim noktası yok."
+                  : "Ayarlar → Teslim noktalarından RETURN kaydı ekleyin"
+              }
             />
           </div>
           <div className="space-y-2 rounded-md border border-border/50 bg-muted/20 p-3">
@@ -378,6 +486,7 @@ export function VehicleNewClient() {
               value={optionSearch}
               onChange={(e) => setOptionSearch(e.target.value)}
               className="h-8 text-xs"
+              disabled={formLocked}
             />
             {selectedTemplateIds.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
@@ -416,14 +525,18 @@ export function VehicleNewClient() {
                     <div key={t.id} className="flex items-center justify-between gap-2 rounded px-1 py-1 hover:bg-muted/60">
                       <div className="min-w-0">
                         <p className="truncate text-[11px] font-medium">{t.title}</p>
-                        <p className="text-[10px] text-muted-foreground">{t.price}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {Number.isFinite(t.price)
+                            ? `${t.price.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺`
+                            : "—"}
+                        </p>
                       </div>
                       <Button
                         type="button"
                         size="sm"
                         variant={selected ? "secondary" : "outline"}
                         className="h-7 shrink-0 px-2 text-[10px]"
-                        disabled={selected}
+                        disabled={selected || formLocked}
                         onClick={() => setSelectedTemplateIds((prev) => [...prev, t.id])}
                       >
                         {selected ? "Eklendi" : "Ekle"}
@@ -434,16 +547,30 @@ export function VehicleNewClient() {
               )}
             </div>
           </div>
-          <label className="flex cursor-pointer items-center gap-2 text-xs">
-            <input type="checkbox" checked={maintenance} onChange={(e) => setMaintenance(e.target.checked)} className="rounded border-input" />
-            Bakımda (kiralanamaz)
-          </label>
-          <label className="flex cursor-pointer items-center gap-2 text-xs">
+          <div className="space-y-1">
+            <Label htmlFor="nv-fleet-op" className="text-xs">
+              Filo durumu
+            </Label>
+            <Select value={fleetStatusCode} onValueChange={setFleetStatusCode} disabled={formLocked}>
+              <SelectTrigger id="nv-fleet-op" className="h-9 w-full text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {fleetStatusRows.map((s) => (
+                  <SelectItem key={s.code} value={s.code} disabled={s.code === "rented"}>
+                    {s.labelTr}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <label className={cn("flex cursor-pointer items-center gap-2 text-xs", formLocked && "pointer-events-none opacity-60")}>
             <input
               type="checkbox"
               checked={externalVehicle}
               onChange={(e) => setExternalVehicle(e.target.checked)}
               className="rounded border-input"
+              disabled={formLocked}
             />
             Harici araç (başka firmadan)
           </label>
@@ -456,6 +583,7 @@ export function VehicleNewClient() {
                   value={externalCompany}
                   onChange={(e) => setExternalCompany(e.target.value)}
                   placeholder="Örn: X Rent A Car"
+                  disabled={formLocked}
                 />
               </div>
               <div className="space-y-1">
@@ -469,6 +597,7 @@ export function VehicleNewClient() {
                   value={commissionRatePercent}
                   onChange={(e) => setCommissionRatePercent(e.target.value)}
                   placeholder="Örn: 12.5"
+                  disabled={formLocked}
                 />
               </div>
               <div className="space-y-1">
@@ -478,6 +607,7 @@ export function VehicleNewClient() {
                   value={commissionBrokerPhone}
                   onChange={(e) => setCommissionBrokerPhone(e.target.value)}
                   placeholder="+90 5xx ..."
+                  disabled={formLocked}
                 />
               </div>
             </>
@@ -492,6 +622,7 @@ export function VehicleNewClient() {
               value={rentalDailyPrice}
               onChange={(e) => setRentalDailyPrice(e.target.value)}
               placeholder="0.00"
+              disabled={formLocked}
             />
           </div>
           <div className="space-y-1">
@@ -502,7 +633,8 @@ export function VehicleNewClient() {
               onChange={(e) => setHighlightsText(e.target.value)}
               placeholder={"Her satır bir madde (en fazla 30).\nÖrn: Kasko dahil\n7/24 yol yardımı"}
               rows={4}
-              className="flex min-h-[88px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              disabled={formLocked}
+              className="flex min-h-[88px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
             />
             <p className="text-[10px] text-muted-foreground">İlan ve müşteri arayüzünde sırayla gösterilir.</p>
           </div>
@@ -512,7 +644,14 @@ export function VehicleNewClient() {
           <Button type="button" variant="outline" size="sm" className="h-9 w-full text-xs sm:w-auto" asChild>
             <Link href="/vehicles">İptal</Link>
           </Button>
-          <Button type="button" size="sm" variant="hero" className="h-9 w-full text-xs sm:w-auto" disabled={saving} onClick={() => void submitNewVehicle()}>
+          <Button
+            type="button"
+            size="sm"
+            variant="hero"
+            className="h-9 w-full text-xs sm:w-auto"
+            disabled={saving || formLocked}
+            onClick={() => void submitNewVehicle()}
+          >
             {saving ? "Kaydediliyor…" : "Kaydet"}
           </Button>
         </CardFooter>

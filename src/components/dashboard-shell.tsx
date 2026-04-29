@@ -635,14 +635,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 })}
               </nav>
 
-              <div className="flex shrink-0 items-center justify-center gap-2 border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                <LanguageSelect variant="compact" />
-                <UserAvatarLogoutMenu
-                  session={sessionIdentity}
-                  menuPlacement="above"
-                  onLogout={() => void logout()}
-                  afterNavigate={() => setMobileNavOpen(false)}
-                />
+              <div className="flex shrink-0 flex-col border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="h-11 w-full gap-2 text-sm font-semibold shadow-sm"
+                  onClick={() => void logout()}
+                >
+                  <LogOut className="h-4 w-4 shrink-0" />
+                  {t("shell.logout")}
+                </Button>
               </div>
             </div>
           </SheetContent>
@@ -650,10 +652,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         <header className="sticky top-0 z-30 flex h-12 items-center justify-between gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:hidden">
           <div className="flex min-w-0 items-center gap-2">
-            <div className="flex min-w-0 items-center gap-2">
+            <Link
+              href="/dashboard"
+              className="flex min-w-0 max-w-[min(100%,12rem)] items-center gap-2 rounded-md px-1 py-1 -mx-1 outline-none ring-offset-background transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <CarFront className="h-5 w-5 shrink-0 text-primary" />
               <span className="truncate text-sm font-semibold">AlgoryRent</span>
-            </div>
+            </Link>
           </div>
           <div className="min-w-0 flex-1 px-1">{renderRouteSearch()}</div>
           <div className="flex shrink-0 items-center gap-2">
