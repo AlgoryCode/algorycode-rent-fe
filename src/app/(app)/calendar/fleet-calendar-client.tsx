@@ -198,7 +198,7 @@ export function FleetCalendarClient() {
                             const v = vehicleById.get(s.vehicleId);
                             const plate = v?.plate ?? s.vehicleId.slice(0, 8);
                             const status = resolveStatus(s.startDate, s.endDate, s.vehicleId);
-                            const customer = s.customerName?.trim() || s.customerEmail?.trim() || "Musteri";
+                            const customer = s.customer?.fullName?.trim() || s.customer?.email?.trim() || "Musteri";
                             return (
                               <div key={s.id} className={cn("rounded-md border-l-4 px-2 py-1 text-[11px]", statusClasses[status])} title={`${plate}: ${s.startDate} -> ${s.endDate}`}>
                                 <p className="truncate font-medium">{plate}</p>
