@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -29,27 +28,11 @@ const SORT_HINT = "Açılır listede üstten alta sıra; küçük sayı daha ön
 
 type CatalogTab = VehicleCatalogKind | "vehicleStatus";
 
-const TAB_META: { value: CatalogTab; label: string; hint: string }[] = [
-  {
-    value: "bodyStyle",
-    label: "Araç türü",
-    hint: "Sedan, SUV vb. Sistem kodu özellik adından otomatik üretilir (büyük harf).",
-  },
-  {
-    value: "fuelType",
-    label: "Yakıt",
-    hint: "Benzin, dizel vb. Sistem kodu özellik adından otomatik üretilir (küçük harf).",
-  },
-  {
-    value: "transmissionType",
-    label: "Vites",
-    hint: "Otomatik, manuel vb. Sistem kodu özellik adından otomatik üretilir (küçük harf).",
-  },
-  {
-    value: "vehicleStatus",
-    label: "Filo statüsü",
-    hint: "Müsait, bakımda, kirada vb. Kod isteğe bağlı; boş bırakılırsa sunucu üretir. Silmede kod yerine kayıt kimliği kullanılır.",
-  },
+const TAB_META: { value: CatalogTab; label: string }[] = [
+  { value: "bodyStyle", label: "Araç türü" },
+  { value: "fuelType", label: "Yakıt" },
+  { value: "transmissionType", label: "Vites" },
+  { value: "vehicleStatus", label: "Filo statüsü" },
 ];
 
 type FormState = { labelTr: string; sortOrder: string; codeOptional: string };
@@ -167,16 +150,7 @@ export function VehicleCatalogManageClient() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">Araç özellikleri kataloğu</h1>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Araç eklerken seçilen <span className="font-medium text-foreground">yakıt</span>,{" "}
-          <span className="font-medium text-foreground">vites</span>,{" "}
-          <span className="font-medium text-foreground">araç türü</span> ve{" "}
-          <span className="font-medium text-foreground">filo statüsü</span> listeleri buradan yönetilir. Silme, ilgili
-          kaydı kullanan silinmemiş araç varsa sunucu reddeder (409).
-        </p>
-      </div>
+      <h1 className="text-lg font-semibold tracking-tight">Araç özellikleri kataloğu</h1>
 
       <Tabs
         value={tab}
@@ -198,8 +172,6 @@ export function VehicleCatalogManageClient() {
           <TabsContent key={t.value} value={t.value} className="mt-3 space-y-4">
             {tab === t.value ? (
               <>
-                <p className="text-[11px] text-muted-foreground">{t.hint}</p>
-
                 {editingCode ? (
                   <Card className="glow-card border-primary/25">
                     <CardHeader className="py-3">
@@ -323,15 +295,6 @@ export function VehicleCatalogManageClient() {
           </TabsContent>
         ))}
       </Tabs>
-
-      <div className="flex flex-wrap gap-2 text-[11px]">
-        <Link href="/settings/options" className="text-primary underline-offset-2 hover:underline">
-          ← Opsiyonlar
-        </Link>
-        <Link href="/settings" className="text-muted-foreground underline-offset-2 hover:underline">
-          Ayarlara dön
-        </Link>
-      </div>
     </div>
   );
 }
