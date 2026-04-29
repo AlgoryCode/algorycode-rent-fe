@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { ChevronRight, Search, UserCog, UserPlus } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { AddEntityButton } from "@/components/ui/add-entity-actions";
 import { Badge } from "@/components/ui/badge";
@@ -240,6 +240,34 @@ export function UsersClient() {
             <p className="py-10 text-center text-xs text-muted-foreground">Sonuç yok.</p>
           ) : (
             <div className="rounded-lg border">
+              <div className="space-y-2 p-3 md:hidden">
+                {rows.map((u) => (
+                  <div key={`mobile-${u.id}`} className="rounded-xl border border-border/70 bg-card p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{u.fullName}</p>
+                        <p className="truncate font-mono text-[11px] text-muted-foreground">{u.email}</p>
+                      </div>
+                      <Badge variant={roleBadgeVariant(u.role)} className="text-[10px]">
+                        {ROLE_LABEL[u.role]}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{u.active ? "Aktif" : "Pasif"}</span>
+                      <span>{format(parseISO(u.lastActiveAt), "d MMM yyyy HH:mm", { locale: tr })}</span>
+                    </div>
+                    <div className="mt-2 flex justify-end">
+                      <Button asChild variant="outline" size="sm" className="h-8 gap-1 text-xs">
+                        <Link href={`/users/${encodeURIComponent(u.id)}`}>
+                          Detay
+                          <ChevronRight className="h-3.5 w-3.5 opacity-70" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden md:block">
               <Table className="min-w-[560px] text-xs">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -287,6 +315,7 @@ export function UsersClient() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>

@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { AlertTriangle, ArrowLeft, UserCog } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

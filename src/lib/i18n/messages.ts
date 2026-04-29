@@ -24,6 +24,7 @@ const tr = {
   "nav.optionsGroup": "Opsiyonlar",
   "nav.vehicleOptions": "Araç opsiyonları",
   "nav.rentalOptions": "Kiralama Opsiyonları",
+  "nav.coupons": "Kuponlar",
   "nav.login": "Giriş",
 
   "shell.subtitle": "Yönetim paneli",
@@ -102,6 +103,7 @@ const en: Record<MessageKey, string> = {
   "nav.optionsGroup": "Options",
   "nav.vehicleOptions": "Vehicle options",
   "nav.rentalOptions": "Rental options",
+  "nav.coupons": "Coupons",
   "nav.login": "Sign in",
 
   "shell.subtitle": "Admin console",
@@ -178,6 +180,7 @@ const sq: Record<MessageKey, string> = {
   "nav.optionsGroup": "Opsionet",
   "nav.vehicleOptions": "Opsionet e automjetit",
   "nav.rentalOptions": "Opsionet e qirasë",
+  "nav.coupons": "Kuponë",
   "nav.login": "Hyrje",
 
   "shell.subtitle": "Panel administrimi",

@@ -7,12 +7,15 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { addDays, addMonths, addYears, differenceInCalendarDays, eachDayOfInterval, format, parseISO, startOfDay, startOfMonth } from "date-fns";
 import { tr } from "date-fns/locale";
 import { DayPicker, type DateRange } from "react-day-picker";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   AlertTriangle,
   BarChart3,
+  Bell,
   Building2,
+  CarFront,
   CalendarDays,
+  History,
   KeyRound,
   PackagePlus,
   ScrollText,
@@ -75,6 +78,7 @@ import {
   sortSessionsByLogTimeDesc,
   type RentalLogFilterValues,
 } from "@/lib/rental-log-filters";
+import { validateRentalStepInput } from "@/lib/rental-step-validation";
 import type { CustomerKind, Vehicle } from "@/lib/mock-fleet";
 import { CustomerPickerDialog } from "@/components/customers/customer-picker-dialog";
 import { useCustomerDirectoryRows } from "@/hooks/use-customer-directory-rows";
@@ -105,10 +109,18 @@ type AdditionalDriverDraft = {
 };
 
 type ReportRange = "1w" | "1m" | "6m" | "1y";
+type RentalFormStep = 1 | 2 | 3 | 4 | 5;
 const COUNTRY_NONE = "__none__";
 const SPECS_FUEL_NONE = "__fuel_none__";
 const SPECS_TRANS_NONE = "__trans_none__";
 const SPECS_BODY_NONE = "__body_none__";
+const RENTAL_STEP_META: { step: RentalFormStep; label: string }[] = [
+  { step: 1, label: "Tarih" },
+  { step: 2, label: "İletişim" },
+  { step: 3, label: "Belgeler" },
+  { step: 4, label: "Ek sürücü" },
+  { step: 5, label: "Özet" },
+];
 
 function isBeforeToday(date: Date): boolean {
   return startOfDay(date).getTime() < startOfDay(new Date()).getTime();
@@ -208,6 +220,8 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
   );
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [rentalStep, setRentalStep] = useState<RentalFormStep>(1);
+  const [maxRentalStepReached, setMaxRentalStepReached] = useState<RentalFormStep>(1);
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [pickStart, setPickStart] = useState<string>("");
   const [pickEnd, setPickEnd] = useState<string>("");
@@ -498,14 +512,55 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
   );
 
   const galleryImages = useMemo(() => mergeVehicleImagesWithDemo(vehicle.images, vehicle.id), [vehicle.images, vehicle.id]);
+  const statusLabel = status === "maintenance" ? "Bakımda" : status === "rented" ? "Kirada" : "Müsait";
+  const statusClass =
+    status === "maintenance"
+      ? "border-amber-200 bg-amber-100 text-amber-800"
+      : status === "rented"
+        ? "border-sky-200 bg-sky-100 text-sky-800"
+        : "border-emerald-200 bg-emerald-100 text-emerald-800";
+  const dailyPriceLabel =
+    vehicle.rentalDailyPrice != null ? `${vehicle.rentalDailyPrice.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} ₺` : "—";
+  const visualSeed = useMemo(() => {
+    let n = 0;
+    for (let i = 0; i < vehicle.id.length; i += 1) n = (n * 31 + vehicle.id.charCodeAt(i)) | 0;
+    return Math.abs(n);
+  }, [vehicle.id]);
+  const batteryPct = 45 + (visualSeed % 50);
+  const batteryMiles = Math.round(batteryPct * 3.8);
+  const totalRangeMiles = 320 + (visualSeed % 120);
+  const odometerMiles = 6000 + (visualSeed % 56000);
+  const tyrePsi = (33 + ((visualSeed % 70) / 10)).toFixed(1);
+  const tyreHealthPct = 82 + (visualSeed % 14);
+  const brakeHealthPct = 76 + (visualSeed % 18);
+  const heroImage =
+    galleryImages.front ??
+    galleryImages.left ??
+    galleryImages.right ??
+    galleryImages.rear ??
+    galleryImages.interiorDash ??
+    galleryImages.interiorRear;
+  const lastRental = rentalLogs[0];
+  const lastRentalActor = lastRental?.customer?.fullName?.trim() || lastRental?.customer?.email?.trim() || "Müşteri";
+  const lastRentalWhen = lastRental?.createdAt
+    ? format(parseISO(lastRental.createdAt), "d MMM HH:mm", { locale: tr })
+    : lastRental
+      ? `${lastRental.startDate} → ${lastRental.endDate}`
+      : "Kayıt bulunamadı";
+  const lastRentalInitials = useMemo(() => {
+    const parts = lastRentalActor.split(" ").filter(Boolean);
+    if (parts.length === 0) return "NA";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+  }, [lastRentalActor]);
 
   const initNewRentalFormForDay = useCallback(
     (day: Date) => {
       const d = formatDay(day);
       setPickStart(d);
-      setPickEnd(d);
+      setPickEnd("");
       setDateRangeOpen(false);
-      setCommissionAmount(estimateCommissionAmount(d, d));
+      setCommissionAmount(estimateCommissionAmount(d, ""));
       setCommissionFlow(vehicle.external ? "pay" : "collect");
       setCommissionCompany(vehicle.externalCompany ?? "");
       setPassportImageDataUrl("");
@@ -518,6 +573,8 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       setNewCustomerEmail("");
       setNewCustomerBirthDate("");
       setNewCustomerKind("individual");
+      setRentalStep(1);
+      setMaxRentalStepReached(1);
     },
     [vehicle.external, vehicle.externalCompany, estimateCommissionAmount],
   );
@@ -607,19 +664,79 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     openForDay(date);
   };
 
+  const validateRentalStep = useCallback(
+    (step: RentalFormStep): string | null => {
+      return validateRentalStepInput({
+        step,
+        pickStart,
+        pickEnd,
+        fullName,
+        phoneLocal,
+        saveNewCustomerProfile,
+        newCustomerEmail,
+        driverLicenseImageDataUrl,
+        passportImageDataUrl,
+        additionalDrivers,
+      });
+    },
+    [
+      pickStart,
+      pickEnd,
+      fullName,
+      phoneLocal,
+      saveNewCustomerProfile,
+      newCustomerEmail,
+      driverLicenseImageDataUrl,
+      passportImageDataUrl,
+      additionalDrivers,
+    ],
+  );
+
+  const goNextRentalStep = useCallback(() => {
+    const err = validateRentalStep(rentalStep);
+    if (err) {
+      toast.error(err);
+      return false;
+    }
+    if (rentalStep < 5) {
+      const next = (rentalStep + 1) as RentalFormStep;
+      setRentalStep(next);
+      setMaxRentalStepReached((prev) => (next > prev ? next : prev));
+    }
+    return true;
+  }, [rentalStep, validateRentalStep]);
+
+  const goPrevRentalStep = useCallback(() => {
+    if (rentalStep <= 1) return;
+    setRentalStep((prev) => (prev > 1 ? ((prev - 1) as RentalFormStep) : prev));
+  }, [rentalStep]);
+
   const submitRental = async () => {
     const start = pickStart.trim();
     const end = pickEnd.trim();
     const phone = `${phoneCountryCode} ${phoneLocal}`.trim();
+    const email = newCustomerEmail.trim();
     if (!fullName.trim() || !phoneLocal.trim()) {
       toast.error("İsim ve telefon zorunludur.");
+      return;
+    }
+    if (saveNewCustomerProfile && !email) {
+      toast.error("Yeni müşteri kaydı için e-posta zorunludur.");
+      return;
+    }
+    if (saveNewCustomerProfile && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Geçerli bir e-posta adresi girin.");
       return;
     }
     if (!driverLicenseImageDataUrl || !passportImageDataUrl) {
       toast.error("Ehliyet ve pasaport görselleri zorunlu.");
       return;
     }
-    if (!start || !end || end < start) {
+    if (!start || !end) {
+      toast.error("Başlangıç ve bitiş tarihlerini takvimden seçin.");
+      return;
+    }
+    if (end < start) {
       toast.error("Bitiş tarihi başlangıçtan önce olamaz.");
       return;
     }
@@ -704,7 +821,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
           nationalId: nationalId.trim() || "",
           passportNo: passportNo.trim(),
           phone,
-          email: newCustomerEmail.trim() || undefined,
+          email,
           birthDate: newCustomerBirthDate.trim() || undefined,
           driverLicenseNo: driverLicenseNo.trim() || undefined,
           passportImageDataUrl: passportImageDataUrl || undefined,
@@ -738,6 +855,8 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       setNewCustomerEmail("");
       setNewCustomerBirthDate("");
       setNewCustomerKind("individual");
+      setRentalStep(1);
+      setMaxRentalStepReached(1);
     } catch (e) {
       toast.error(getRentApiErrorMessage(e));
     }
@@ -838,123 +957,177 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     }
   };
 
+  const handleRentalPrimaryAction = useCallback(() => {
+    if (rentalStep < 5) {
+      void goNextRentalStep();
+      return;
+    }
+    void submitRental();
+  }, [rentalStep, goNextRentalStep, submitRental]);
+
+  const handleRentalSecondaryAction = useCallback(() => {
+    if (rentalStep > 1) {
+      goPrevRentalStep();
+      return;
+    }
+    if (rentalFormAsPage) {
+      router.push("/logs");
+      return;
+    }
+    setDialogOpen(false);
+  }, [rentalStep, goPrevRentalStep, rentalFormAsPage, router]);
+
   const rentalFormGrid = (
-          <div className="grid gap-3 py-1">
-            <div className="space-y-1">
-              <Label>Tarih aralığı</Label>
-              <Button
+    <div className="grid gap-3 py-1">
+      <div className="overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+        <div className="flex min-w-min gap-1.5">
+          {RENTAL_STEP_META.map(({ step, label }) => {
+            const active = rentalStep === step;
+            const done = step < rentalStep;
+            const reachable = step <= maxRentalStepReached;
+            return (
+              <button
+                key={`rental-step-${step}`}
                 type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 w-full justify-start gap-1.5 px-2 text-[11px]"
-                onClick={() => setDateRangeOpen((v) => !v)}
+                disabled={!reachable}
+                onClick={() => reachable && setRentalStep(step)}
+                className={cn(
+                  "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                  active && "border-primary bg-primary text-primary-foreground",
+                  done && !active && "border-emerald-500/40 bg-emerald-500/10 text-emerald-900",
+                  !active && !done && reachable && "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50",
+                  !reachable && "cursor-not-allowed border-border/50 opacity-40",
+                )}
               >
-                <CalendarDays className="h-3.5 w-3.5" />
-                {pickStart && pickEnd ? `${pickStart} - ${pickEnd}` : "Başlangıç ve bitiş seçin"}
-              </Button>
-              {dateRangeOpen && (
-                <div className="rounded-md border border-border/70 bg-background p-1.5">
-                  <DayPicker
-                    mode="range"
-                    locale={tr}
-                    selected={selectedDateRange}
-                    onSelect={(range) => {
-                      const nextStart = range?.from ? format(range.from, "yyyy-MM-dd") : "";
-                      const nextEnd = range?.to ? format(range.to, "yyyy-MM-dd") : "";
-                      setPickStart(nextStart);
-                      setPickEnd(nextEnd);
-                    }}
-                    numberOfMonths={1}
-                    classNames={{
-                      months: "text-[11px]",
-                      caption_label: "text-xs font-medium",
-                      weekday: "text-[11px] font-semibold text-foreground/90",
-                      day: "h-7 w-7 p-0",
-                      day_button: "h-7 w-7 rounded-full text-[11px]",
-                      selected: "bg-primary text-primary-foreground hover:bg-primary",
-                      range_start: "bg-primary text-primary-foreground rounded-full",
-                      range_end: "bg-primary text-primary-foreground rounded-full",
-                      range_middle: "bg-primary/20 text-foreground",
-                    }}
-                  />
-                  <div className="mt-1 flex justify-end border-t border-border/60 pt-2">
-                    <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setDateRangeOpen(false)}>
-                      Tamam
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Müşteri</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCustomerPickerOpen(true)}
-                  className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-lg border border-border/80 bg-background px-2 py-2.5 text-center shadow-sm transition hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <UserCircle2 className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="text-[11px] font-semibold leading-tight text-foreground">Kayıtlı müşteri seç</span>
-                </button>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={saveNewCustomerProfile}
-                  onClick={() => setSaveNewCustomerProfile((s) => !s)}
-                  className={cn(
-                    "flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2.5 text-center shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    saveNewCustomerProfile
-                      ? "border-emerald-500/50 bg-emerald-500/10 dark:border-emerald-400/40 dark:bg-emerald-500/15"
-                      : "border-border/80 bg-muted/15 hover:border-border hover:bg-muted/30",
-                  )}
-                >
-                  <UserPlus className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="text-[11px] font-semibold leading-tight text-foreground">Yeni Müşteri Kaydet</span>
-                </button>
+                <span className="tabular-nums">{step}</span>
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {rentalStep === 1 && (
+        <div className="space-y-1">
+          <Label>Tarih aralığı</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 w-full justify-start gap-1.5 px-2 text-[11px]"
+            onClick={() => setDateRangeOpen((v) => !v)}
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            {pickStart && pickEnd ? `${pickStart} - ${pickEnd}` : "Başlangıç ve bitiş seçin"}
+          </Button>
+          {dateRangeOpen && (
+            <div className="rounded-md border border-border/70 bg-background p-1.5">
+              <DayPicker
+                mode="range"
+                locale={tr}
+                selected={selectedDateRange}
+                onSelect={(range) => {
+                  const nextStart = range?.from ? format(range.from, "yyyy-MM-dd") : "";
+                  const nextEnd = range?.to ? format(range.to, "yyyy-MM-dd") : "";
+                  setPickStart(nextStart);
+                  setPickEnd(nextEnd);
+                }}
+                numberOfMonths={1}
+                classNames={{
+                  months: "text-[11px]",
+                  caption_label: "text-xs font-medium",
+                  weekday: "text-[11px] font-semibold text-foreground/90",
+                  day: "h-7 w-7 p-0",
+                  day_button: "h-7 w-7 rounded-full text-[11px]",
+                  selected: "bg-primary text-primary-foreground hover:bg-primary",
+                  range_start: "bg-primary text-primary-foreground rounded-full",
+                  range_end: "bg-primary text-primary-foreground rounded-full",
+                  range_middle: "bg-primary/20 text-foreground",
+                }}
+              />
+              <div className="mt-1 flex justify-end border-t border-border/60 pt-2">
+                <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setDateRangeOpen(false)}>
+                  Tamam
+                </Button>
               </div>
             </div>
-            {saveNewCustomerProfile && (
-              <div className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2.5 dark:border-emerald-500/25 dark:bg-emerald-500/10">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Müşteri türü</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setNewCustomerKind("individual")}
-                      className={cn(
-                        "flex min-h-[3rem] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        newCustomerKind === "individual"
-                          ? "border-emerald-500/50 bg-emerald-500/15 dark:border-emerald-400/40"
-                          : "border-border/70 bg-background/80 hover:bg-muted/40",
-                      )}
-                    >
-                      <User className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                      Bireysel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setNewCustomerKind("corporate")}
-                      className={cn(
-                        "flex min-h-[3rem] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        newCustomerKind === "corporate"
-                          ? "border-emerald-500/50 bg-emerald-500/15 dark:border-emerald-400/40"
-                          : "border-border/70 bg-background/80 hover:bg-muted/40",
-                      )}
-                    >
-                      <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                      Kurumsal
-                    </button>
-                  </div>
+          )}
+        </div>
+      )}
+
+      {rentalStep === 2 && (
+        <>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Müşteri</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCustomerPickerOpen(true)}
+                className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-lg border border-border/80 bg-background px-2 py-2.5 text-center shadow-sm transition hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <UserCircle2 className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="text-[11px] font-semibold leading-tight text-foreground">Kayıtlı müşteri seç</span>
+              </button>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={saveNewCustomerProfile}
+                onClick={() => setSaveNewCustomerProfile((s) => !s)}
+                className={cn(
+                  "flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2.5 text-center shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  saveNewCustomerProfile
+                    ? "border-emerald-500/50 bg-emerald-500/10 dark:border-emerald-400/40 dark:bg-emerald-500/15"
+                    : "border-border/80 bg-muted/15 hover:border-border hover:bg-muted/30",
+                )}
+              >
+                <UserPlus className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="text-[11px] font-semibold leading-tight text-foreground">Yeni Müşteri Kaydet</span>
+              </button>
+            </div>
+          </div>
+          {saveNewCustomerProfile && (
+            <div className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2.5 dark:border-emerald-500/25 dark:bg-emerald-500/10">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Müşteri türü</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewCustomerKind("individual")}
+                    className={cn(
+                      "flex min-h-[3rem] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      newCustomerKind === "individual"
+                        ? "border-emerald-500/50 bg-emerald-500/15 dark:border-emerald-400/40"
+                        : "border-border/70 bg-background/80 hover:bg-muted/40",
+                    )}
+                  >
+                    <User className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                    Bireysel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewCustomerKind("corporate")}
+                    className={cn(
+                      "flex min-h-[3rem] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      newCustomerKind === "corporate"
+                        ? "border-emerald-500/50 bg-emerald-500/15 dark:border-emerald-400/40"
+                        : "border-border/70 bg-background/80 hover:bg-muted/40",
+                    )}
+                  >
+                    <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                    Kurumsal
+                  </button>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="new-cust-email" className="text-xs">
-                    E-posta
+                    E-posta *
                   </Label>
                   <Input
                     id="new-cust-email"
                     type="email"
                     autoComplete="email"
+                    required
                     value={newCustomerEmail}
                     onChange={(e) => setNewCustomerEmail(e.target.value)}
                     placeholder="ornek@email.com"
@@ -973,194 +1146,224 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                     className="h-8 text-xs"
                   />
                 </div>
-                </div>
-              </div>
-            )}
-            <div className="space-y-1">
-              <Label htmlFor="fn">{saveNewCustomerProfile && newCustomerKind === "corporate" ? "Firma / unvan" : "İsim soyisim"}</Label>
-              <Input
-                id="fn"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder={saveNewCustomerProfile && newCustomerKind === "corporate" ? "Örn: ABC Lojistik A.Ş." : "Ad Soyad"}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="tc">Vatandaşlık no</Label>
-              <Input id="tc" value={nationalId} onChange={(e) => setNationalId(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="pp">Pasaport</Label>
-              <Input id="pp" value={passportNo} onChange={(e) => setPassportNo(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Ehliyet</Label>
-              <Input value={driverLicenseNo} onChange={(e) => setDriverLicenseNo(e.target.value)} placeholder="Belge no" />
-            </div>
-            <div className="space-y-1">
-              <Label>Cep telefonu</Label>
-              <div className="flex gap-2">
-                <select
-                  value={phoneCountryCode}
-                  onChange={(e) => setPhoneCountryCode(e.target.value)}
-                  className="h-9 w-32 rounded-md border border-input bg-background px-2 text-xs"
-                >
-                  {PHONE_COUNTRY_CODES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-                <Input
-                  type="tel"
-                  value={phoneLocal}
-                  onChange={(e) => setPhoneLocal(e.target.value)}
-                  placeholder="5xx xxx xx xx"
-                  className="h-9"
-                />
               </div>
             </div>
-            <div className="space-y-1">
-              <Label>Pasaport fotoğrafı</Label>
-              <ImageSourceInput
-                onPick={async (f) => {
-                  try {
-                    setPassportImageDataUrl(await fileToDataUrl(f));
-                  } catch {
-                    toast.error("Pasaport görseli okunamadı.");
-                  }
-                }}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Ehliyet fotoğrafı</Label>
-              <ImageSourceInput
-                onPick={async (f) => {
-                  try {
-                    setDriverLicenseImageDataUrl(await fileToDataUrl(f));
-                  } catch {
-                    toast.error("Ehliyet görseli okunamadı.");
-                  }
-                }}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="commission">Komisyon tutarı</Label>
-              <Input
-                id="commission"
-                type="number"
-                min={0}
-                step="0.01"
-                value={commissionAmount}
-                onChange={(e) => setCommissionAmount(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="commission-flow">Komisyon yönü</Label>
+          )}
+          <div className="space-y-1">
+            <Label htmlFor="fn">{saveNewCustomerProfile && newCustomerKind === "corporate" ? "Firma / unvan" : "İsim soyisim"}</Label>
+            <Input
+              id="fn"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder={saveNewCustomerProfile && newCustomerKind === "corporate" ? "Örn: ABC Lojistik A.Ş." : "Ad Soyad"}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="pp">Pasaport</Label>
+            <Input id="pp" value={passportNo} onChange={(e) => setPassportNo(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Ehliyet</Label>
+            <Input value={driverLicenseNo} onChange={(e) => setDriverLicenseNo(e.target.value)} placeholder="Belge no" />
+          </div>
+          <div className="space-y-1">
+            <Label>Cep telefonu</Label>
+            <div className="flex gap-2">
               <select
-                id="commission-flow"
-                value={commissionFlow}
-                onChange={(e) => setCommissionFlow(e.target.value as "collect" | "pay")}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={phoneCountryCode}
+                onChange={(e) => setPhoneCountryCode(e.target.value)}
+                className="h-9 w-32 rounded-md border border-input bg-background px-2 text-xs"
               >
-                <option value="collect">Komisyon alınacak (gelir)</option>
-                <option value="pay">Komisyon ödenecek (gider)</option>
+                {PHONE_COUNTRY_CODES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label}
+                  </option>
+                ))}
               </select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="commission-company">Komisyon firması</Label>
               <Input
-                id="commission-company"
-                value={commissionCompany}
-                onChange={(e) => setCommissionCompany(e.target.value)}
-                placeholder="Örn: X Rent A Car"
+                type="tel"
+                value={phoneLocal}
+                onChange={(e) => setPhoneLocal(e.target.value)}
+                placeholder="5xx xxx xx xx"
+                className="h-9"
               />
             </div>
-            <div className="space-y-2 rounded-md border border-border/70 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium">Ek sürücüler</p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  disabled={additionalDrivers.length >= 1}
-                  onClick={() => setAdditionalDrivers((prev) => [...prev, blankAdditionalDriver()])}
-                >
-                  {additionalDrivers.length >= 1 ? "En fazla 1 ek sürücü" : "Ek sürücü ekle"}
-                </Button>
-              </div>
-              {additionalDrivers.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground">Ek sürücü yok.</p>
-              ) : (
-                <div className="space-y-3">
-                  {additionalDrivers.map((d, idx) => (
-                    <div key={`extra-driver-${idx}`} className="rounded-md border border-border/60 p-2">
-                      <div className="mb-2 flex items-center justify-between">
-                        <p className="text-xs font-medium">Ek sürücü #{idx + 1}</p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => setAdditionalDrivers((prev) => prev.filter((_, i) => i !== idx))}
-                        >
-                          Kaldır
-                        </Button>
+          </div>
+        </>
+      )}
+
+      {rentalStep === 3 && (
+        <>
+          <div className="space-y-1">
+            <Label>Pasaport fotoğrafı</Label>
+            <ImageSourceInput
+              onPick={async (f) => {
+                try {
+                  setPassportImageDataUrl(await fileToDataUrl(f));
+                } catch {
+                  toast.error("Pasaport görseli okunamadı.");
+                }
+              }}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Ehliyet fotoğrafı</Label>
+            <ImageSourceInput
+              onPick={async (f) => {
+                try {
+                  setDriverLicenseImageDataUrl(await fileToDataUrl(f));
+                } catch {
+                  toast.error("Ehliyet görseli okunamadı.");
+                }
+              }}
+            />
+          </div>
+        </>
+      )}
+
+      {rentalStep === 4 && (
+        <>
+          <div className="space-y-1">
+            <Label htmlFor="commission">Komisyon tutarı</Label>
+            <Input
+              id="commission"
+              type="number"
+              min={0}
+              step="0.01"
+              value={commissionAmount}
+              onChange={(e) => setCommissionAmount(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="commission-flow">Komisyon yönü</Label>
+            <select
+              id="commission-flow"
+              value={commissionFlow}
+              onChange={(e) => setCommissionFlow(e.target.value as "collect" | "pay")}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="collect">Komisyon alınacak (gelir)</option>
+              <option value="pay">Komisyon ödenecek (gider)</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="commission-company">Komisyon firması</Label>
+            <Input
+              id="commission-company"
+              value={commissionCompany}
+              onChange={(e) => setCommissionCompany(e.target.value)}
+              placeholder="Örn: X Rent A Car"
+            />
+          </div>
+          <div className="space-y-2 rounded-md border border-border/70 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium">Ek sürücüler</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                disabled={additionalDrivers.length >= 1}
+                onClick={() => setAdditionalDrivers((prev) => [...prev, blankAdditionalDriver()])}
+              >
+                {additionalDrivers.length >= 1 ? "En fazla 1 ek sürücü" : "Ek sürücü ekle"}
+              </Button>
+            </div>
+            {additionalDrivers.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">Ek sürücü yok.</p>
+            ) : (
+              <div className="space-y-3">
+                {additionalDrivers.map((d, idx) => (
+                  <div key={`extra-driver-${idx}`} className="rounded-md border border-border/60 p-2">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-medium">Ek sürücü #{idx + 1}</p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setAdditionalDrivers((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        Kaldır
+                      </Button>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label>İsim soyisim</Label>
+                        <Input value={d.fullName} onChange={(e) => updateAdditionalDriver(idx, "fullName", e.target.value)} />
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <div className="space-y-1 sm:col-span-2">
-                          <Label>İsim soyisim</Label>
-                          <Input value={d.fullName} onChange={(e) => updateAdditionalDriver(idx, "fullName", e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Doğum tarihi</Label>
-                          <Input type="date" value={d.birthDate} onChange={(e) => updateAdditionalDriver(idx, "birthDate", e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Ehliyet</Label>
-                          <Input
-                            value={d.driverLicenseNo}
-                            onChange={(e) => updateAdditionalDriver(idx, "driverLicenseNo", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Pasaport</Label>
-                          <Input value={d.passportNo} onChange={(e) => updateAdditionalDriver(idx, "passportNo", e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Ehliyet foto</Label>
-                          <ImageSourceInput
-                            onPick={async (f) => {
-                              try {
-                                updateAdditionalDriver(idx, "driverLicenseImageDataUrl", await fileToDataUrl(f));
-                              } catch {
-                                toast.error("Ehliyet görseli okunamadı.");
-                              }
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Pasaport foto</Label>
-                          <ImageSourceInput
-                            onPick={async (f) => {
-                              try {
-                                updateAdditionalDriver(idx, "passportImageDataUrl", await fileToDataUrl(f));
-                              } catch {
-                                toast.error("Pasaport görseli okunamadı.");
-                              }
-                            }}
-                          />
-                        </div>
+                      <div className="space-y-1">
+                        <Label>Doğum tarihi</Label>
+                        <Input type="date" value={d.birthDate} onChange={(e) => updateAdditionalDriver(idx, "birthDate", e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Ehliyet</Label>
+                        <Input
+                          value={d.driverLicenseNo}
+                          onChange={(e) => updateAdditionalDriver(idx, "driverLicenseNo", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Pasaport</Label>
+                        <Input value={d.passportNo} onChange={(e) => updateAdditionalDriver(idx, "passportNo", e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Ehliyet foto</Label>
+                        <ImageSourceInput
+                          onPick={async (f) => {
+                            try {
+                              updateAdditionalDriver(idx, "driverLicenseImageDataUrl", await fileToDataUrl(f));
+                            } catch {
+                              toast.error("Ehliyet görseli okunamadı.");
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Pasaport foto</Label>
+                        <ImageSourceInput
+                          onPick={async (f) => {
+                            try {
+                              updateAdditionalDriver(idx, "passportImageDataUrl", await fileToDataUrl(f));
+                            } catch {
+                              toast.error("Pasaport görseli okunamadı.");
+                            }
+                          }}
+                        />
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+        </>
+      )}
+
+      {rentalStep === 5 && (
+        <div className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-3 text-xs">
+          <p>
+            <span className="font-medium">Araç:</span> {vehicle.plate} — {vehicle.brand} {vehicle.model}
+          </p>
+          <p>
+            <span className="font-medium">Tarihler:</span> {pickStart || "—"} → {pickEnd || "—"}
+          </p>
+          <p>
+            <span className="font-medium">Müşteri:</span> {fullName || "—"}
+          </p>
+          <p>
+            <span className="font-medium">Telefon:</span> {phoneCountryCode} {phoneLocal || "—"}
+          </p>
+          <p>
+            <span className="font-medium">Ek sürücü:</span> {additionalDrivers.length > 0 ? "Var" : "Yok"}
+          </p>
+          <p>
+            <span className="font-medium">Komisyon:</span> {commissionAmount || "0"}
+          </p>
+        </div>
+      )}
+    </div>
   );
 
   if (rentalFormAsPage) {
@@ -1177,11 +1380,11 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
             {rentalFormGrid}
           </CardContent>
           <CardFooter className="flex flex-col-reverse gap-2 border-t border-border/60 bg-muted/10 px-4 py-3 sm:flex-row sm:justify-end sm:px-6">
-            <Button type="button" variant="outline" size="sm" className="h-9 w-full text-xs sm:w-auto" onClick={() => router.push("/logs")}>
-              İptal
+            <Button type="button" variant="outline" size="sm" className="h-9 w-full text-xs sm:w-auto" onClick={handleRentalSecondaryAction}>
+              {rentalStep > 1 ? "Geri" : "İptal"}
             </Button>
-            <Button type="button" size="sm" variant="hero" className="h-9 w-full text-xs sm:w-auto" onClick={() => void submitRental()}>
-              Kaydet
+            <Button type="button" size="sm" variant="hero" className="h-9 w-full text-xs sm:w-auto" onClick={handleRentalPrimaryAction}>
+              {rentalStep < 5 ? "İleri" : "Kaydet"}
             </Button>
           </CardFooter>
         </Card>
@@ -1196,40 +1399,241 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3">
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <Button type="button" size="sm" variant="outline" className="h-8 w-full shrink-0 gap-1.5 text-xs sm:w-auto" asChild>
-            <Link href={`/vehicles/${vehicle.id}/options`}>
-              <PackagePlus className="h-3.5 w-3.5" />
-              Opsiyon ekle
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="h-8 w-full shrink-0 gap-1.5 text-xs sm:w-auto"
-            disabled={vehicle.maintenance}
-            onClick={() => openForDay(new Date())}
-          >
-            <KeyRound className="h-3.5 w-3.5" />
-            Kiralama başlat
-          </Button>
+    <div className="bg-background pb-44 md:pb-10">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-4 md:max-w-7xl md:space-y-5 md:px-0 md:py-0">
+      <section className="grid grid-cols-1 gap-4 md:hidden">
+        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm">
+          <div className="aspect-[16/10] w-full">
+            {heroImage ? (
+              <img src={heroImage} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">Görsel yok</div>
+            )}
+          </div>
+          <div className="absolute left-4 top-4">
+            <span className={cn("inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold shadow", statusClass, "bg-white/90")}>
+              <span className="h-2 w-2 rounded-full bg-current" />
+              {statusLabel}
+            </span>
+          </div>
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent p-4">
+            <h2 className="truncate text-2xl font-bold text-white">
+              {vehicle.brand} {vehicle.model}
+            </h2>
+            <p className="font-mono text-xs text-white/90">{vehicle.plate}</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">Premium Fleet</p>
+            <h3 className="text-3xl font-bold text-slate-900">{vehicle.brand} {vehicle.model}</h3>
+            <p className="text-sm text-slate-500">{vehicle.year} • {countryMeta?.name ?? "Bölge bilgisi yok"} • {vehicle.plate}</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Mileage</p>
+              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">{odometerMiles.toLocaleString("tr-TR")} km</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Battery</p>
+              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">{batteryPct}%</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Daily</p>
+              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">{dailyPriceLabel}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-slate-900">Recent Activity</h4>
+              <span className="text-[11px] text-primary">Live</span>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-sky-600">
+                <KeyRound className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-900">Last Check-out</p>
+                <p className="text-[11px] text-slate-500">{lastRentalActor} • {lastRentalWhen}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-900">Service Due</p>
+                <p className="text-[11px] text-slate-500">{status === "maintenance" ? "Bakım modunda" : "Yaklaşık 1,200 mil içinde"}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="flex overflow-x-auto border-b border-slate-200 md:hidden">
+        <button type="button" className="whitespace-nowrap border-b-2 border-primary px-5 py-3 text-xs font-semibold uppercase tracking-wide text-primary">
+          Specs
+        </button>
+        <button type="button" className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          History
+        </button>
+        <button type="button" className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Maintenance
+        </button>
+        <button type="button" className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Documents
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:hidden">
+        <Button type="button" size="sm" variant="outline" className="h-11 w-full gap-1.5 text-xs sm:h-10 sm:text-sm" asChild>
+          <Link href={`/vehicles/${vehicle.id}/options`}>
+            <PackagePlus className="h-3.5 w-3.5" />
+            Opsiyon ekle
+          </Link>
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="h-11 w-full gap-1.5 text-xs sm:h-10 sm:text-sm" onClick={() => setEditOpen(true)}>
+          Araç güncelle
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          className="h-11 w-full gap-1.5 text-xs sm:h-10 sm:text-sm"
+          disabled={vehicle.maintenance}
+          onClick={() => openForDay(new Date())}
+        >
+          <KeyRound className="h-3.5 w-3.5" />
+          Kiralama başlat
+        </Button>
+      </div>
+
+      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 md:hidden">
+        <div className="min-w-[170px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[11px] text-slate-500">Total Range</p>
+          <p className="mt-2 text-xl font-semibold text-slate-900">{totalRangeMiles} mi</p>
+        </div>
+        <div className="min-w-[170px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[11px] text-slate-500">Tyre PSI</p>
+          <p className="mt-2 text-xl font-semibold tabular-nums text-slate-900">{tyrePsi}</p>
+        </div>
+        <div className="min-w-[170px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[11px] text-slate-500">Fleet Health</p>
+          <p className="mt-2 text-xl font-semibold text-slate-900">{status === "maintenance" ? "Service" : "Optimal"}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start lg:gap-6">
-        <Card className="glow-card order-1 min-w-0 overflow-hidden">
-          <CardHeader className="pb-2 pt-3 sm:pt-4">
-            <CardTitle className="text-sm">Görseller</CardTitle>
+      <div className="space-y-4 md:hidden">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="text-base font-semibold text-slate-900">Technical Specifications</h3>
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Transmission</p>
+              <p className="mt-1 text-sm text-slate-900">{vehicle.transmissionType || "Auto"}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Fuel Type</p>
+              <p className="mt-1 text-sm text-slate-900">{vehicle.fuelType || "Electric"}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Seats</p>
+              <p className="mt-1 text-sm text-slate-900">{vehicle.seats ? `${vehicle.seats} Seats` : "5 Seats"}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">License Plate</p>
+              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">{vehicle.plate}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <h3 className="text-base font-semibold text-slate-900">Recent Rental</h3>
+            <Link href="/logs" className="text-xs font-semibold text-primary">
+              View All
+            </Link>
+          </div>
+          <div className="flex items-center justify-between px-4 py-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-slate-800">
+                {lastRentalInitials}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-900">{lastRentalActor}</p>
+                <p className="text-xs text-slate-500">{lastRentalWhen}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-slate-900">{dailyPriceLabel}</p>
+              <p className="text-[11px] text-emerald-600">{lastRental ? "Completed" : "No record"}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-primary p-4 text-white shadow-lg">
+          <h4 className="mb-3 text-base font-semibold">Location Overview</h4>
+          <div className="relative mb-3 h-40 overflow-hidden rounded-lg">
+            <img
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5EEmKzovqUuI2VTPJL0wOLvh2cQ1e6lHIOVblgDTbxa2lWqEbNaUSQq74aCpawqBrA6TaQzzTEFWKNPC123SzQvwnlfvRHyuVntvPqQLQ1d7nMnUEU7OZPEKYDuRJwXQrj6OYAuEDmPGba_IqdBVF5kPOj6NdKCS5Cn7cfSiwlQuDKVt-HkJgsrgo1Px5aoFbwFuT9gp0FusBOON2OLsDexcUhOw-ZgcLw-HV_oOkCRWUWkncZcfHkI4H29Zi5InBubCe9BUxyg"
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          </div>
+          <p className="text-xs text-white/90">{countryMeta?.name ?? "Terminal 3 Garage"} • {vehicle.plate}</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h4 className="mb-3 text-base font-semibold text-slate-900">Asset Health</h4>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">Tires</span>
+              <span className="font-medium text-slate-900">{tyreHealthPct}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full bg-emerald-400" style={{ width: `${tyreHealthPct}%` }} />
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">Brakes</span>
+              <span className="font-medium text-slate-900">{brakeHealthPct}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full bg-emerald-400" style={{ width: `${brakeHealthPct}%` }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="hidden grid-cols-1 gap-2 sm:grid-cols-3 md:grid">
+        <Button type="button" size="sm" variant="outline" className="h-10 w-full gap-1.5 text-sm" asChild>
+          <Link href={`/vehicles/${vehicle.id}/options`}>
+            <PackagePlus className="h-3.5 w-3.5" />
+            Opsiyon ekle
+          </Link>
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="h-10 w-full gap-1.5 text-sm" onClick={() => setEditOpen(true)}>
+          Araç güncelle
+        </Button>
+        <Button type="button" size="sm" className="h-10 w-full gap-1.5 text-sm" disabled={vehicle.maintenance} onClick={() => openForDay(new Date())}>
+          <KeyRound className="h-3.5 w-3.5" />
+          Kiralama başlat
+        </Button>
+      </div>
+
+      <div className="hidden grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start md:grid">
+        <Card className="order-1 min-w-0 overflow-hidden rounded-xl border-slate-200 shadow-sm lg:col-span-2">
+          <CardHeader className="pb-2 pt-4">
+            <CardTitle className="text-sm">Galeri ve medya yönetimi</CardTitle>
+            <CardDescription className="text-xs">Araç görsellerini önizleyin veya güncelleyin.</CardDescription>
           </CardHeader>
           <CardContent className="pb-4 pt-0">
             <Tabs defaultValue="preview" className="w-full">
-              <TabsList className="mb-3 h-8 w-full justify-start sm:w-auto">
-                <TabsTrigger value="preview" className="px-3 text-xs">
+              <TabsList className="mb-3 h-9 w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/70 p-1 sm:w-auto">
+                <TabsTrigger value="preview" className="rounded-lg px-3 text-xs">
                   Önizleme
                 </TabsTrigger>
-                <TabsTrigger value="edit" className="px-3 text-xs">
+                <TabsTrigger value="edit" className="rounded-lg px-3 text-xs">
                   Düzenle
                 </TabsTrigger>
               </TabsList>
@@ -1247,27 +1651,20 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
           </CardContent>
         </Card>
 
-        <Card className="glow-card order-2 min-w-0">
-          <CardHeader className="py-3 pb-2">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm">Araç bilgileri</CardTitle>
-              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditOpen(true)}>
-                Araç güncelle
-              </Button>
-            </div>
-            <CardDescription className="text-xs">Plaka, marka, model ve filo durumu.</CardDescription>
+        <Card className="order-2 min-w-0 overflow-hidden rounded-xl border-slate-200 shadow-sm">
+          <CardHeader className="py-4 pb-2">
+            <CardTitle className="text-sm">Araç bilgileri</CardTitle>
+            <CardDescription className="text-xs">Plaka, marka, model ve operasyonel özet.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border/60">
               {vehicleInfoRows.map((row) => (
                 <div
                   key={`vehicle-info-${row.label}`}
-                  className={cn(
-                    "grid grid-cols-[140px_1fr] items-center gap-3 bg-background px-3 py-2 transition-colors hover:bg-muted/40 sm:grid-cols-[170px_1fr] sm:px-4",
-                  )}
+                  className="grid gap-0.5 bg-background px-3 py-2.5 transition-colors hover:bg-muted/40 sm:grid-cols-[160px_1fr] sm:items-center sm:gap-3 sm:px-4"
                 >
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{row.label}</p>
-                  <div className="text-sm font-medium">{row.value}</div>
+                  <div className="text-sm font-medium break-words">{row.value}</div>
                 </div>
               ))}
             </div>
@@ -1285,36 +1682,44 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         </Card>
       </div>
 
-      <Card className="glow-card">
+      <Card className="hidden rounded-xl border-slate-200 shadow-sm md:block">
         <CardHeader className="py-3">
-          <CardTitle className="text-sm">Operasyon sekmeleri</CardTitle>
+          <CardTitle className="text-sm">Operasyon merkezi</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <Tabs defaultValue="availability" className="w-full">
-            <TabsList className="h-9 w-full justify-start gap-1 overflow-x-auto">
-              <TabsTrigger value="availability" className="gap-1 text-xs">
+            <TabsList className="h-10 w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/70 p-1">
+              <TabsTrigger value="availability" className="whitespace-nowrap gap-1 rounded-lg px-3 text-xs">
                 <CalendarDays className="h-3.5 w-3.5" />
                 Müsaitlik takvimi
               </TabsTrigger>
-              <TabsTrigger value="report" className="gap-1 text-xs">
+              <TabsTrigger value="report" className="whitespace-nowrap gap-1 rounded-lg px-3 text-xs">
                 <BarChart3 className="h-3.5 w-3.5" />
                 Rapor
               </TabsTrigger>
-              <TabsTrigger value="logs" className="gap-1 text-xs">
+              <TabsTrigger value="logs" className="whitespace-nowrap gap-1 rounded-lg px-3 text-xs">
                 <ScrollText className="h-3.5 w-3.5" />
                 Kiralama günlüğü
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="availability" className="space-y-3">
-              <div className="rounded-xl border border-border/70 bg-gradient-to-b from-card to-muted/20 shadow-sm">
+              <div className="rounded-xl border border-slate-100 bg-white shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 sm:px-5">
+                  <p className="text-sm font-semibold text-slate-900">Müsaitlik Takvimi</p>
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+                    <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" />Aktif</span>
+                    <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-sky-500" />Tamamlandı</span>
+                    <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-500" />Bakım</span>
+                  </div>
+                </div>
                 <RentAvailabilityCalendar
                   locale={tr}
                   booked={booked}
                   disabled={(day) => vehicle.maintenance || isBeforeToday(day)}
                   onDayClick={handleDayClick}
                 />
-                <div className="px-3 sm:px-5">
+                <div className="border-t border-slate-100 px-3 pb-2 pt-1 sm:px-5">
                   <RentCalendarLegend />
                 </div>
               </div>
@@ -1551,7 +1956,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         </CardContent>
       </Card>
 
-      <Card className="border-destructive/35 bg-gradient-to-b from-destructive/[0.06] to-destructive/[0.02] shadow-sm">
+      <Card className="hidden rounded-xl border-destructive/35 bg-gradient-to-b from-destructive/[0.06] to-destructive/[0.02] shadow-sm md:block">
         <CardHeader className="pb-2 pt-4">
           <CardTitle className="flex items-center gap-2 text-sm text-destructive">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
@@ -1573,6 +1978,41 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
           </Button>
         </CardContent>
       </Card>
+
+        </div>
+
+        <div className="fixed bottom-16 left-0 z-40 flex w-full items-center justify-around border-t border-slate-200 bg-white/85 px-4 py-3 backdrop-blur md:hidden">
+          <Button type="button" variant="outline" className="mr-2 h-11 flex-1 text-xs" onClick={() => setEditOpen(true)}>
+            Edit Details
+          </Button>
+          <Button
+            type="button"
+            className="ml-2 h-11 flex-[1.5] text-xs"
+            disabled={vehicle.maintenance}
+            onClick={() => openForDay(new Date())}
+          >
+            Book Now
+          </Button>
+        </div>
+
+        <nav className="fixed bottom-0 left-0 z-40 flex w-full items-center justify-around border-t border-slate-200 bg-white/90 px-3 py-2 backdrop-blur md:hidden">
+          <button type="button" className="flex flex-col items-center justify-center rounded-xl bg-blue-50 px-3 py-1 text-blue-600">
+            <CarFront className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Fleet</span>
+          </button>
+          <button type="button" className="flex flex-col items-center justify-center px-3 py-1 text-slate-400">
+            <History className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">History</span>
+          </button>
+          <button type="button" className="flex flex-col items-center justify-center px-3 py-1 text-slate-400">
+            <BarChart3 className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Stats</span>
+          </button>
+          <button type="button" className="flex flex-col items-center justify-center px-3 py-1 text-slate-400">
+            <Bell className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Alerts</span>
+          </button>
+        </nav>
 
       <Dialog open={deleteVehicleOpen} onOpenChange={(open) => !deletingVehicle && setDeleteVehicleOpen(open)}>
         <DialogContent className="max-w-md rounded-2xl border border-border/60 bg-card/95 shadow-xl">
@@ -1840,11 +2280,11 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
           </DialogHeader>
           {rentalFormGrid}
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>
-              İptal
+            <Button variant="outline" size="sm" onClick={handleRentalSecondaryAction}>
+              {rentalStep > 1 ? "Geri" : "İptal"}
             </Button>
-            <Button size="sm" variant="hero" onClick={() => void submitRental()}>
-              Kaydet
+            <Button size="sm" variant="hero" onClick={handleRentalPrimaryAction}>
+              {rentalStep < 5 ? "İleri" : "Kaydet"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   BarChart3,
   Bell,
+  Home,
   Calendar,
   CalendarDays,
   Car,
@@ -19,15 +20,15 @@ import {
   MapPin,
   MessagesSquare,
   LogOut,
-  Menu,
   Search,
   Settings,
+  Tag,
   UserCog,
   Users,
   Wallet,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { useLocale } from "@/components/locale-provider";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,7 @@ const ALL_NAV: (NavLinkDef | NavGroupDef)[] = [
       { href: "/countries", msgKey: "nav.countries" },
     ],
   },
+  { type: "link", href: "/settings/coupons", msgKey: "nav.coupons", icon: Tag },
   { type: "link", href: "/settings", msgKey: "nav.settings", icon: Settings },
 ];
 
@@ -140,11 +142,15 @@ function isNavActive(pathname: string, href: string) {
   if (href === "/settings/options/rental") {
     return pathname === "/settings/options/rental" || pathname.startsWith("/settings/options/rental/");
   }
+  if (href === "/settings/coupons") {
+    return pathname === "/settings/coupons" || pathname.startsWith("/settings/coupons/");
+  }
   if (href === "/settings") {
     return (
       pathname === "/settings" &&
       !pathname.startsWith("/settings/options") &&
-      !pathname.startsWith("/settings/locations/")
+      !pathname.startsWith("/settings/locations/") &&
+      !pathname.startsWith("/settings/coupons")
     );
   }
   return false;
@@ -456,8 +462,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const mobilePrimaryNav = [
+    { href: "/dashboard", label: "Home", icon: Home },
+    { href: "/vehicles", label: "Vehicles", icon: Car },
+    { href: "/logs", label: "Rentals", icon: CalendarDays },
+    { href: "/calendar", label: "Calendar", icon: Calendar },
+    { href: "/settings", label: "Settings", icon: Settings },
+  ] as const;
+
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex h-[100dvh] min-h-0 w-full overflow-hidden bg-background">
       <Suspense fallback={null}>
         <RentRbacToastInner />
       </Suspense>
@@ -557,7 +571,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetContent side="left" className="w-[min(100vw,20rem)] max-w-[min(100vw,20rem)] p-0 sm:max-w-sm">
             <div className="flex h-full min-h-0 flex-col">
@@ -664,28 +678,28 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
 
-        <header className="sticky top-0 z-30 flex h-12 items-center justify-between gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:hidden">
-          <div className="flex min-w-0 items-center gap-2">
-            <Link
-              href="/dashboard"
-              className="flex min-w-0 max-w-[min(100%,12rem)] items-center gap-2 rounded-md px-1 py-1 -mx-1 outline-none ring-offset-background transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <CarFront className="h-5 w-5 shrink-0 text-primary" />
-              <span className="truncate text-sm font-semibold">AlgoryRent</span>
-            </Link>
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur-md sm:hidden">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[10px] font-semibold text-slate-700">
+              {initialsFromSessionIdentity(sessionIdentity)}
+            </div>
+            <p className="truncate text-lg font-bold tracking-tight text-slate-900">Dashboard</p>
           </div>
-          <div className="min-w-0 flex-1 px-1">{renderRouteSearch()}</div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="icon"
-              className="h-10 w-10 shrink-0"
-              aria-label={t("shell.menuOpen")}
+              className="h-10 w-10 rounded-full text-sky-500"
+              aria-label="Open navigation"
               aria-expanded={mobileNavOpen}
               onClick={() => setMobileNavOpen(true)}
             >
-              <Menu className="h-5 w-5" />
+              <Search className="h-5 w-5" />
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="relative h-10 w-10 rounded-full text-sky-500">
+              <Bell className="h-5 w-5" />
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
             </Button>
           </div>
         </header>
@@ -704,7 +718,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="sticky top-12 z-20 bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:top-16 sm:px-8">
+        <div className="sticky top-12 z-20 hidden bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:top-16 sm:block sm:px-8">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             {showTemplateActions ? (
               <Button
@@ -724,7 +738,26 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <main className="flex-1 overflow-auto bg-[#f7f9fb] p-3 sm:p-8">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f7f9fb] p-3 pb-24 sm:p-8">{children}</main>
+        <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-slate-200 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] sm:hidden">
+          {mobilePrimaryNav.map((item) => {
+            const Icon = item.icon;
+            const active = isNavActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex min-w-[68px] flex-col items-center justify-center rounded-xl px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors",
+                  active ? "bg-sky-50 text-sky-600" : "text-slate-500",
+                )}
+              >
+                <Icon className={cn("h-5 w-5", active && "text-sky-600")} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
     </div>
   );

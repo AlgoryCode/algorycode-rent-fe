@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { CarFront, Search, Send } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -196,7 +196,7 @@ export function TalepClient() {
     if (!startDate) return undefined;
     try {
       const from = parseISO(startDate);
-      const to = endDate ? parseISO(endDate) : from;
+      const to = endDate ? parseISO(endDate) : undefined;
       return { from, to };
     } catch {
       return undefined;
@@ -633,7 +633,7 @@ export function TalepClient() {
                             return;
                           }
                           const nextStart = format(range.from, "yyyy-MM-dd");
-                          const nextEnd = range.to ? format(range.to, "yyyy-MM-dd") : nextStart;
+                          const nextEnd = range.to ? format(range.to, "yyyy-MM-dd") : "";
                           setStartDate(nextStart);
                           setEndDate(nextEnd);
                         }}

@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Download, ExternalLink, FileText, Mail, MessageCircle, Send, UserRoundSearch } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { CustomerPickerDialog } from "@/components/customers/customer-picker-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -324,6 +324,106 @@ export function RequestsClient({ embedded = false }: RequestsClientProps) {
     }
     toast.error("Herkese açık PDF adresi yok; «PDF indir» veya «Mail ile gönder» kullanın.");
   };
+
+  const renderRequestActions = (row: RentalRequestDto) => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {canShowGenerateContract(row) && (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-8 gap-1 text-[11px]"
+          disabled={generateContractMutation.isPending}
+          onClick={() => void generateContractMutation.mutateAsync(row.id)}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Sözleşme oluştur
+        </Button>
+      )}
+      {Boolean(row.contractPdfPath?.trim()) && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1 text-[11px]"
+          disabled={downloadContractMutation.isPending}
+          onClick={() => void downloadContractMutation.mutateAsync({ id: row.id, referenceNo: row.referenceNo })}
+        >
+          <Download className="h-3.5 w-3.5" />
+          PDF indir
+        </Button>
+      )}
+      <Button
+        size="sm"
+        className="h-8 text-[11px]"
+        disabled={updateMutation.isPending || row.status === "approved"}
+        onClick={() => void applyStatus(row, "approved")}
+      >
+        Onayla
+      </Button>
+      <Button
+        size="sm"
+        variant="destructive"
+        className="h-8 text-[11px]"
+        disabled={updateMutation.isPending || row.status === "rejected"}
+        onClick={() => void applyStatus(row, "rejected")}
+      >
+        Reddet
+      </Button>
+      {Boolean(row.contractPdfPath?.trim()) ? (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-8 gap-1 text-[11px]"
+            disabled={sendContractEmailMutation.isPending}
+            onClick={() => void sendContractEmailMutation.mutateAsync(row.id)}
+          >
+            <Mail className="h-3.5 w-3.5" />
+            Mail gönder
+          </Button>
+          <Button type="button" size="sm" variant="secondary" className="h-8 gap-1 text-[11px]" onClick={() => sendContractWhatsApp(row)}>
+            <MessageCircle className="h-3.5 w-3.5" />
+            WhatsApp
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1 text-[11px]"
+            onClick={() => openContractPdfUrl(row)}
+            title="Sözleşme PDF bağlantısını yeni sekmede aç"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            PDF aç
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1 text-[11px]"
+            onClick={() => void copyEmptyFormLink()}
+            title="Ön doldurmasız form bağlantısını kopyala"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Form linki
+          </Button>
+          <Button type="button" size="sm" variant="secondary" className="h-8 gap-1 text-[11px]" onClick={() => sendEmptyFormMail(row)}>
+            <Mail className="h-3.5 w-3.5" />
+            Form mail
+          </Button>
+          <Button type="button" size="sm" variant="secondary" className="h-8 gap-1 text-[11px]" onClick={() => sendEmptyFormWhatsApp(row)}>
+            <MessageCircle className="h-3.5 w-3.5" />
+            Form WP
+          </Button>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -654,6 +754,27 @@ export function RequestsClient({ embedded = false }: RequestsClientProps) {
             <p className="py-8 text-center text-xs text-muted-foreground">Kayıt bulunamadı.</p>
           ) : (
             <div className="rounded-lg border">
+              <div className="space-y-2 p-3 md:hidden">
+                {rows.map((row) => (
+                  <div key={`mobile-${row.id}`} className="rounded-xl border border-border/70 bg-card p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{row.customer.fullName}</p>
+                        <p className="font-mono text-[11px] text-muted-foreground">{row.referenceNo}</p>
+                      </div>
+                      {statusBadge(row.status)}
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      <p>Geliş: {formatRequestReceivedAt(row.createdAt)}</p>
+                      <p>{row.startDate} → {row.endDate}</p>
+                      <p className="mt-0.5 break-all">{row.customer.phone}</p>
+                      <p className="break-all">{row.customer.email}</p>
+                    </div>
+                    <div className="mt-3">{renderRequestActions(row)}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden md:block">
               <Table className="min-w-[920px] text-xs">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -705,128 +826,13 @@ export function RequestsClient({ embedded = false }: RequestsClientProps) {
                         <p className="mt-0.5 break-all">{row.customer.email}</p>
                       </TableCell>
                       <TableCell className="align-top">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {canShowGenerateContract(row) && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              className="h-8 gap-1 text-[11px]"
-                              disabled={generateContractMutation.isPending}
-                              onClick={() => void generateContractMutation.mutateAsync(row.id)}
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                              Sözleşme oluştur
-                            </Button>
-                          )}
-                          {Boolean(row.contractPdfPath?.trim()) && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-8 gap-1 text-[11px]"
-                              disabled={downloadContractMutation.isPending}
-                              onClick={() =>
-                                void downloadContractMutation.mutateAsync({ id: row.id, referenceNo: row.referenceNo })
-                              }
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                              PDF indir
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            className="h-8 text-[11px]"
-                            disabled={updateMutation.isPending || row.status === "approved"}
-                            onClick={() => void applyStatus(row, "approved")}
-                          >
-                            Onayla
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-8 text-[11px]"
-                            disabled={updateMutation.isPending || row.status === "rejected"}
-                            onClick={() => void applyStatus(row, "rejected")}
-                          >
-                            Reddet
-                          </Button>
-                          {Boolean(row.contractPdfPath?.trim()) ? (
-                            <>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="secondary"
-                                className="h-8 gap-1 text-[11px]"
-                                disabled={sendContractEmailMutation.isPending}
-                                onClick={() => void sendContractEmailMutation.mutateAsync(row.id)}
-                              >
-                                <Mail className="h-3.5 w-3.5" />
-                                Mail gönder
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="secondary"
-                                className="h-8 gap-1 text-[11px]"
-                                onClick={() => sendContractWhatsApp(row)}
-                              >
-                                <MessageCircle className="h-3.5 w-3.5" />
-                                WhatsApp
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-8 gap-1 text-[11px]"
-                                onClick={() => openContractPdfUrl(row)}
-                                title="Sözleşme PDF bağlantısını yeni sekmede aç"
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" />
-                                PDF aç
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-8 gap-1 text-[11px]"
-                                onClick={() => void copyEmptyFormLink()}
-                                title="Ön doldurmasız form bağlantısını kopyala"
-                              >
-                                <Copy className="h-3.5 w-3.5" />
-                                Form linki
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="secondary"
-                                className="h-8 gap-1 text-[11px]"
-                                onClick={() => sendEmptyFormMail(row)}
-                              >
-                                <Mail className="h-3.5 w-3.5" />
-                                Form mail
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="secondary"
-                                className="h-8 gap-1 text-[11px]"
-                                onClick={() => sendEmptyFormWhatsApp(row)}
-                              >
-                                <MessageCircle className="h-3.5 w-3.5" />
-                                Form WP
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                        {renderRequestActions(row)}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>

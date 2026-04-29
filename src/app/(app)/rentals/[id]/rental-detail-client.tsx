@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { differenceInCalendarDays, parseISO } from "date-fns";
-import { AlertTriangle, ImageIcon, MessageSquare, Save, UserPlus } from "lucide-react";
-import { toast } from "sonner";
+import { AlertTriangle, ImageIcon, MessageSquare, Percent, Receipt, Save, Tag, UserPlus } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
 
 import { CustomerPickerDialog } from "@/components/customers/customer-picker-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +27,7 @@ import { useCustomerDirectoryRows } from "@/hooks/use-customer-directory-rows";
 import { useCustomerRecordStates } from "@/hooks/use-customer-record-states";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
-import { fetchRentalByIdFromRentApi, getRentApiErrorMessage, type UpdateRentalPayload } from "@/lib/rent-api";
+import { fetchRentalByIdFromRentApi, getRentApiErrorMessage, updateRentalOnRentApi, type UpdateRentalPayload } from "@/lib/rent-api";
 import { rentKeys } from "@/lib/rent-query-keys";
 import { normalizeRentalStatus, type RentalStatus } from "@/lib/rental-status";
 import { customerRecordKey, type CustomerAggregateRow } from "@/lib/rental-metadata";
@@ -75,16 +75,53 @@ export function RentalDetailClient({ rentalId }: Props) {
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
   const pendingRiskyIntentRef = useRef<null | "status" | "fullSave">(null);
+  const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
+  const [discountType, setDiscountType] = useState<"PERCENT" | "AMOUNT">("AMOUNT");
+  const [discountValue, setDiscountValue] = useState("");
+  const [discountSaving, setDiscountSaving] = useState(false);
 
-  const rentalAmount = useMemo(() => {
-    if (!rental || vehicle?.rentalDailyPrice == null) return undefined;
+  const rentalDays = useMemo(() => {
+    if (!rental) return 0;
     try {
-      const days = Math.max(1, differenceInCalendarDays(parseISO(rental.endDate), parseISO(rental.startDate)) + 1);
-      return days * vehicle.rentalDailyPrice;
+      return Math.max(1, differenceInCalendarDays(parseISO(rental.endDate), parseISO(rental.startDate)) + 1);
     } catch {
-      return undefined;
+      return 0;
     }
-  }, [rental, vehicle?.rentalDailyPrice]);
+  }, [rental]);
+
+  const baseRentalAmount = useMemo(() => {
+    if (!rental || vehicle?.rentalDailyPrice == null || rentalDays === 0) return undefined;
+    return rentalDays * vehicle.rentalDailyPrice;
+  }, [rental, vehicle?.rentalDailyPrice, rentalDays]);
+
+  const optionsTotal = useMemo(() => {
+    if (!rental?.options?.length) return 0;
+    return rental.options.reduce((sum, o) => sum + (Number.isFinite(o.price) ? o.price : 0), 0);
+  }, [rental?.options]);
+
+  const grossTotal = useMemo(() => {
+    if (baseRentalAmount == null) return undefined;
+    return baseRentalAmount + optionsTotal;
+  }, [baseRentalAmount, optionsTotal]);
+
+  const commissionSign = useMemo(() => {
+    if (!rental?.commissionAmount || !rental?.commissionFlow) return 0;
+    return rental.commissionFlow === "pay" ? -rental.commissionAmount : rental.commissionAmount;
+  }, [rental?.commissionAmount, rental?.commissionFlow]);
+
+  const discountLineAmount = useMemo(() => {
+    if (!rental?.discountAmount || rental.discountAmount === 0) return 0;
+    if (rental.discountType === "PERCENT") {
+      return grossTotal != null ? (grossTotal * rental.discountAmount) / 100 : 0;
+    }
+    return rental.discountAmount;
+  }, [rental?.discountAmount, rental?.discountType, grossTotal]);
+
+  const netTotal = useMemo(() => {
+    if (rental?.netAmount != null) return rental.netAmount;
+    if (grossTotal == null) return undefined;
+    return grossTotal + commissionSign - discountLineAmount;
+  }, [rental?.netAmount, grossTotal, commissionSign, discountLineAmount]);
 
   const vehicleImages = useMemo(() => {
     if (!vehicle?.images) return [];
@@ -241,6 +278,27 @@ export function RentalDetailClient({ rentalId }: Props) {
     else if (intent === "fullSave") void performSave();
   };
 
+  const applyDiscount = async () => {
+    if (!rental) return;
+    const val = parseFloat(discountValue);
+    if (!Number.isFinite(val) || val < 0) {
+      toast.error("Geçerli bir indirim değeri girin.");
+      return;
+    }
+    setDiscountSaving(true);
+    try {
+      await updateRentalOnRentApi(rental.id, { discountAmount: val, discountType });
+      await refetch();
+      setDiscountDialogOpen(false);
+      setDiscountValue("");
+      toast.success("İndirim uygulandı.");
+    } catch (e) {
+      toast.error(getRentApiErrorMessage(e));
+    } finally {
+      setDiscountSaving(false);
+    }
+  };
+
   const cancelRiskyStatusDialog = () => {
     pendingRiskyIntentRef.current = null;
     setStatusConfirmOpen(false);
@@ -273,21 +331,126 @@ export function RentalDetailClient({ rentalId }: Props) {
                     <Badge variant="muted">Araç bilgisi yok</Badge>
                   )}
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Kiralama tutarı</p>
-                    <p className="text-sm font-semibold tabular-nums">
-                      {rentalAmount != null ? rentalAmount.toLocaleString("tr-TR", { maximumFractionDigits: 2 }) : "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Komisyon</p>
-                    <p className="text-sm font-semibold tabular-nums">
-                      {rental.commissionAmount != null
-                        ? `${rental.commissionAmount.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} (${rental.commissionFlow === "pay" ? "gider" : "gelir"})`
-                        : "—"}
-                    </p>
-                  </div>
+
+                <div className="mt-1 overflow-x-auto rounded-md border border-border/60">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border/60 bg-muted/40">
+                        <th className="py-1.5 pl-3 pr-2 text-left font-medium text-muted-foreground">
+                          <span className="flex items-center gap-2">
+                            <span className="flex items-center gap-1">
+                              <Receipt className="h-3 w-3" />
+                              Kalem
+                            </span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 px-1.5 text-[10px] gap-0.5 text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                setDiscountType("AMOUNT");
+                                setDiscountValue(rental.discountAmount ? String(rental.discountAmount) : "");
+                                setDiscountDialogOpen(true);
+                              }}
+                            >
+                              <Tag className="h-3 w-3" />
+                              İndirim
+                            </Button>
+                          </span>
+                        </th>
+                        <th className="py-1.5 pr-3 text-right font-medium text-muted-foreground">Tutar</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {baseRentalAmount != null && (
+                        <tr>
+                          <td className="py-1.5 pl-3 pr-2 text-foreground">
+                            Temel kiralama
+                            {vehicle?.rentalDailyPrice != null && rentalDays > 0 && (
+                              <span className="ml-1 text-[10px] text-muted-foreground">
+                                ({rentalDays} gün × {vehicle.rentalDailyPrice.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} ₺)
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums font-medium">
+                            {baseRentalAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                          </td>
+                        </tr>
+                      )}
+
+                      {rental.options?.map((opt) => (
+                        <tr key={opt.id}>
+                          <td className="py-1.5 pl-3 pr-2 text-foreground">
+                            <span>{opt.icon ? `${opt.icon} ` : ""}{opt.title}</span>
+                            {opt.description && (
+                              <p className="text-[10px] text-muted-foreground">{opt.description}</p>
+                            )}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums font-medium">
+                            {opt.price.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                          </td>
+                        </tr>
+                      ))}
+
+                      {grossTotal != null && (
+                        <tr className="bg-muted/30">
+                          <td className="py-1.5 pl-3 pr-2 font-semibold text-foreground">Ara toplam</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums font-semibold">
+                            {grossTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                          </td>
+                        </tr>
+                      )}
+
+                      {rental.commissionAmount != null && rental.commissionAmount > 0 && (
+                        <tr className={commissionSign < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}>
+                          <td className="py-1.5 pl-3 pr-2">
+                            Komisyon
+                            <span className="ml-1 text-[10px]">
+                              ({rental.commissionFlow === "pay" ? "gider" : "gelir"})
+                            </span>
+                            {rental.commissionCompany && (
+                              <p className="text-[10px] text-muted-foreground">{rental.commissionCompany}</p>
+                            )}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums font-medium">
+                            {commissionSign < 0 ? "−" : "+"}
+                            {Math.abs(rental.commissionAmount).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                          </td>
+                        </tr>
+                      )}
+
+                      {discountLineAmount > 0 && (
+                        <tr className="text-rose-600 dark:text-rose-400">
+                          <td className="py-1.5 pl-3 pr-2">
+                            İndirim
+                            {rental.discountType === "PERCENT" && rental.discountAmount && (
+                              <span className="ml-1 text-[10px]">(%{rental.discountAmount})</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums font-medium">
+                            −{discountLineAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                          </td>
+                        </tr>
+                      )}
+
+                      {netTotal != null && (
+                        <tr className="border-t-2 border-border bg-muted/20">
+                          <td className="py-2 pl-3 pr-2 font-bold text-foreground text-sm">Net tutar</td>
+                          <td className="py-2 pr-3 text-right tabular-nums font-bold text-sm">
+                            {netTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                          </td>
+                        </tr>
+                      )}
+
+                      {baseRentalAmount == null && !rental.options?.length && (
+                        <tr>
+                          <td colSpan={2} className="py-3 text-center text-muted-foreground">
+                            Fiyat bilgisi yok
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -518,6 +681,59 @@ export function RentalDetailClient({ rentalId }: Props) {
               onClick={() => void confirmRiskyStatus()}
             >
               Onayla
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={discountDialogOpen} onOpenChange={setDiscountDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>İndirim Uygula</DialogTitle>
+            <DialogDescription>Kiralamaya yüzdelik veya sabit tutar indirimi uygulayın.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={discountType === "AMOUNT" ? "default" : "outline"}
+                className="flex-1"
+                onClick={() => setDiscountType("AMOUNT")}
+              >
+                Sabit tutar (₺)
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={discountType === "PERCENT" ? "default" : "outline"}
+                className="flex-1"
+                onClick={() => setDiscountType("PERCENT")}
+              >
+                <Percent className="h-3 w-3 mr-1" />
+                Yüzdelik (%)
+              </Button>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="discount-value">
+                {discountType === "PERCENT" ? "İndirim oranı (%)" : "İndirim tutarı (₺)"}
+              </Label>
+              <Input
+                id="discount-value"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder={discountType === "PERCENT" ? "örn. 10" : "örn. 500"}
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setDiscountDialogOpen(false)}>
+              Vazgeç
+            </Button>
+            <Button type="button" onClick={() => void applyDiscount()} disabled={discountSaving}>
+              {discountSaving ? "Uygulanıyor…" : "Uygula"}
             </Button>
           </DialogFooter>
         </DialogContent>

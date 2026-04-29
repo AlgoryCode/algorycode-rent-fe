@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { PaymentLog, PaymentLogStatus } from "@/lib/mock-payments";
+import type { PaymentLogStatus } from "@/lib/mock-payments";
 import { rentKeys } from "@/lib/rent-query-keys";
 import { fetchPaymentsFromRentApi, getRentApiErrorMessage } from "@/lib/rent-api";
 import { cn } from "@/lib/utils";
@@ -159,6 +159,30 @@ export function PaymentsClient() {
             <p className="py-10 text-center text-xs text-muted-foreground">Filtreye uygun ödeme kaydı yok.</p>
           ) : (
             <div className="rounded-lg border">
+              <div className="space-y-2 p-3 md:hidden">
+                {rows.map((p) => (
+                  <div key={`mobile-${p.id}`} className="rounded-xl border border-border/70 bg-card p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold tabular-nums">{formatTry(p.amountTry)}</p>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">{p.customerName}</p>
+                        <p className="truncate font-mono text-[11px] text-muted-foreground">{p.reference}</p>
+                      </div>
+                      <Badge variant={statusBadgeVariant(p.status)} className="text-[10px]">
+                        {STATUS_LABEL[p.status]}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{format(parseISO(p.createdAt), "d MMM yyyy HH:mm", { locale: tr })}</span>
+                      <span>{p.method}</span>
+                    </div>
+                    <div className="mt-1 text-xs">
+                      <PlateLink plate={p.plate} vehicleId={p.vehicleId} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden md:block">
               <Table className="min-w-[640px] text-xs">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -196,6 +220,7 @@ export function PaymentsClient() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>

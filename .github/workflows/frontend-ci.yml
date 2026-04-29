@@ -1,0 +1,59 @@
+name: Frontend CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
+
+jobs:
+  quality-gate:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run test:contract:mock
+      - run: npm run test:e2e:mock
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-artifacts
+          path: |
+            coverage
+            playwright-report
+            test-results
+
+  staging-regression:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:contract:staging
+        env:
+          RUN_STAGING_CONTRACT: "true"
+      - run: npm run test:e2e:staging
+        env:
+          RUN_STAGING_CONTRACT: "true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-regression-artifacts
+          path: |
+            playwright-report
+            test-results

@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { CarFront } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { LanguageSelect } from "@/components/language-select";
 import { useLocale } from "@/components/locale-provider";

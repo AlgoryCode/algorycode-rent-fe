@@ -37,6 +37,14 @@ export type RentalAccidentReport = {
   photos?: { id: string; url: string; caption?: string }[];
 };
 
+export type RentalOptionLine = {
+  id: string;
+  title: string;
+  description?: string;
+  price: number;
+  icon?: string;
+};
+
 export type RentalSession = {
   id: string;
   vehicleId: string;
@@ -56,6 +64,11 @@ export type RentalSession = {
   photos: { id: string; url: string; caption?: string }[];
   /** Bu kiralamaya özel kaza / hasar bildirimleri */
   accidentReports?: RentalAccidentReport[];
+  /** Backend'den gelen ek hizmet/paket kalemleri */
+  options?: RentalOptionLine[];
+  discountAmount?: number;
+  discountType?: "PERCENT" | "AMOUNT";
+  netAmount?: number;
 };
 
 export type VehicleHandoverRef = { id: string; name?: string; kind?: string };

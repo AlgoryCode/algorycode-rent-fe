@@ -85,6 +85,8 @@ export type UpdateRentalPayload = {
   commissionAmount?: number;
   commissionFlow?: "collect" | "pay";
   commissionCompany?: string;
+  discountAmount?: number;
+  discountType?: "PERCENT" | "AMOUNT";
   status?: "active" | "pending" | "completed" | "cancelled";
   customer?: {
     fullName?: string;

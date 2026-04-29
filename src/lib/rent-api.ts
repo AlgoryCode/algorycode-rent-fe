@@ -473,6 +473,23 @@ export function mapRentalFromApi(raw: Record<string, unknown>): RentalSession {
         : String(raw.createdAt)
       : undefined;
 
+  const optionsRaw = raw.options as unknown[] | undefined;
+  const mappedOptions = Array.isArray(optionsRaw)
+    ? optionsRaw
+        .map((o) => {
+          const opt = o as Record<string, unknown>;
+          const price = typeof opt.price === "number" ? opt.price : Number(opt.price ?? 0);
+          return {
+            id: String(opt.id ?? ""),
+            title: String(opt.title ?? ""),
+            description: asOptionalString(opt.description),
+            price: Number.isFinite(price) ? price : 0,
+            icon: asOptionalString(opt.icon),
+          };
+        })
+        .filter((o) => o.title)
+    : undefined;
+
   const session: RentalSession = {
     id: String(raw.id),
     vehicleId: String(raw.vehicleId),
@@ -484,6 +501,13 @@ export function mapRentalFromApi(raw: Record<string, unknown>): RentalSession {
     commissionFlow:
       raw.commissionFlow === "collect" || raw.commissionFlow === "pay" ? (raw.commissionFlow as "collect" | "pay") : undefined,
     commissionCompany: asOptionalString(raw.commissionCompany),
+    discountAmount: asOptionalNumber(raw.discountAmount),
+    discountType:
+      raw.discountType === "PERCENT" || raw.discountType === "AMOUNT"
+        ? (raw.discountType as "PERCENT" | "AMOUNT")
+        : undefined,
+    netAmount: asOptionalNumber(raw.netAmount),
+    options: mappedOptions?.length ? mappedOptions : undefined,
     customer: {
       fullName: String(customer?.fullName ?? ""),
       nationalId: String(customer?.nationalId ?? ""),
@@ -1353,5 +1377,84 @@ export async function deleteCustomerRecordOnRentApi(recordKey: string): Promise<
   return {
     deletedRentals: Number(r.deletedRentals ?? 0),
     deletedRentalRequests: Number(r.deletedRentalRequests ?? 0),
+  };
+}
+
+export type DiscountCouponRow = {
+  id: string;
+  code: string;
+  discountType: "PERCENT" | "AMOUNT";
+  discountValue: number;
+  description?: string;
+  active: boolean;
+  usageLimit?: number;
+  usageCount: number;
+  expiresAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateCouponPayload = {
+  code: string;
+  discountType: "PERCENT" | "AMOUNT";
+  discountValue: number;
+  description?: string;
+  active?: boolean;
+  usageLimit?: number;
+  expiresAt?: string;
+};
+
+export type UpdateCouponPayload = Partial<CreateCouponPayload>;
+
+export type ValidateCouponResult = {
+  valid: boolean;
+  discountType?: "PERCENT" | "AMOUNT";
+  discountValue?: number;
+  message?: string;
+};
+
+function mapCouponFromApi(raw: Record<string, unknown>): DiscountCouponRow {
+  return {
+    id: String(raw.id),
+    code: String(raw.code ?? ""),
+    discountType: raw.discountType === "PERCENT" ? "PERCENT" : "AMOUNT",
+    discountValue: Number(raw.discountValue ?? 0),
+    description: asOptionalString(raw.description),
+    active: Boolean(raw.active),
+    usageLimit: raw.usageLimit != null ? Number(raw.usageLimit) : undefined,
+    usageCount: Number(raw.usageCount ?? 0),
+    expiresAt: asOptionalString(raw.expiresAt),
+    createdAt: asOptionalString(raw.createdAt),
+    updatedAt: asOptionalString(raw.updatedAt),
+  };
+}
+
+export async function fetchCouponsOnRentApi(): Promise<DiscountCouponRow[]> {
+  const { data } = await rentClient().get<unknown[]>("/coupons");
+  return (data as Record<string, unknown>[]).map(mapCouponFromApi);
+}
+
+export async function createCouponOnRentApi(payload: CreateCouponPayload): Promise<DiscountCouponRow> {
+  const { data } = await rentClient().post<unknown>("/coupons", payload);
+  return mapCouponFromApi(data as Record<string, unknown>);
+}
+
+export async function updateCouponOnRentApi(id: string, payload: UpdateCouponPayload): Promise<DiscountCouponRow> {
+  const { data } = await rentClient().put<unknown>(`/coupons/${id}`, payload);
+  return mapCouponFromApi(data as Record<string, unknown>);
+}
+
+export async function deleteCouponOnRentApi(id: string): Promise<void> {
+  await rentClient().delete(`/coupons/${id}`);
+}
+
+export async function validateCouponOnRentApi(code: string): Promise<ValidateCouponResult> {
+  const { data } = await rentClient().get<unknown>(`/coupons/validate?code=${encodeURIComponent(code)}`);
+  const r = data as Record<string, unknown>;
+  return {
+    valid: Boolean(r.valid),
+    discountType: r.discountType === "PERCENT" ? "PERCENT" : r.discountType === "AMOUNT" ? "AMOUNT" : undefined,
+    discountValue: r.discountValue != null ? Number(r.discountValue) : undefined,
+    message: asOptionalString(r.message),
   };
 }

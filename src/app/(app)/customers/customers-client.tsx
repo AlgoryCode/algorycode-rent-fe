@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Building2, Pencil, Search, User, Users } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { AddEntityButton } from "@/components/ui/add-entity-actions";
 import { Badge } from "@/components/ui/badge";
@@ -395,6 +395,67 @@ export function CustomersClient() {
             {filtered.length === 0 ? (
               <p className="py-8 text-center text-xs text-muted-foreground">Sonuç yok.</p>
             ) : (
+              <>
+              <div className="space-y-2 p-3 md:hidden">
+                {filtered.map((row) => {
+                  const k = resolveCustomerKind(row.customer);
+                  const isManual = row.key.startsWith("manual:");
+                  return (
+                    <button
+                      key={`mobile-${row.key}`}
+                      type="button"
+                      className="w-full rounded-xl border border-border/70 bg-card p-3 text-left"
+                      onClick={() => router.push(`/customers/${encodeURIComponent(row.key)}`)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">{row.customer.fullName}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{row.customer.phone}</p>
+                        </div>
+                        <Badge variant={k === "corporate" ? "secondary" : "outline"} className="text-[10px]">
+                          {k === "corporate" ? "Kurumsal" : "Bireysel"}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Kiralama: {row.totalRentals}</span>
+                        <span className="text-muted-foreground">
+                          {format(parseISO(row.lastActivity), "d MMM yyyy", { locale: tr })}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex justify-end gap-1">
+                        {isManual && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            title="Düzenle"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditDialog(row.key);
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/customers/${encodeURIComponent(row.key)}`);
+                          }}
+                        >
+                          Detay
+                        </Button>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="hidden md:block">
               <Table className="min-w-[640px]">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -486,6 +547,8 @@ export function CustomersClient() {
                     })}
                 </TableBody>
               </Table>
+              </div>
+              </>
             )}
           </ListingTableWell>
         </ListingPanel>

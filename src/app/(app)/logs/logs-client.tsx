@@ -15,12 +15,13 @@ import {
   LayoutGrid,
   List,
   MailCheck,
+  Plus,
   ScrollText,
   Search,
   SlidersHorizontal,
   UserRound,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { AddEntityButton } from "@/components/ui/add-entity-actions";
 import { Button } from "@/components/ui/button";
@@ -92,11 +93,30 @@ function rentalDayCount(startDate: string, endDate: string): number {
   return Math.max(1, differenceInCalendarDays(b, a) + 1);
 }
 
-function sessionEstimatedTotal(session: RentalSession, vehicle: Vehicle | undefined): string {
+function sessionOptionsTotal(session: RentalSession): number {
+  if (!session.options?.length) return 0;
+  return session.options.reduce((s, o) => s + (Number.isFinite(o.price) ? o.price : 0), 0);
+}
+
+function sessionGrossTotal(session: RentalSession, vehicle: Vehicle | undefined): number | undefined {
   const daily = vehicle?.rentalDailyPrice;
-  if (daily == null || !Number.isFinite(daily)) return "—";
+  if (daily == null || !Number.isFinite(daily)) return undefined;
   const days = rentalDayCount(session.startDate, session.endDate);
-  const total = days * daily;
+  return days * daily + sessionOptionsTotal(session);
+}
+
+function sessionNetTotal(session: RentalSession, vehicle: Vehicle | undefined): number | undefined {
+  if (session.netAmount != null) return session.netAmount;
+  const gross = sessionGrossTotal(session, vehicle);
+  if (gross == null) return undefined;
+  const commission = session.commissionAmount ?? 0;
+  const commissionSigned = session.commissionFlow === "pay" ? -commission : commission;
+  return gross + commissionSigned;
+}
+
+function sessionEstimatedTotal(session: RentalSession, vehicle: Vehicle | undefined): string {
+  const total = sessionNetTotal(session, vehicle);
+  if (total == null) return "—";
   return `${total.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺`;
 }
 
@@ -218,8 +238,8 @@ export function RentalLogsClient() {
       const v = vehiclesById.get(s.vehicleId);
       const days = rentalDayCount(s.startDate, s.endDate);
       const daily = v?.rentalDailyPrice;
-      const est =
-        daily != null && Number.isFinite(daily) ? Math.round(days * daily * 100) / 100 : "";
+      const net = sessionNetTotal(s, v);
+      const est = net != null ? Math.round(net * 100) / 100 : "";
       return {
         Id: s.id,
         Plate: vehiclePlate(vehiclesById, s.vehicleId),
@@ -249,7 +269,7 @@ export function RentalLogsClient() {
 
   return (
     <div className="mx-auto max-w-[92rem] space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="hidden flex-col gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Kiralamalar</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -274,7 +294,7 @@ export function RentalLogsClient() {
       </div>
 
       <Tabs value={logTab} onValueChange={(v) => navigateLogTab(v as "logs" | "start" | "requests")} className="w-full">
-        <TabsList className="h-auto w-full justify-start gap-0 overflow-x-auto rounded-none border-0 border-b border-slate-200 bg-transparent p-0">
+        <TabsList className="hidden h-auto w-full justify-start gap-0 overflow-x-auto rounded-none border-0 border-b border-slate-200 bg-transparent p-0 md:flex">
           <TabsTrigger
             value="logs"
             className="gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-4 py-3 text-sm font-medium text-slate-500 shadow-none data-[state=active]:border-sky-500 data-[state=active]:bg-transparent data-[state=active]:text-slate-900"
@@ -300,6 +320,50 @@ export function RentalLogsClient() {
 
         <TabsContent value="logs" className="mt-5">
           <div className="space-y-5">
+            <div className="space-y-4 md:hidden">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={draftFilters.customerQuery}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDraftFilters((f) => ({ ...f, customerQuery: value }));
+                    setFilters((f) => ({ ...f, customerQuery: value }));
+                  }}
+                  placeholder="Search vehicle or customer..."
+                  className="h-12 rounded-xl border-slate-200 bg-white pl-10 text-sm shadow-sm"
+                />
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {([
+                  { key: "all", label: "All Bookings" },
+                  { key: "active", label: "Active" },
+                  { key: "pending", label: "Pending" },
+                  { key: "completed", label: "Completed" },
+                ] as const).map((chip) => {
+                  const active = filters.status === chip.key;
+                  return (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      className={cn(
+                        "whitespace-nowrap rounded-full border px-4 py-1.5 text-[11px] font-semibold",
+                        active
+                          ? "border-sky-500 bg-sky-500 text-white"
+                          : "border-slate-200 bg-white text-slate-600",
+                      )}
+                      onClick={() => {
+                        setDraftFilters((f) => ({ ...f, status: chip.key }));
+                        setFilters((f) => ({ ...f, status: chip.key }));
+                      }}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="hidden md:block">
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="grid gap-3 lg:grid-cols-[1.2fr_1.2fr_1.1fr_0.8fr_auto]">
                 <div>
@@ -379,6 +443,7 @@ export function RentalLogsClient() {
               </div>
               {statusLine ? <p className="mt-3 text-xs text-slate-500">{statusLine}</p> : null}
             </div>
+            </div>
             <ListingPanel className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <ListingTableWell className="rounded-none border-0">
               {sessionsLoading && allSessions.length === 0 ? (
@@ -387,6 +452,47 @@ export function RentalLogsClient() {
                 <p className="py-12 text-center text-sm text-muted-foreground">Filtreye uygun kiralama yok.</p>
               ) : (
                 <>
+                  <div className="space-y-3 p-0 md:hidden">
+                    {pagedSessions.map((s) => {
+                      const v = vehiclesById.get(s.vehicleId);
+                      const cover = v ? vehicleCardCoverUrl(v) : undefined;
+                      const st = sessionStatus(s);
+                      return (
+                        <button
+                          key={`mobile-${s.id}`}
+                          type="button"
+                          className="w-full rounded-xl border border-slate-100 bg-white p-4 text-left shadow-[0_4px_6px_-1px_rgba(15,23,42,0.05)]"
+                          onClick={() => router.push(`/rentals/${s.id}`)}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 gap-3">
+                            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-50">
+                              {cover ? (
+                                <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${JSON.stringify(cover)})` }} />
+                              ) : (
+                                <div className="flex h-full items-center justify-center text-[9px] text-muted-foreground">—</div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-base font-semibold text-slate-900">{v ? `${v.brand} ${v.model}` : "Araç"}</p>
+                              <p className="truncate text-xs text-slate-500">{s.customer.fullName}</p>
+                            </div>
+                            </div>
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${statusPillClass(st)}`}>
+                              {st === "active" ? "Rented" : st === "pending" ? "Pending" : st === "completed" ? "Completed" : "Cancelled"}
+                            </span>
+                          </div>
+                          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+                            <div className="text-slate-500">
+                              <span>{s.startDate} - {s.endDate}</span>
+                            </div>
+                            <span className="font-semibold text-sky-600">Details</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="hidden md:block">
                   <Table className="min-w-[860px]">
                     <TableHeader>
                       <TableRow className="bg-slate-50 hover:bg-slate-50">
@@ -461,8 +567,9 @@ export function RentalLogsClient() {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
 
-                  <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                  <div className="hidden flex-col gap-3 border-t border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 md:flex">
                       <p className="text-xs text-slate-500">
                         {filteredSessions.length === 0
                           ? "—"
@@ -499,6 +606,14 @@ export function RentalLogsClient() {
                 )}
             </ListingTableWell>
           </ListingPanel>
+          <Button
+            type="button"
+            size="icon"
+            className="fixed bottom-24 right-5 z-30 h-14 w-14 rounded-full bg-sky-500 text-white shadow-lg md:hidden"
+            onClick={() => navigateLogTab("start")}
+          >
+            <Plus className="h-6 w-6" />
+          </Button>
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -598,7 +713,44 @@ export function RentalLogsClient() {
                       : "Aramanızla eşleşen araç yok. Plakayı boşluksuz veya marka + model şeklinde deneyin."}
                   </p>
                 ) : (
-                  <div className="mt-4 overflow-x-auto rounded-lg border">
+                  <>
+                  <div className="mt-4 space-y-2 md:hidden">
+                    {vehiclesForStartTab.map((v) => {
+                      const disabled = Boolean(v.maintenance);
+                      const cover = vehicleCardCoverUrl(v);
+                      const dailyLabel = formatVehicleDailyRental(v);
+                      const onActivate = () => {
+                        if (disabled) return;
+                        openRentalForVehicle(v.id);
+                      };
+                      return (
+                        <button
+                          key={`start-mobile-${v.id}`}
+                          type="button"
+                          disabled={disabled}
+                          onClick={onActivate}
+                          className={cn(
+                            "flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left",
+                            disabled && "cursor-not-allowed opacity-55",
+                          )}
+                        >
+                          <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
+                            {cover ? (
+                              <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${JSON.stringify(cover)})` }} aria-hidden />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center px-0.5 text-center text-[9px] leading-tight text-muted-foreground">—</div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-mono text-sm font-semibold">{v.plate}</p>
+                            <p className="truncate text-xs text-slate-600">{v.brand} {v.model}</p>
+                            <p className="mt-0.5 text-xs font-semibold text-slate-900">{dailyLabel}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 hidden overflow-x-auto rounded-lg border md:block">
                     <Table className="min-w-[640px] text-xs">
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
@@ -671,6 +823,7 @@ export function RentalLogsClient() {
                       </TableBody>
                     </Table>
                   </div>
+                  </>
                 )
               ) : (
                 <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">

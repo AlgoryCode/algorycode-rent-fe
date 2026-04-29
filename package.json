@@ -8,7 +8,16 @@
     "dev:local": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npm run test:unit && npm run test:contract:mock",
+    "test:unit": "vitest run --coverage",
+    "test:component": "vitest --ui",
+    "test:e2e": "playwright test",
+    "test:e2e:mock": "playwright test --grep @mock",
+    "test:e2e:staging": "playwright test --grep @staging",
+    "test:contract:mock": "vitest run src/test/contracts/rent-api.mock-contract.test.ts",
+    "test:contract:staging": "vitest run src/test/contracts/rent-api.staging-contract.test.ts",
+    "test:ci": "npm run lint && npm run test:unit && npm run test:contract:mock && npm run test:e2e:mock"
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.1.12",
@@ -37,11 +46,20 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20.19.39",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.5",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
-    "typescript": "^5"
+    "jsdom": "^29.1.0",
+    "msw": "^2.14.2",
+    "typescript": "^5",
+    "vitest": "^4.1.5",
+    "zod": "^4.3.6"
   }
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { AddEntityButton } from "@/components/ui/add-entity-actions";
 import { Button } from "@/components/ui/button";
