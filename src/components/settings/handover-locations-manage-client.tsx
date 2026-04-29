@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { AddEntityButton } from "@/components/ui/add-entity-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -155,14 +156,14 @@ export function HandoverLocationsManageClient({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">{heading}</h1>
           <p className="mt-1 max-w-xl text-xs text-muted-foreground">{intro}</p>
         </div>
-        <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 text-xs" onClick={startCreate} disabled={Boolean(editingId)}>
+        <AddEntityButton type="button" onClick={startCreate} disabled={Boolean(editingId)}>
           Yeni ekle
-        </Button>
+        </AddEntityButton>
       </div>
 
       {editingId ? (

@@ -8,9 +8,11 @@ import { tr } from "date-fns/locale";
 import { ChevronRight, Search, UserCog, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
+import { AddEntityButton } from "@/components/ui/add-entity-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -130,7 +132,7 @@ export function UsersClient() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
             <UserCog className="h-5 w-5 text-primary" />
@@ -143,10 +145,9 @@ export function UsersClient() {
           </p>
         </div>
         {hasManagerAccess ? (
-          <Button type="button" size="sm" className="h-9 gap-1.5 shrink-0" onClick={() => setAddOpen(true)}>
-            <UserPlus className="h-4 w-4" />
+          <AddEntityButton type="button" icon={UserPlus} onClick={() => setAddOpen(true)}>
             Kullanıcı ekle
-          </Button>
+          </AddEntityButton>
         ) : null}
       </div>
 
@@ -238,96 +239,55 @@ export function UsersClient() {
           {rows.length === 0 ? (
             <p className="py-10 text-center text-xs text-muted-foreground">Sonuç yok.</p>
           ) : (
-            <>
-              <div className="hidden overflow-x-auto rounded-lg border md:block">
-                <table className="w-full min-w-[560px] text-left text-xs">
-                  <thead>
-                    <tr className="border-b bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      <th className="px-3 py-2.5">Ad soyad</th>
-                      <th className="px-3 py-2.5">E-posta</th>
-                      <th className="px-3 py-2.5">Rol</th>
-                      <th className="px-3 py-2.5">Durum</th>
-                      <th className="px-3 py-2.5">Son aktivite</th>
-                      <th className="w-[100px] px-3 py-2.5 text-right text-[10px]">Detay</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((u) => (
-                      <tr
-                        key={u.id}
-                        className="border-b border-border/60 bg-background transition-colors hover:bg-muted/40 last:border-0"
-                      >
-                        <td className="px-3 py-2.5 font-medium">{u.fullName}</td>
-                        <td className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground">{u.email}</td>
-                        <td className="px-3 py-2.5">
-                          <Badge variant={roleBadgeVariant(u.role)} className="text-[10px]">
-                            {ROLE_LABEL[u.role]}
+            <div className="rounded-lg border">
+              <Table className="min-w-[560px] text-xs">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Ad soyad</TableHead>
+                    <TableHead>E-posta</TableHead>
+                    <TableHead>Rol</TableHead>
+                    <TableHead>Durum</TableHead>
+                    <TableHead>Son aktivite</TableHead>
+                    <TableHead className="w-[100px] text-right">Detay</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell className="font-medium">{u.fullName}</TableCell>
+                      <TableCell className="font-mono text-[11px] text-muted-foreground">{u.email}</TableCell>
+                      <TableCell>
+                        <Badge variant={roleBadgeVariant(u.role)} className="text-[10px]">
+                          {ROLE_LABEL[u.role]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {u.active ? (
+                          <Badge variant="success" className="text-[10px]">
+                            Aktif
                           </Badge>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {u.active ? (
-                            <Badge variant="success" className="text-[10px]">
-                              Aktif
-                            </Badge>
-                          ) : (
-                            <Badge variant="muted" className="text-[10px]">
-                              Pasif
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted-foreground">
-                          {format(parseISO(u.lastActiveAt), "d MMM yyyy HH:mm", { locale: tr })}
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          <Button asChild variant="outline" size="sm" className="h-8 gap-1 text-xs">
-                            <Link href={`/users/${encodeURIComponent(u.id)}`}>
-                              Detay
-                              <ChevronRight className="h-3.5 w-3.5 opacity-70" />
-                            </Link>
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <ul className="space-y-2 md:hidden">
-                {rows.map((u) => (
-                  <li key={u.id} className="rounded-lg border bg-background p-3 text-xs transition-colors hover:bg-muted/40">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-semibold">{u.fullName}</p>
-                        <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{u.email}</p>
-                      </div>
-                      {u.active ? (
-                        <Badge variant="success" className="shrink-0 text-[10px]">
-                          Aktif
-                        </Badge>
-                      ) : (
-                        <Badge variant="muted" className="shrink-0 text-[10px]">
-                          Pasif
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Badge variant={roleBadgeVariant(u.role)} className="text-[10px]">
-                        {ROLE_LABEL[u.role]}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground">
+                        ) : (
+                          <Badge variant="muted" className="text-[10px]">
+                            Pasif
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
                         {format(parseISO(u.lastActiveAt), "d MMM yyyy HH:mm", { locale: tr })}
-                      </span>
-                      <Button asChild variant="outline" size="sm" className="ml-auto h-8 gap-1 text-xs">
-                        <Link href={`/users/${encodeURIComponent(u.id)}`}>
-                          Detay
-                          <ChevronRight className="h-3.5 w-3.5 opacity-70" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild variant="outline" size="sm" className="h-8 gap-1 text-xs">
+                          <Link href={`/users/${encodeURIComponent(u.id)}`}>
+                            Detay
+                            <ChevronRight className="h-3.5 w-3.5 opacity-70" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

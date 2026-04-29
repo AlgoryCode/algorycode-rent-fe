@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCustomerRecordStates } from "@/hooks/use-customer-record-states";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
@@ -461,15 +462,30 @@ export function CustomerDetailClient({ customerKey }: Props) {
                   Bu özet kiralama kayıtlarından türetilir. Ad, iletişim ve belgeleri değiştirmek için ilgili{" "}
                   <span className="font-medium text-foreground">Kiralama detayı</span> sayfasında kaydı güncelleyin.
                   {row.rentals.length > 0 && (
-                    <ul className="mt-2 list-inside list-disc space-y-1">
-                      {row.rentals.map((r) => (
-                        <li key={r.id}>
-                          <Link href={`/rentals/${r.id}`} className="text-primary underline-offset-4 hover:underline">
-                            {vehiclePlate(vehiclesById, r.vehicleId)} · {r.startDate} → {r.endDate}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="mt-2 overflow-x-auto rounded-md border border-border/70">
+                      <Table className="min-w-[420px] text-[11px]">
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead>Araç</TableHead>
+                            <TableHead>Dönem</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {row.rentals.map((r) => (
+                            <TableRow key={r.id}>
+                              <TableCell>
+                                <Link href={`/rentals/${r.id}`} className="text-primary underline-offset-4 hover:underline">
+                                  {vehiclePlate(vehiclesById, r.vehicleId)}
+                                </Link>
+                              </TableCell>
+                              <TableCell className="tabular-nums text-muted-foreground">
+                                {r.startDate} → {r.endDate}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </div>
               )}
@@ -527,34 +543,48 @@ export function CustomerDetailClient({ customerKey }: Props) {
               {row.rentals.length > 0 && (
                 <div>
                   <h3 className="mb-2 text-sm font-medium">Kiralama kayıtlarına göre</h3>
-                  <div className="space-y-4">
-                    {row.rentals.map((r) => (
-                      <div key={r.id} className="rounded-lg border border-border/70 bg-muted/10 p-3">
-                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs font-medium">
-                            {vehiclePlate(vehiclesById, r.vehicleId)} · {r.startDate} → {r.endDate}
-                          </p>
-                          {statusBadge(r.status)}
-                        </div>
-                        <p className="mb-3 text-[10px] text-muted-foreground">
-                          Kayıt: {format(parseISO(sessionCreatedAt(r)), "d MMM yyyy HH:mm", { locale: tr })}
-                        </p>
-                        {!rentalHasDriverDocs(r) ? (
-                          <p className="text-[11px] text-muted-foreground">Bu kiralamada belge görseli yok.</p>
-                        ) : (
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <DocumentPreview
-                              label="Pasaport (bu kiralama)"
-                              url={r.customer.passportImageDataUrl?.trim()}
-                            />
-                            <DocumentPreview
-                              label="Ehliyet (bu kiralama)"
-                              url={r.customer.driverLicenseImageDataUrl?.trim()}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto rounded-lg border">
+                    <Table className="min-w-[640px] text-xs">
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead>Araç</TableHead>
+                          <TableHead>Dönem</TableHead>
+                          <TableHead>Statü</TableHead>
+                          <TableHead>Kayıt</TableHead>
+                          <TableHead className="min-w-[200px]">Belgeler</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {row.rentals.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-medium">{vehiclePlate(vehiclesById, r.vehicleId)}</TableCell>
+                            <TableCell className="tabular-nums text-muted-foreground">
+                              {r.startDate} → {r.endDate}
+                            </TableCell>
+                            <TableCell>{statusBadge(r.status)}</TableCell>
+                            <TableCell className="whitespace-nowrap text-muted-foreground">
+                              {format(parseISO(sessionCreatedAt(r)), "d MMM yyyy HH:mm", { locale: tr })}
+                            </TableCell>
+                            <TableCell>
+                              {!rentalHasDriverDocs(r) ? (
+                                <p className="text-[11px] text-muted-foreground">Bu kiralamada belge görseli yok.</p>
+                              ) : (
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  <DocumentPreview
+                                    label="Pasaport (bu kiralama)"
+                                    url={r.customer.passportImageDataUrl?.trim()}
+                                  />
+                                  <DocumentPreview
+                                    label="Ehliyet (bu kiralama)"
+                                    url={r.customer.driverLicenseImageDataUrl?.trim()}
+                                  />
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 </div>
               )}
@@ -565,33 +595,39 @@ export function CustomerDetailClient({ customerKey }: Props) {
               {row.rentals.length === 0 ? (
                 <p className="py-6 text-center text-xs text-muted-foreground">Henüz kiralama kaydı yok.</p>
               ) : (
-                <div className="space-y-2">
-                  {row.rentals.map((r) => (
-                    <div key={r.id} className="rounded-md border border-border/70 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-medium">
-                          <Link
-                            href={`/rentals/${r.id}`}
-                            className="text-primary underline-offset-4 hover:underline"
-                          >
-                            {vehiclePlate(vehiclesById, r.vehicleId)}
-                          </Link>
-                          <span className="text-muted-foreground">
-                            {" "}
-                            · {r.startDate} → {r.endDate}
-                          </span>
-                        </p>
-                        {statusBadge(r.status)}
-                      </div>
-                      <div className="mt-1 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                        <p>Kayıt: {format(parseISO(sessionCreatedAt(r)), "d MMM yyyy HH:mm", { locale: tr })}</p>
-                        <p>
-                          Komisyon:{" "}
-                          {r.commissionAmount != null ? `${r.commissionAmount} (${r.commissionFlow ?? "-"})` : "—"}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto rounded-lg border">
+                  <Table className="min-w-[560px] text-xs">
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Plaka</TableHead>
+                        <TableHead>Dönem</TableHead>
+                        <TableHead>Statü</TableHead>
+                        <TableHead>Kayıt</TableHead>
+                        <TableHead>Komisyon</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {row.rentals.map((r) => (
+                        <TableRow key={r.id}>
+                          <TableCell className="font-medium">
+                            <Link href={`/rentals/${r.id}`} className="text-primary underline-offset-4 hover:underline">
+                              {vehiclePlate(vehiclesById, r.vehicleId)}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="tabular-nums text-muted-foreground">
+                            {r.startDate} → {r.endDate}
+                          </TableCell>
+                          <TableCell>{statusBadge(r.status)}</TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground">
+                            {format(parseISO(sessionCreatedAt(r)), "d MMM yyyy HH:mm", { locale: tr })}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {r.commissionAmount != null ? `${r.commissionAmount} (${r.commissionFlow ?? "-"})` : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </TabsContent>

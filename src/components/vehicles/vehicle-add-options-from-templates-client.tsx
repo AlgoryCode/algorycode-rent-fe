@@ -114,27 +114,11 @@ export function VehicleAddOptionsFromTemplatesClient({ vehicle }: Props) {
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
         <h1 className="text-lg font-semibold tracking-tight">Opsiyon ekle</h1>
-        <p className="mt-1 text-xs text-muted-foreground">
-          <span className="font-mono">{vehicle.plate}</span> · {vehicle.brand} {vehicle.model}
-        </p>
-        <p className="mt-2 max-w-xl text-xs text-muted-foreground">
-          Şablondan seçtikleriniz araca kopyalanır. Şablonda olmayan mevcut satırlar (başlık/fiyat eşleşmeyen) korunur.
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-          <Link href={`/vehicles/${vehicle.id}`} className="text-primary underline-offset-2 hover:underline">
-            Araç detayına dön
-          </Link>
-          <span className="text-muted-foreground">·</span>
-          <Link href="/settings/options/vehicle" className="text-muted-foreground underline-offset-2 hover:underline">
-            Şablonları yönet
-          </Link>
-        </div>
       </div>
 
       <Card className="glow-card">
         <CardHeader className="border-b border-border/60 py-3">
           <CardTitle className="text-sm">Şablonlardan seç</CardTitle>
-          <CardDescription className="text-xs">Birden fazla işaretleyebilirsiniz.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 py-4">
           {loading ? (

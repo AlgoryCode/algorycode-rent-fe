@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { buildRentalRequestMessage, buildRentalRequestUrl, normalizedPhoneForWhatsApp } from "@/lib/customer-contact";
 import { loadManualCustomerRows, mergeSessionAndManualCustomers } from "@/lib/manual-customers";
@@ -24,7 +25,7 @@ export function CustomersChannelClient() {
   });
   const [query, setQuery] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
-  const [customMessage, setCustomMessage] = useState("");
+  const [customMessage] = useState("");
 
   const rows = useMemo(() => {
     const sessionRows = aggregateCustomersFromSessions(allSessions);
@@ -177,12 +178,6 @@ export function CustomersChannelClient() {
             />
           </div>
 
-          <Input
-            value={customMessage}
-            onChange={(e) => setCustomMessage(e.target.value)}
-            placeholder="Opsiyonel ek mesaj (mail/wp metnine eklenir)"
-          />
-
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 rounded-md border border-border/70 px-2 py-1.5 text-xs">
               <input
@@ -217,28 +212,54 @@ export function CustomersChannelClient() {
             </Button>
           </div>
 
-          <div className="space-y-2">
-            {filtered.map((row) => (
-              <label
-                key={row.key}
-                className="flex items-start gap-2 rounded-md border border-border/70 bg-background p-2 text-xs transition-colors hover:bg-muted/40"
-              >
-                <input
-                  type="checkbox"
-                  className="mt-0.5 rounded border-input"
-                  checked={selectedKeys.has(row.key)}
-                  onChange={(e) => toggleSelect(row.key, e.target.checked)}
-                />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{row.customer.fullName}</p>
-                  <p className="truncate text-muted-foreground">
-                    {row.customer.phone} {row.customer.email ? `· ${row.customer.email}` : ""} · {row.totalRentals} kiralama
-                  </p>
-                </div>
-              </label>
-            ))}
-            {filtered.length === 0 && <p className="py-6 text-center text-xs text-muted-foreground">Sonuç bulunamadı.</p>}
-          </div>
+          {filtered.length === 0 ? (
+            <p className="py-6 text-center text-xs text-muted-foreground">Sonuç bulunamadı.</p>
+          ) : (
+            <div className="rounded-lg border">
+              <Table className="min-w-[520px] text-xs">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-10">
+                      <input
+                        type="checkbox"
+                        className="rounded border-input"
+                        checked={allFilteredSelected}
+                        onChange={(e) => selectAllFiltered(e.target.checked)}
+                        title="Filtrelenenlerin tümünü seç"
+                        aria-label="Filtrelenenlerin tümünü seç"
+                      />
+                    </TableHead>
+                    <TableHead>Ad soyad</TableHead>
+                    <TableHead>İletişim</TableHead>
+                    <TableHead className="text-right tabular-nums">Kiralama</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((row) => (
+                    <TableRow key={row.key}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="rounded border-input"
+                          checked={selectedKeys.has(row.key)}
+                          onChange={(e) => toggleSelect(row.key, e.target.checked)}
+                          aria-label={`${row.customer.fullName} seç`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">{row.customer.fullName}</TableCell>
+                      <TableCell className="max-w-[240px] text-muted-foreground">
+                        <span className="block truncate">{row.customer.phone}</span>
+                        {row.customer.email ? (
+                          <span className="block truncate text-[11px]">{row.customer.email}</span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">{row.totalRentals}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

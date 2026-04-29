@@ -9,6 +9,7 @@ import { Wallet } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -157,73 +158,45 @@ export function PaymentsClient() {
           {rows.length === 0 ? (
             <p className="py-10 text-center text-xs text-muted-foreground">Filtreye uygun ödeme kaydı yok.</p>
           ) : (
-            <>
-              <div className="hidden overflow-x-auto rounded-lg border md:block">
-                <table className="w-full min-w-[640px] text-left text-xs">
-                  <thead>
-                    <tr className="border-b bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      <th className="px-3 py-2.5">Tarih</th>
-                      <th className="px-3 py-2.5">Tutar</th>
-                      <th className="px-3 py-2.5">Durum</th>
-                      <th className="px-3 py-2.5">Yöntem</th>
-                      <th className="px-3 py-2.5">Plaka</th>
-                      <th className="px-3 py-2.5">Müşteri</th>
-                      <th className="px-3 py-2.5">Referans</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((p) => (
-                      <tr
-                        key={p.id}
-                        className="border-b border-border/60 bg-background transition-colors hover:bg-muted/40 last:border-0"
-                      >
-                        <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted-foreground">
-                          {format(parseISO(p.createdAt), "d MMM yyyy HH:mm", { locale: tr })}
-                        </td>
-                        <td className="px-3 py-2.5 font-medium tabular-nums">{formatTry(p.amountTry)}</td>
-                        <td className="px-3 py-2.5">
-                          <Badge variant={statusBadgeVariant(p.status)} className="text-[10px]">
-                            {STATUS_LABEL[p.status]}
-                          </Badge>
-                        </td>
-                        <td className="max-w-[8rem] truncate px-3 py-2.5">{p.method}</td>
-                        <td className="px-3 py-2.5">
-                          <PlateLink plate={p.plate} vehicleId={p.vehicleId} />
-                        </td>
-                        <td className="max-w-[10rem] truncate px-3 py-2.5">{p.customerName}</td>
-                        <td className="font-mono text-[10px] text-muted-foreground">{p.reference}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <ul className="space-y-2 md:hidden">
-                {rows.map((p) => (
-                  <li key={p.id} className="rounded-lg border bg-background p-3 text-xs transition-colors hover:bg-muted/40">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 space-y-1">
-                        <p className="font-semibold tabular-nums">{formatTry(p.amountTry)}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {format(parseISO(p.createdAt), "d MMM yyyy HH:mm", { locale: tr })}
-                        </p>
-                      </div>
-                      <Badge variant={statusBadgeVariant(p.status)} className="shrink-0 text-[10px]">
-                        {STATUS_LABEL[p.status]}
-                      </Badge>
-                    </div>
-                    <p className="mt-2 text-muted-foreground">{p.method}</p>
-                    <p className="mt-1">
-                      <PlateLink plate={p.plate} vehicleId={p.vehicleId} />
-                      {" · "}
-                      {p.customerName}
-                    </p>
-                    <p className="mt-1 font-mono text-[10px] text-muted-foreground">{p.reference}</p>
-                    {p.note && <p className={cn("mt-1 text-[10px] text-muted-foreground")}>{p.note}</p>}
-                  </li>
-                ))}
-              </ul>
-            </>
+            <div className="rounded-lg border">
+              <Table className="min-w-[640px] text-xs">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Tarih</TableHead>
+                    <TableHead>Tutar</TableHead>
+                    <TableHead>Durum</TableHead>
+                    <TableHead>Yöntem</TableHead>
+                    <TableHead>Plaka</TableHead>
+                    <TableHead>Müşteri</TableHead>
+                    <TableHead>Referans</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
+                        {format(parseISO(p.createdAt), "d MMM yyyy HH:mm", { locale: tr })}
+                      </TableCell>
+                      <TableCell className="font-medium tabular-nums">{formatTry(p.amountTry)}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusBadgeVariant(p.status)} className="text-[10px]">
+                          {STATUS_LABEL[p.status]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[8rem] truncate">{p.method}</TableCell>
+                      <TableCell>
+                        <PlateLink plate={p.plate} vehicleId={p.vehicleId} />
+                      </TableCell>
+                      <TableCell className="max-w-[10rem] truncate">{p.customerName}</TableCell>
+                      <TableCell>
+                        <span className="font-mono text-[10px] text-muted-foreground">{p.reference}</span>
+                        {p.note ? <p className={cn("mt-1 max-w-[12rem] text-[10px] text-muted-foreground")}>{p.note}</p> : null}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

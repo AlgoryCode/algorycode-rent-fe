@@ -1,5 +1,5 @@
-import { RequestsClient } from "./requests-client";
+import { redirect } from "next/navigation";
 
 export default function RequestsPage() {
-  return <RequestsClient />;
+  redirect("/logs?sekme=istekler");
 }

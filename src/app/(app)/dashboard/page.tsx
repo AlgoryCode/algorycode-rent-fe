@@ -26,7 +26,7 @@ const quickMenuAll = [
   { href: "/logs", label: "Kiralamalar", icon: ClipboardList, bg: "from-amber-500/25 to-orange-500/10" },
   { href: "/calendar", label: "Takvim", icon: CalendarRange, bg: "from-fuchsia-500/25 to-purple-500/10" },
   { href: "/payments", label: "Ödemeler", icon: Wallet, bg: "from-emerald-500/25 to-teal-500/10" },
-  { href: "/requests", label: "Talepler", icon: MailCheck, bg: "from-rose-500/25 to-pink-500/10" },
+  { href: "/logs?sekme=istekler", label: "Kiralama istekleri", icon: MailCheck, bg: "from-rose-500/25 to-pink-500/10" },
   { href: "/customers", label: "Customers", icon: Users, bg: "from-cyan-500/25 to-sky-500/10" },
   { href: "/customers/channel", label: "Toplu mesaj", icon: MessagesSquare, bg: "from-lime-500/25 to-green-500/10" },
   { href: "/users", label: "Kullanıcılar", icon: UserCog, bg: "from-slate-500/25 to-zinc-500/10" },
@@ -70,15 +70,16 @@ export default function DashboardPage() {
         <div className="w-full max-w-lg rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-cyan-500/10 p-5 shadow-sm">
           <p className="text-sm font-semibold tracking-tight">Talep formu paylaşımı</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Müşteriye boş talep formu bağlantısını <span className="font-medium text-foreground">Talepler</span> sayfasındaki{" "}
+            Müşteriye boş talep formu bağlantısını <span className="font-medium text-foreground">Kiralamalar</span> sayfasındaki{" "}
+            <span className="font-medium text-foreground">Kiralama istekleri</span> sekmesinden{" "}
             <span className="font-medium text-foreground">Formu gönder</span> ile iletebilirsiniz.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
-              href="/requests"
+              href="/logs?sekme=istekler"
               className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90"
             >
-              Taleplere git
+              Kiralama isteklerine git
             </Link>
           </div>
         </div>

@@ -44,6 +44,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ImageSourceInput } from "@/components/ui/image-source-input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCountries } from "@/hooks/use-countries";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
@@ -108,6 +109,10 @@ const COUNTRY_NONE = "__none__";
 const SPECS_FUEL_NONE = "__fuel_none__";
 const SPECS_TRANS_NONE = "__trans_none__";
 const SPECS_BODY_NONE = "__body_none__";
+
+function isBeforeToday(date: Date): boolean {
+  return startOfDay(date).getTime() < startOfDay(new Date()).getTime();
+}
 
 function sortVehicleCatalogRows(rows: VehicleBodyStyleRow[]): VehicleBodyStyleRow[] {
   return [...rows].sort(
@@ -523,6 +528,10 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         toast.error("Bu araç bakımda; kiralama oluşturulamaz.");
         return;
       }
+      if (isBeforeToday(day)) {
+        toast.error("Geçmiş tarih için kiralama oluşturulamaz.");
+        return;
+      }
       initNewRentalFormForDay(day);
       setDialogOpen(true);
     },
@@ -587,6 +596,10 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
 
   const handleDayClick = (date: Date, modifiers: Record<string, boolean>) => {
     if (vehicle.maintenance) return;
+    if (isBeforeToday(date)) {
+      toast.message("Geçmiş gün seçilemez", { description: "Kiralama başlangıcı bugün veya sonrası olmalıdır." });
+      return;
+    }
     if (modifiers.booked) {
       toast.message("Bu gün zaten dolu", { description: "Müsait bir güne tıklayın." });
       return;
@@ -608,6 +621,10 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     }
     if (!start || !end || end < start) {
       toast.error("Bitiş tarihi başlangıçtan önce olamaz.");
+      return;
+    }
+    if (start < formatDay(new Date())) {
+      toast.error("Kiralama başlangıç tarihi bugünden önce olamaz.");
       return;
     }
     const commissionRaw = commissionAmount.replace(",", ".").trim();
@@ -1180,15 +1197,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold tracking-tight">Araç detayı</h1>
-            <p className="text-xs text-muted-foreground">
-              {vehicle.brand} {vehicle.model} · <span className="font-mono">{vehicle.plate}</span>
-            </p>
-          </div>
-        </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3">
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Button type="button" size="sm" variant="outline" className="h-8 w-full shrink-0 gap-1.5 text-xs sm:w-auto" asChild>
             <Link href={`/vehicles/${vehicle.id}/options`}>
@@ -1213,9 +1222,6 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         <Card className="glow-card order-1 min-w-0 overflow-hidden">
           <CardHeader className="pb-2 pt-3 sm:pt-4">
             <CardTitle className="text-sm">Görseller</CardTitle>
-            <CardDescription className="text-xs">
-              Önizleme ilan görünümüdür. Düzenle’de tüm açılar görünür; kayıtlı olmayanlarda örnek foto vardır. Kayıtlı görseli Sil → Evet/Hayır ile kaldırabilirsiniz.
-            </CardDescription>
           </CardHeader>
           <CardContent className="pb-4 pt-0">
             <Tabs defaultValue="preview" className="w-full">
@@ -1282,7 +1288,6 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       <Card className="glow-card">
         <CardHeader className="py-3">
           <CardTitle className="text-sm">Operasyon sekmeleri</CardTitle>
-          <CardDescription className="text-xs">Müsaitlik takvimi, rapor ve kiralama günlüğü.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Tabs defaultValue="availability" className="w-full">
@@ -1302,21 +1307,11 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
             </TabsList>
 
             <TabsContent value="availability" className="space-y-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <CardDescription className="text-xs sm:text-sm">
-                  Müsait güne tıklayarak kiralama oluşturun. Dar ekranda takvim yatay kaydırılabilir.
-                </CardDescription>
-                {!vehicle.maintenance && (
-                  <Button size="sm" variant="heroOutline" className="h-8 w-full text-xs sm:w-auto" onClick={() => openForDay(new Date())}>
-                    Bugün için oluştur
-                  </Button>
-                )}
-              </div>
               <div className="rounded-xl border border-border/70 bg-gradient-to-b from-card to-muted/20 shadow-sm">
                 <RentAvailabilityCalendar
                   locale={tr}
                   booked={booked}
-                  disabled={vehicle.maintenance ? () => true : undefined}
+                  disabled={(day) => vehicle.maintenance || isBeforeToday(day)}
                   onDayClick={handleDayClick}
                 />
                 <div className="px-3 sm:px-5">
@@ -1485,8 +1480,8 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                   Tüm kiralamalar
                 </Link>
                 {" · "}
-                <Link href="/requests" className="font-medium text-primary underline-offset-2 hover:underline">
-                  Talepler
+                <Link href="/logs?sekme=istekler" className="font-medium text-primary underline-offset-2 hover:underline">
+                  Kiralama istekleri
                 </Link>
               </p>
               {vehicleRentalsPending &&
@@ -1502,27 +1497,38 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                     Kesin kira kaydı oluşmadan önceki rezervasyonlar burada görünür; günlükte yalnızca{" "}
                     <span className="font-medium text-foreground">/rentals</span> listelenir.
                   </p>
-                  <ul className="mt-2 space-y-2">
-                    {vehicleRequestLogRows.map((r) => (
-                      <li key={r.id} className="rounded-md border border-border/60 bg-background px-2.5 py-2 text-xs">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-[11px] font-semibold">{r.referenceNo}</span>
-                          <Badge variant={r.status === "approved" ? "success" : "warning"} className="text-[10px]">
-                            {r.status === "approved" ? "Onaylı" : "Beklemede"}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {r.customer.fullName} · {r.startDate} → {r.endDate}
-                          {r.createdAt ? (
-                            <>
+                  <div className="mt-2 overflow-x-auto rounded-md border border-border/60 bg-background">
+                    <Table className="min-w-[520px] text-xs">
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead>Referans</TableHead>
+                          <TableHead>Statü</TableHead>
+                          <TableHead>Müşteri · dönem</TableHead>
+                          <TableHead>Oluşturulma</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {vehicleRequestLogRows.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-mono text-[11px] font-semibold">{r.referenceNo}</TableCell>
+                            <TableCell>
+                              <Badge variant={r.status === "approved" ? "success" : "warning"} className="text-[10px]">
+                                {r.status === "approved" ? "Onaylı" : "Beklemede"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-[11px] text-muted-foreground">
+                              <span className="text-foreground">{r.customer.fullName}</span>
                               {" · "}
-                              <span className="font-mono">{format(parseISO(r.createdAt), "d MMM yyyy HH:mm", { locale: tr })}</span>
-                            </>
-                          ) : null}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
+                              <span className="font-mono">{r.startDate}</span> → <span className="font-mono">{r.endDate}</span>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap font-mono text-[11px] text-muted-foreground">
+                              {r.createdAt ? format(parseISO(r.createdAt), "d MMM yyyy HH:mm", { locale: tr }) : "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               ) : null}
               {rentalLogs.length === 0 && vehicleRequestLogRows.length === 0 && !vehicleRentalsPending ? (

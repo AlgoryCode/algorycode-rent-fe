@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  addDays,
   addMonths,
   eachDayOfInterval,
   endOfMonth,
@@ -10,17 +9,14 @@ import {
   format,
   isSameMonth,
   isToday,
-  parseISO,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
 import { tr } from "date-fns/locale";
-import { Calendar, ChevronLeft, ChevronRight, Rows3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
@@ -31,72 +27,41 @@ import { cn } from "@/lib/utils";
 
 const MAX_RENTALS_PER_CELL = 3;
 const ALL_VEHICLES_VALUE = "__all__";
-const VIEW_STORAGE_KEY = "fleet-calendar-view-mode-v1";
-/** Timeline gün sütunu genişliği (px); çubuk konumu bu ızgara ile hizalanır */
-const TIMELINE_DAY_COL_PX = 28;
-type ViewMode = "calendar" | "timeline";
-
-function accentForVehicleId(id: string): string {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return `hsl(${h % 360} 62% 42%)`;
-}
+type ZoomMode = "month" | "week" | "day";
+type CalendarStatus = "active" | "completed" | "maintenance" | "pending";
 
 export function FleetCalendarClient() {
   const { allSessions, ready: sessionsReady, error: sessionsError } = useFleetSessions();
   const { allVehicles, ready: vehiclesReady, error: vehiclesError } = useFleetVehicles();
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [vehicleScope, setVehicleScope] = useState<string>(ALL_VEHICLES_VALUE);
-  const [plateFilter, setPlateFilter] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("calendar");
+  const [zoomMode, setZoomMode] = useState<ZoomMode>("month");
 
   const vehicleById = useMemo(() => new Map(allVehicles.map((v) => [v.id, v])), [allVehicles]);
 
   const vehiclesForSelect = useMemo(() => {
-    const q = plateFilter.trim().toUpperCase();
     const list = [...allVehicles].sort((a, b) => a.plate.localeCompare(b.plate, "tr"));
-    const filtered = list.filter(
-      (v) =>
-        !q || v.plate.toUpperCase().includes(q) || `${v.brand} ${v.model}`.toUpperCase().includes(q),
-    );
+    const filtered = list;
     if (vehicleScope === ALL_VEHICLES_VALUE) return filtered;
     const sel = allVehicles.find((v) => v.id === vehicleScope);
     if (sel && !filtered.some((v) => v.id === vehicleScope)) {
       return [sel, ...filtered];
     }
     return filtered;
-  }, [allVehicles, plateFilter, vehicleScope]);
+  }, [allVehicles, vehicleScope]);
 
-  useEffect(() => {
-    if (vehicleScope === ALL_VEHICLES_VALUE) return;
-    if (!allVehicles.some((v) => v.id === vehicleScope)) {
-      setVehicleScope(ALL_VEHICLES_VALUE);
-    }
+  const safeVehicleScope = useMemo(() => {
+    if (vehicleScope === ALL_VEHICLES_VALUE) return ALL_VEHICLES_VALUE;
+    return allVehicles.some((v) => v.id === vehicleScope) ? vehicleScope : ALL_VEHICLES_VALUE;
   }, [allVehicles, vehicleScope]);
 
   const rentalsForCell = (day: Date) => {
     const infos = rentalsActiveOnDay(allSessions, day);
-    if (vehicleScope === ALL_VEHICLES_VALUE) return infos;
-    return infos.filter((i) => i.session.vehicleId === vehicleScope);
+    if (safeVehicleScope === ALL_VEHICLES_VALUE) return infos;
+    return infos.filter((i) => i.session.vehicleId === safeVehicleScope);
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(VIEW_STORAGE_KEY);
-    if (saved === "calendar" || saved === "timeline") {
-      setViewMode(saved);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
-  }, [viewMode]);
-
-  const weekdayLabels = useMemo(() => {
-    const monday = startOfWeek(new Date(2024, 1, 5), { weekStartsOn: 1 });
-    return Array.from({ length: 7 }, (_, i) => format(addDays(monday, i), "EEE", { locale: tr }));
-  }, []);
+  const weekdayLabels = useMemo(() => ["PZT", "SAL", "CAR", "PER", "CUM", "CMT", "PAZ"], []);
 
   const gridDays = useMemo(() => {
     const start = startOfMonth(month);
@@ -106,39 +71,42 @@ export function FleetCalendarClient() {
     return eachDayOfInterval({ start: from, end: to });
   }, [month]);
 
-  const monthStart = useMemo(() => startOfMonth(month), [month]);
-  const monthEnd = useMemo(() => endOfMonth(month), [month]);
-  const monthDays = useMemo(() => eachDayOfInterval({ start: monthStart, end: monthEnd }), [monthStart, monthEnd]);
-
-  const scopedSessions = useMemo(() => {
-    return allSessions.filter((s) => {
-      if (!rentalCountsForCalendar(s)) return false;
-      if (vehicleScope === ALL_VEHICLES_VALUE) return true;
-      return s.vehicleId === vehicleScope;
-    });
-  }, [allSessions, vehicleScope]);
-
-  const timelineRows = useMemo(() => {
-    return scopedSessions
-      .filter((s) => s.startDate <= format(monthEnd, "yyyy-MM-dd") && s.endDate >= format(monthStart, "yyyy-MM-dd"))
-      .sort((a, b) => b.startDate.localeCompare(a.startDate));
-  }, [scopedSessions, monthEnd, monthStart]);
-
-  const timelineTrackWidthPx = monthDays.length * TIMELINE_DAY_COL_PX;
-
   const ready = sessionsReady && vehiclesReady;
   const error = sessionsError ?? vehiclesError;
 
+  const resolveStatus = (startDate: string, endDate: string, vehicleId: string): CalendarStatus => {
+    const vehicle = vehicleById.get(vehicleId);
+    if (vehicle?.maintenance) return "maintenance";
+    const today = format(new Date(), "yyyy-MM-dd");
+    if (endDate < today) return "completed";
+    if (startDate > today) return "pending";
+    return "active";
+  };
+
+  const statusClasses: Record<CalendarStatus, string> = {
+    active: "border-emerald-500 bg-emerald-50 text-emerald-900",
+    completed: "border-sky-400 bg-sky-50 text-sky-900",
+    maintenance: "border-amber-500 bg-amber-50 text-amber-900",
+    pending: "border-slate-400 bg-slate-100 text-slate-700",
+  };
+
   return (
-    <div className="mx-auto max-w-[min(100%,88rem)] space-y-4">
-      <div>
-        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <Calendar className="h-5 w-5 text-primary" />
-          Takvim
-        </h1>
-        <p className="text-xs text-muted-foreground">
-          Tüm filo veya tek araç seçerek takvimi daraltın. Tek araçta yalnızca o plakanın kiralı olduğu günlerde kiralama satırı görünür; diğer araçların kayıtları gösterilmez.
-        </p>
+    <div className="mx-auto max-w-[min(100%,90rem)] space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Planlama Modulu</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Kiralama Takvimi</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" className="h-10 gap-2 rounded-lg px-4">
+            <Download className="h-4 w-4" />
+            Disa Aktar
+          </Button>
+          <Button type="button" className="h-10 gap-2 rounded-lg bg-sky-500 px-4 text-white hover:bg-sky-600">
+            <Plus className="h-4 w-4" />
+            Yeni Rezervasyon
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -147,184 +115,98 @@ export function FleetCalendarClient() {
         </p>
       )}
 
-      <Card className="glow-card">
-        <CardHeader className="flex flex-col gap-3 py-3 sm:space-y-0">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0 flex-1 space-y-2">
-              <CardTitle className="text-sm">Filo kiralama takvimi</CardTitle>
-              <CardDescription>
-                {!ready ? "Yükleniyor…" : `${allSessions.filter(rentalCountsForCalendar).length} takvimde sayılan kiralama`}
-                {vehicleScope !== ALL_VEHICLES_VALUE && vehicleById.get(vehicleScope) && (
-                  <span className="mt-1 block text-foreground/90">
-                    Görünüm:{" "}
-                    <span className="font-mono font-medium">{vehicleById.get(vehicleScope)!.plate}</span> — yalnızca bu aracın
-                    kiralı günleri.
-                  </span>
-                )}
-                <span className="mt-1 block text-foreground/80">
-                  Başlangıç: {format(monthStart, "dd.MM.yyyy")} (1.gün) · Bitiş: {format(monthEnd, "dd.MM.yyyy")} (
-                  {monthDays.length}.gün)
+      <Card className="rounded-2xl border bg-white/95 shadow-sm dark:bg-card">
+        <CardContent className="space-y-4 px-4 py-4 sm:px-6">
+          <div className="rounded-xl border border-border/80 bg-muted/30 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-lg border-white bg-white px-4 text-xs font-semibold dark:border-border dark:bg-background"
+                  onClick={() => setMonth(startOfMonth(new Date()))}
+                >
+                  Bugun
+                </Button>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={() => setMonth((m) => addMonths(m, -1))}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-[9rem] text-center text-base font-semibold capitalize tabular-nums">
+                  {format(month, "LLLL yyyy", { locale: tr })}
                 </span>
-              </CardDescription>
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
-                <div className="min-w-0 flex-1 space-y-1 sm:min-w-[14rem] sm:max-w-xs">
-                  <Label htmlFor="fleet-cal-vehicle" className="text-[11px] text-muted-foreground">
-                    Araç
-                  </Label>
-                  <Select
-                    value={vehicleScope}
-                    onValueChange={(v) => setVehicleScope(v)}
-                    disabled={!ready || allVehicles.length === 0}
-                  >
-                    <SelectTrigger id="fleet-cal-vehicle" className="h-9 text-xs">
-                      <SelectValue placeholder="Araç seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_VEHICLES_VALUE} className="text-xs">
-                        Tüm araçlar (filo özeti)
-                      </SelectItem>
-                      {vehiclesForSelect.map((v) => (
-                        <SelectItem key={v.id} value={v.id} className="text-xs">
-                          <span className="font-mono">{v.plate}</span>
-                          <span className="text-muted-foreground"> — {v.brand} {v.model}</span>
-                          {v.maintenance ? " (bakım)" : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="min-w-0 flex-1 space-y-1 sm:min-w-[10rem] sm:max-w-[14rem]">
-                  <Label htmlFor="fleet-cal-plate" className="text-[11px] text-muted-foreground">
-                    Listeyi daralt (plaka / model)
-                  </Label>
-                  <Input
-                    id="fleet-cal-plate"
-                    className="h-9 text-xs"
-                    placeholder="Örn: 34 veya Corolla"
-                    value={plateFilter}
-                    onChange={(e) => setPlateFilter(e.target.value)}
-                    disabled={!ready}
-                  />
-                </div>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={() => setMonth((m) => addMonths(m, 1))}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
-              <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Görünüm</Label>
-                <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)} className="w-full sm:w-auto">
-                  <TabsList className="h-9">
-                    <TabsTrigger value="calendar" className="gap-1 text-xs">
-                      <Calendar className="h-3.5 w-3.5" />
-                      Takvim
-                    </TabsTrigger>
-                    <TabsTrigger value="timeline" className="gap-1 text-xs">
-                      <Rows3 className="h-3.5 w-3.5" />
-                      Timeline
-                    </TabsTrigger>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={safeVehicleScope} onValueChange={(v) => setVehicleScope(v)} disabled={!ready || allVehicles.length === 0}>
+                  <SelectTrigger className="h-9 min-w-[11rem] rounded-lg bg-white text-xs dark:bg-background">
+                    <SelectValue placeholder="Arac Kategorisi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_VEHICLES_VALUE} className="text-xs">
+                      Arac Kategorisi
+                    </SelectItem>
+                    {vehiclesForSelect.map((v) => (
+                      <SelectItem key={v.id} value={v.id} className="text-xs">
+                        <span className="font-mono">{v.plate}</span>
+                        <span className="text-muted-foreground"> - {v.brand} {v.model}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Tabs value={zoomMode} onValueChange={(v) => setZoomMode(v as ZoomMode)}>
+                  <TabsList className="h-9 rounded-lg bg-white p-1 dark:bg-background">
+                    <TabsTrigger value="month" className="px-3 text-xs">Ay</TabsTrigger>
+                    <TabsTrigger value="week" className="px-3 text-xs">Hafta</TabsTrigger>
+                    <TabsTrigger value="day" className="px-3 text-xs">Gun</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
             </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 shrink-0"
-                aria-label="Önceki ay"
-                onClick={() => setMonth((m) => addMonths(m, -1))}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="min-w-[10rem] text-center text-sm font-semibold capitalize tabular-nums">
-                {format(month, "LLLL yyyy", { locale: tr })}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 shrink-0"
-                aria-label="Sonraki ay"
-                onClick={() => setMonth((m) => addMonths(m, 1))}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="ml-1 h-9 text-xs"
-                onClick={() => setMonth(startOfMonth(new Date()))}
-              >
-                Bugün
-              </Button>
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Aktif</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-sky-500" />Tamamlandi</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" />Bakim</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-400" />Beklemede</span>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="px-2 pb-4 pt-0 sm:px-4">
           {!ready ? (
-            <p className="py-16 text-center text-sm text-muted-foreground">Takvim yükleniyor…</p>
-          ) : viewMode === "calendar" ? (
+            <p className="py-16 text-center text-sm text-muted-foreground">Takvim yukleniyor...</p>
+          ) : (
             <div className="overflow-x-auto">
-              <div className="min-w-[640px]">
-                <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+              <div className="min-w-[920px] rounded-2xl border bg-card">
+                <div className="grid grid-cols-7 border-b">
                   {weekdayLabels.map((label) => (
-                    <div
-                      key={label}
-                      className="rounded-md bg-muted/50 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs"
-                    >
+                    <div key={label} className="border-r px-2 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground last:border-r-0">
                       {label}
                     </div>
                   ))}
+                </div>
+                <div className="grid grid-cols-7">
                   {gridDays.map((day) => {
                     const infos = rentalsForCell(day);
                     const inMonth = isSameMonth(day, month);
-                    const seqDay = inMonth ? Math.floor((day.getTime() - monthStart.getTime()) / 86_400_000) + 1 : null;
                     const visible = infos.slice(0, MAX_RENTALS_PER_CELL);
                     const more = infos.length - visible.length;
-                    const singleVehicleMode = vehicleScope !== ALL_VEHICLES_VALUE;
-                    const hasRental = infos.length > 0;
                     return (
-                      <div
-                        key={format(day, "yyyy-MM-dd")}
-                        className={cn(
-                          "flex min-h-[5.5rem] flex-col rounded-lg border border-border/80 bg-card p-1 shadow-sm sm:min-h-[7.5rem] lg:min-h-[9rem]",
-                          !inMonth && "opacity-45",
-                          isToday(day) && "ring-2 ring-primary ring-offset-2 ring-offset-background",
-                          singleVehicleMode && inMonth && !hasRental && "bg-muted/20",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-1 px-0.5 pt-0.5">
-                          <div className="space-y-0.5">
-                            <span
-                              className={cn(
-                                "tabular-nums text-xs font-semibold sm:text-sm",
-                                isToday(day) ? "text-primary" : "text-foreground",
-                              )}
-                            >
-                              {format(day, "d")}
-                            </span>
-                            {seqDay != null && <p className="text-[9px] text-muted-foreground">{seqDay}.gün</p>}
-                          </div>
-                        </div>
-                        <div className="mt-1 flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
-                          {visible.map(({ session: s, durationDays }) => {
+                      <div key={format(day, "yyyy-MM-dd")} className={cn("min-h-[8rem] border-b border-r p-2 last:border-r-0", !inMonth && "bg-muted/30 text-muted-foreground", isToday(day) && "bg-sky-50/70 dark:bg-sky-950/25")}>
+                        <p className={cn("mb-2 text-sm font-medium", isToday(day) && "text-sky-700 dark:text-sky-300")}>{format(day, "d")}</p>
+                        <div className="space-y-1">
+                          {visible.map(({ session: s }) => {
                             const v = vehicleById.get(s.vehicleId);
                             const plate = v?.plate ?? s.vehicleId.slice(0, 8);
-                            const accent = accentForVehicleId(s.vehicleId);
+                            const status = resolveStatus(s.startDate, s.endDate, s.vehicleId);
+                            const customer = s.customerName?.trim() || s.customerEmail?.trim() || "Musteri";
                             return (
-                              <div
-                                key={s.id}
-                                className="block truncate rounded-md border border-border/50 bg-muted/30 px-1 py-0.5 text-left text-[10px] sm:text-xs"
-                                style={{ borderLeftWidth: 3, borderLeftColor: accent }}
-                                title={`${plate}: ${s.startDate} → ${s.endDate} (${durationDays} gün)`}
-                              >
-                                <span className="font-mono font-medium">{plate}</span>
-                                <span className="text-muted-foreground"> · {durationDays} gün</span>
+                              <div key={s.id} className={cn("rounded-md border-l-4 px-2 py-1 text-[11px]", statusClasses[status])} title={`${plate}: ${s.startDate} -> ${s.endDate}`}>
+                                <p className="truncate font-medium">{plate}</p>
+                                <p className="truncate text-[10px] opacity-80">Musteri: {customer}</p>
                               </div>
                             );
                           })}
-                          {more > 0 && (
-                            <p className="truncate px-0.5 text-[10px] text-muted-foreground">+{more} kirada</p>
-                          )}
+                          {more > 0 && <p className="text-[10px] text-muted-foreground">+{more} kayit daha</p>}
                         </div>
                       </div>
                     );
@@ -332,115 +214,30 @@ export function FleetCalendarClient() {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {timelineRows.length === 0 ? (
-                <p className="py-10 text-center text-sm text-muted-foreground">Bu ay için eşleşen kiralama kaydı yok.</p>
-              ) : (
-                <div className="min-w-0 rounded-lg border border-border/70 bg-card shadow-sm">
-                  <div className="flex min-w-0">
-                    {/* Sol: plaka + tarih — yatay kaydırmada sabit */}
-                    <div className="z-10 w-[min(42vw,11rem)] shrink-0 border-r border-border/70 bg-card sm:w-44">
-                      <div className="flex h-10 items-end border-b border-border/60 bg-muted/25 px-2 pb-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Kiralama
-                        </span>
-                      </div>
-                      {timelineRows.map((s) => {
-                        const v = vehicleById.get(s.vehicleId);
-                        const plate = v?.plate ?? s.vehicleId.slice(0, 8);
-                        const start = parseISO(s.startDate);
-                        const end = parseISO(s.endDate);
-                        const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
-                        return (
-                          <div
-                            key={`label-${s.id}`}
-                            className="flex h-16 flex-col justify-center border-b border-border/50 px-2 py-1 last:border-b-0"
-                          >
-                            <p className="truncate font-mono text-xs font-semibold leading-tight">{plate}</p>
-                            <p className="line-clamp-2 text-[10px] leading-snug text-muted-foreground">
-                              {s.startDate} → {s.endDate} · {totalDays} gün
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {/* Sağ: yalnızca bu alan kayar; gün genişliği sabit px */}
-                    <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-                      <div className="shrink-0" style={{ width: timelineTrackWidthPx }}>
-                        <div
-                          className="grid h-10 shrink-0 border-b border-border/60 bg-muted/30"
-                          style={{
-                            gridTemplateColumns: `repeat(${monthDays.length}, ${TIMELINE_DAY_COL_PX}px)`,
-                          }}
-                        >
-                          {monthDays.map((d, idx) => {
-                            const showNum =
-                              idx === 0 ||
-                              idx === monthDays.length - 1 ||
-                              (idx + 1) % 5 === 0 ||
-                              monthDays.length <= 14;
-                            return (
-                              <div
-                                key={`h-${format(d, "yyyy-MM-dd")}`}
-                                className="flex items-end justify-center border-l border-border/40 pb-0.5 text-[9px] tabular-nums text-muted-foreground first:border-l-0"
-                              >
-                                {showNum ? idx + 1 : ""}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {timelineRows.map((s) => {
-                          const v = vehicleById.get(s.vehicleId);
-                          const plate = v?.plate ?? s.vehicleId.slice(0, 8);
-                          const accent = accentForVehicleId(s.vehicleId);
-                          const start = parseISO(s.startDate);
-                          const end = parseISO(s.endDate);
-                          const clampedStart = start < monthStart ? monthStart : start;
-                          const clampedEnd = end > monthEnd ? monthEnd : end;
-                          const msDay = 86_400_000;
-                          const startIdx = Math.max(
-                            0,
-                            Math.floor((clampedStart.getTime() - monthStart.getTime()) / msDay),
-                          );
-                          const endIdx = Math.min(
-                            monthDays.length - 1,
-                            Math.floor((clampedEnd.getTime() - monthStart.getTime()) / msDay),
-                          );
-                          const spanDays = Math.max(1, endIdx - startIdx + 1);
-                          const leftPx = startIdx * TIMELINE_DAY_COL_PX;
-                          const widthPx = spanDays * TIMELINE_DAY_COL_PX;
-                          const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / msDay) + 1);
-                          const barTitle = `${plate}: ${s.startDate} → ${s.endDate} (${totalDays} gün)`;
-                          return (
-                            <div
-                              key={`track-${s.id}`}
-                              className="relative h-16 shrink-0 border-b border-border/50 bg-muted/15 last:border-b-0"
-                              style={{ width: timelineTrackWidthPx }}
-                            >
-                              <div
-                                className="absolute inset-y-2 rounded-sm shadow-sm ring-1 ring-black/10 dark:ring-white/10"
-                                style={{
-                                  left: leftPx,
-                                  width: widthPx,
-                                  backgroundColor: accent,
-                                }}
-                                title={barTitle}
-                                aria-label={barTitle}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <p className="text-[11px] text-muted-foreground">
-                Timeline: sol sütunda kiralama özeti; günler yatay kaydırılır. Çubuk üzerine gelince tarih aralığını görebilirsiniz.
+          )}
+          <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Toplam Rezervasyon</p>
+              <p className="mt-2 text-3xl font-semibold">{allSessions.filter(rentalCountsForCalendar).length}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Aktif Teslimat</p>
+              <p className="mt-2 text-3xl font-semibold">{allSessions.filter((s) => {
+                const today = format(new Date(), "yyyy-MM-dd");
+                return s.startDate <= today && s.endDate >= today;
+              }).length}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Servis Bekleyen</p>
+              <p className="mt-2 text-3xl font-semibold">{allVehicles.filter((v) => v.maintenance).length}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Doluluk Orani</p>
+              <p className="mt-2 text-3xl font-semibold">
+                {allVehicles.length === 0 ? "%0" : `%${Math.round((allSessions.filter(rentalCountsForCalendar).length / allVehicles.length) * 100)}`}
               </p>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
     </div>

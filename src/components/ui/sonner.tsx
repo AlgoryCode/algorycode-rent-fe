@@ -5,6 +5,7 @@ import { Toaster as Sonner } from "sonner";
 export function Toaster() {
   return (
     <Sonner
+      duration={2000}
       richColors
       position="top-right"
       closeButton

@@ -64,6 +64,13 @@ function buildBreadcrumbs(
   }
 
   if (path === "/logs") {
+    const sekme = search.get("sekme");
+    if (sekme === "istekler") {
+      return [{ label: "Kiralamalar", href: "/logs" }, { label: "Kiralama istekleri" }];
+    }
+    if (sekme === "baslat") {
+      return [{ label: "Kiralamalar", href: "/logs" }, { label: "Kiralama başlat" }];
+    }
     return [{ label: "Kiralamalar" }];
   }
 
@@ -89,11 +96,13 @@ function buildBreadcrumbs(
     return [{ label: "Kullanıcılar", href: "/users" }, { label: "Kullanıcı detayı" }];
   }
 
+  if (path === "/countries" || path.startsWith("/countries/")) {
+    return [{ label: "Lokasyonlar", href: "/settings/locations/pickup" }, { label: "Ülkeler" }];
+  }
+
   const staticLabels: Record<string, string> = {
     "/payments": "Ödemeler",
     "/reports": "Raporlar",
-    "/countries": "Ülkeler",
-    "/requests": "Talepler",
     "/users": "Kullanıcılar",
     "/settings": "Ayarlar",
     "/settings/locations/pickup": "Alış noktaları",

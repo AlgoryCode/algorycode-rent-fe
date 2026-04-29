@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCustomerDirectoryRows } from "@/hooks/use-customer-directory-rows";
 import { useCustomerRecordStates } from "@/hooks/use-customer-record-states";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
@@ -447,23 +448,37 @@ export function RentalDetailClient({ rentalId }: Props) {
                   {!rental.accidentReports || rental.accidentReports.length === 0 ? (
                     <p className="py-2 text-xs text-muted-foreground">Bu kiralama için kaza kaydı yok.</p>
                   ) : (
-                    <div className="space-y-3">
-                      {rental.accidentReports.map((a) => (
-                        <div key={a.id} className="rounded-md border bg-background p-2.5 text-xs">
-                          <p>{a.description}</p>
-                          {a.photos && a.photos.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {a.photos.map((p) => (
-                                <figure key={p.id} className="w-20 shrink-0 sm:w-24">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={p.url} alt={p.caption || "Kaza"} className="aspect-video w-full rounded border object-cover" />
-                                  {p.caption && <figcaption className="mt-0.5 text-[9px] text-muted-foreground">{p.caption}</figcaption>}
-                                </figure>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto rounded-md border">
+                      <Table className="min-w-[480px] text-xs">
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead>Açıklama</TableHead>
+                            <TableHead className="min-w-[120px]">Fotoğraflar</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {rental.accidentReports.map((a) => (
+                            <TableRow key={a.id}>
+                              <TableCell>{a.description}</TableCell>
+                              <TableCell>
+                                {a.photos && a.photos.length > 0 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {a.photos.map((p) => (
+                                      <figure key={p.id} className="w-20 shrink-0 sm:w-24">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={p.url} alt={p.caption || "Kaza"} className="aspect-video w-full rounded border object-cover" />
+                                        {p.caption && <figcaption className="mt-0.5 text-[9px] text-muted-foreground">{p.caption}</figcaption>}
+                                      </figure>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
                   )}
                 </TabsContent>

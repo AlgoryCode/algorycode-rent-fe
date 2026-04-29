@@ -25,6 +25,40 @@ import type {
 } from "@/lib/mock-fleet";
 import type { PaymentLog, PaymentLogStatus } from "@/lib/mock-payments";
 import type { PanelUser, PanelUserRole } from "@/lib/mock-users";
+import type {
+  CityRow,
+  CountryRow,
+  CreateCityPayload,
+  CreateCountryPayload,
+  CreateHandoverLocationPayload,
+  CreateRentalPayload,
+  CreateReservationExtraOptionTemplatePayload,
+  CreateVehicleOptionTemplatePayload,
+  CreateVehiclePayload,
+  CustomerRecordDeletionPayload,
+  CustomerRecordStatePayload,
+  FetchRentalDashboardParams,
+  FetchRentalsParams,
+  HandoverLocationApiRow,
+  RentalDashboardReport,
+  RentalRequestDto,
+  RentalRequestFormPayload,
+  RentalRequestStatus,
+  ReservationExtraOptionTemplateApiRow,
+  UpdateHandoverLocationPayload,
+  UpdateRentalPayload,
+  UpdateReservationExtraOptionTemplatePayload,
+  UpdateVehicleOptionTemplatePayload,
+  UpdateVehiclePayload,
+  VehicleBodyStyleRow,
+  VehicleCatalogCreatePayload,
+  VehicleCatalogRow,
+  VehicleCatalogUpdatePayload,
+  VehicleFormCatalog,
+  VehicleFormCatalogBrandRow,
+  VehicleFormCatalogModelRow,
+  VehicleOptionTemplateApiRow,
+} from "@/models";
 import { normalizeRentalStatus } from "@/lib/rental-status";
 import { VEHICLE_IMAGE_SLOTS, type VehicleImageSlot } from "@/lib/vehicle-images";
 
@@ -112,17 +146,6 @@ function rentClient() {
   return client;
 }
 
-export type VehicleBodyStyleRow = {
-  /** Veritabanı otomatik artan kimlik; silme isteğinde kullanılır (UI’da göstermek zorunlu değil). */
-  id: string;
-  code: string;
-  labelTr: string;
-  sortOrder: number;
-};
-
-/** Gövde / yakıt / vites referans satırı (aynı JSON şekli). */
-export type VehicleCatalogRow = VehicleBodyStyleRow;
-
 function mapVehicleCatalogRow(o: Record<string, unknown>): VehicleCatalogRow {
   const rawId = o.id;
   const idStr =
@@ -146,413 +169,42 @@ const VEHICLE_CATALOG_API = {
 } as const;
 
 export type VehicleCatalogKind = keyof typeof VEHICLE_CATALOG_API;
-
-export type VehicleCatalogCreatePayload = {
-  /** Boş bırakılırsa sunucu özellik adından benzersiz kod üretir. */
-  code?: string;
-  labelTr: string;
-  sortOrder: number;
-};
-
-export type VehicleCatalogUpdatePayload = {
-  labelTr?: string;
-  sortOrder?: number;
-};
-
-export type VehicleOptionDefinitionPayload = {
-  title: string;
-  description?: string;
-  price: number;
-  icon?: string;
-  lineOrder: number;
-  active?: boolean;
-};
-
-export type CreateVehiclePayload = {
-  plate: string;
-  brand: string;
-  model: string;
-  year: number;
-  maintenance: boolean;
-  external?: boolean;
-  externalCompany?: string;
-  rentalDailyPrice: number;
-  commissionRatePercent?: number;
-  commissionBrokerPhone?: string;
-  /** Ülke tablosundaki kod ile eşleşir (en fazla 64 karakter). */
-  countryCode: string;
-  /** rent-service şehir (opsiyonel). */
-  cityId?: string;
-  defaultPickupHandoverLocationId: string;
-  /** Boş veya atlanırsa araç için teslim kısıtı yok; doluysa yalnız bu RETURN noktaları geçerli. */
-  returnHandoverLocationIds?: string[];
-  /** Geriye uyumluluk: tek teslim; {@code returnHandoverLocationIds} doluysa kullanılmaz. */
-  defaultReturnHandoverLocationId?: string;
-  /** Sunucuda şablondan kopyalanır; {@code optionDefinitions} ile birlikte kullanılabilir. */
-  optionTemplateIds?: string[];
-  optionDefinitions?: VehicleOptionDefinitionPayload[];
-  /** Her satır bir madde; en fazla 30 (opsiyonel). */
-  highlights?: string[];
-  images?: Record<string, string>;
-  engine?: string;
-  fuelType?: string;
-  bodyColor?: string;
-  seats?: number;
-  luggage?: number;
-  transmissionType?: string;
-  bodyStyleCode?: string;
-};
-
-export type UpdateVehiclePayload = {
-  plate?: string;
-  brand?: string;
-  model?: string;
-  year?: number;
-  maintenance?: boolean;
-  external?: boolean;
-  externalCompany?: string;
-  rentalDailyPrice?: number;
-  commissionRatePercent?: number;
-  commissionBrokerPhone?: string;
-  countryCode?: string;
-  cityId?: string;
-  defaultPickupHandoverLocationId?: string;
-  /** null/undefined: dokunma; []: tüm teslim atamalarını kaldır. */
-  returnHandoverLocationIds?: string[];
-  defaultReturnHandoverLocationId?: string;
-  optionTemplateIds?: string[];
-  optionDefinitions?: VehicleOptionDefinitionPayload[];
-  /** {@code undefined}: değiştirme; boş dizi: tümünü sil. */
-  highlights?: string[];
-  images?: Record<string, string>;
-  engine?: string;
-  fuelType?: string;
-  bodyColor?: string;
-  seats?: number;
-  luggage?: number;
-  transmissionType?: string;
-  bodyStyleCode?: string;
-};
-
-export type CountryRow = {
-  id: string;
-  code: string;
-  name: string;
-  colorCode: string;
-};
-
-export type CityRow = {
-  id: string;
-  name: string;
-  countryId: string;
-  countryCode: string;
-  countryName: string;
-};
-
-export type HandoverLocationApiRow = {
-  id: string;
-  kind: string;
-  name: string;
-  description?: string | null;
-  cityId?: string | null;
-  cityName?: string | null;
-  countryCode?: string | null;
-  lineOrder?: number;
-  active?: boolean;
-  /** Bu nokta seçildiğinde eklenen sabit ücret (EUR); farklı bırakış fiyatlaması. */
-  surchargeEur?: number;
-};
-
-export type CreateHandoverLocationPayload = {
-  kind: "PICKUP" | "RETURN";
-  name: string;
-  description?: string;
-  cityId?: string;
-  active?: boolean;
-  lineOrder: number;
-  surchargeEur?: number;
-};
-
-export type UpdateHandoverLocationPayload = {
-  kind?: "PICKUP" | "RETURN";
-  name?: string;
-  description?: string;
-  cityId?: string;
-  clearCity?: boolean;
-  active?: boolean;
-  lineOrder?: number;
-  surchargeEur?: number;
-};
-
-export type VehicleOptionTemplateApiRow = {
-  id: string;
-  title: string;
-  description?: string | null;
-  price: number;
-  icon?: string | null;
-  lineOrder: number;
-  active: boolean;
-};
-
-export type VehicleFormCatalogModelRow = {
-  id: string;
-  name: string;
-  sortOrder: number;
-};
-
-export type VehicleFormCatalogBrandRow = {
-  id: string;
-  name: string;
-  sortOrder: number;
-  models: VehicleFormCatalogModelRow[];
-};
-
-export type VehicleFormCatalogVehicleStatusRow = {
-  id: string;
-  code: string;
-  labelTr: string;
-  sortOrder: number;
-};
-
-export type VehicleFormCatalog = {
-  brands: VehicleFormCatalogBrandRow[];
-  fuelTypes: VehicleCatalogRow[];
-  transmissionTypes: VehicleCatalogRow[];
-  bodyStyles: VehicleCatalogRow[];
-  vehicleStatuses: VehicleFormCatalogVehicleStatusRow[];
-  countries: CountryRow[];
-  pickupHandoverLocations: HandoverLocationApiRow[];
-  returnHandoverLocations: HandoverLocationApiRow[];
-  optionTemplates: VehicleOptionTemplateApiRow[];
-};
-
-export type CreateVehicleOptionTemplatePayload = {
-  title: string;
-  description?: string;
-  price: number;
-  icon?: string;
-  lineOrder: number;
-  active?: boolean;
-};
-
-export type UpdateVehicleOptionTemplatePayload = {
-  title?: string;
-  description?: string;
-  price?: number;
-  icon?: string;
-  lineOrder?: number;
-  active?: boolean;
-};
-
-/** Kiralama (rezervasyon) ek hizmet şablonları — rent ekranında listelenir. */
-export type ReservationExtraOptionTemplateApiRow = {
-  id: string;
-  code: string;
-  title: string;
-  description?: string | null;
-  price: number;
-  icon?: string | null;
-  lineOrder: number;
-  active: boolean;
-  requiresCoDriverDetails: boolean;
-};
-
-export type CreateReservationExtraOptionTemplatePayload = {
-  code: string;
-  title: string;
-  description?: string;
-  price: number;
-  icon?: string;
-  lineOrder: number;
-  active?: boolean;
-  requiresCoDriverDetails?: boolean;
-};
-
-export type UpdateReservationExtraOptionTemplatePayload = {
-  code?: string;
-  title?: string;
-  description?: string;
-  price?: number;
-  icon?: string;
-  lineOrder?: number;
-  active?: boolean;
-  requiresCoDriverDetails?: boolean;
-};
-
-export type CreateCountryPayload = {
-  code: string;
-  name: string;
-  colorCode: string;
-};
-
-export type CreateRentalPayload = {
-  vehicleId: string;
-  startDate: string;
-  endDate: string;
-  customer: {
-    fullName: string;
-    nationalId: string;
-    passportNo?: string;
-    phone: string;
-    email?: string;
-    birthDate?: string;
-    driverLicenseNo?: string;
-    driverLicenseImageDataUrl?: string;
-    passportImageDataUrl?: string;
-  };
-  commissionAmount: number;
-  commissionFlow: "collect" | "pay";
-  commissionCompany?: string;
-  additionalDrivers?: {
-    fullName: string;
-    birthDate: string;
-    driverLicenseNo?: string;
-    passportNo?: string;
-    driverLicenseImageDataUrl: string;
-    passportImageDataUrl: string;
-  }[];
-  status?: string;
-};
-
-export type FetchRentalsParams = {
-  vehicleId?: string;
-  status?: "active" | "pending" | "completed" | "cancelled";
-  startDate?: string;
-  endDate?: string;
-};
-
-export type RentalDashboardSummary = {
-  rentalCount: number;
-  rentalDayBooked: number;
-  totalRevenueEur: number;
-  totalBaseRentalEur: number;
-  totalOptionsEur: number;
-  totalCommissionEur: number;
-  activeOrPendingCount: number;
-  completedCount: number;
-};
-
-export type RentalDashboardVehicleRow = {
-  vehicleId: string;
-  plate: string;
-  brand: string;
-  model: string;
-  rentalCount: number;
-  rentalDayBooked: number;
-  revenueEur: number;
-  baseRentalEur: number;
-  optionsEur: number;
-};
-
-export type RentalDashboardTimelineRow = {
-  period: string;
-  label: string;
-  rentalStarts: number;
-  revenueEur: number;
-};
-
-export type RentalDashboardReport = {
-  fromInclusive: string;
-  toInclusive: string;
-  timelineGranularity: "day" | "month";
-  summary: RentalDashboardSummary;
-  byVehicle: RentalDashboardVehicleRow[];
-  timeline: RentalDashboardTimelineRow[];
-};
-
-export type FetchRentalDashboardParams = {
-  from?: string;
-  to?: string;
-  vehicleId?: string;
-};
-
-export type UpdateRentalPayload = {
-  startDate?: string;
-  endDate?: string;
-  commissionAmount?: number;
-  commissionFlow?: "collect" | "pay";
-  commissionCompany?: string;
-  status?: "active" | "pending" | "completed" | "cancelled";
-  customer?: {
-    fullName?: string;
-    nationalId?: string;
-    passportNo?: string;
-    phone?: string;
-    email?: string;
-    birthDate?: string;
-    driverLicenseNo?: string;
-    passportImageDataUrl?: string;
-    driverLicenseImageDataUrl?: string;
-  };
-};
-
-export type RentalRequestStatus = "pending" | "approved" | "rejected";
-
-export type RentalRequestFormPayload = {
-  vehicleId?: string;
-  startDate: string;
-  endDate: string;
-  outsideCountryTravel: boolean;
-  note?: string;
-  customer: {
-    fullName: string;
-    phone: string;
-    email: string;
-    birthDate: string;
-    nationalId?: string;
-    passportNo?: string;
-    driverLicenseNo?: string;
-    passportImageDataUrl: string;
-    driverLicenseImageDataUrl: string;
-  };
-  additionalDrivers?: {
-    fullName: string;
-    birthDate: string;
-    driverLicenseNo?: string;
-    passportNo?: string;
-    passportImageDataUrl: string;
-    driverLicenseImageDataUrl: string;
-  }[];
-};
-
-export type RentalRequestDto = {
-  id: string;
-  referenceNo: string;
-  createdAt?: string;
-  status: RentalRequestStatus;
-  statusMessage?: string;
-  vehicleId?: string;
-  startDate: string;
-  endDate: string;
-  outsideCountryTravel: boolean;
-  greenInsuranceFee: number;
-  note?: string;
-  contractPdfPath?: string;
-  /** Sunucu: onaylı ve henüz PDF yoksa true — “Sözleşme oluştur” gösterimi için. */
-  contractGenerationAvailable?: boolean;
-  whatsappContractSentAt?: string;
-  whatsappContractError?: string;
-  customer: {
-    fullName: string;
-    phone: string;
-    email: string;
-    birthDate: string;
-    nationalId?: string;
-    passportNo: string;
-    driverLicenseNo: string;
-    passportImageDataUrl?: string;
-    driverLicenseImageDataUrl?: string;
-  };
-  additionalDrivers?: {
-    id?: string;
-    fullName: string;
-    birthDate: string;
-    driverLicenseNo: string;
-    passportNo: string;
-    passportImageDataUrl?: string;
-    driverLicenseImageDataUrl?: string;
-  }[];
-};
+export type {
+  CityRow,
+  CountryRow,
+  CreateCityPayload,
+  CreateCountryPayload,
+  CreateHandoverLocationPayload,
+  CreateRentalPayload,
+  CreateReservationExtraOptionTemplatePayload,
+  CreateVehicleOptionTemplatePayload,
+  CreateVehiclePayload,
+  CustomerRecordDeletionPayload,
+  CustomerRecordStatePayload,
+  FetchRentalDashboardParams,
+  FetchRentalsParams,
+  HandoverLocationApiRow,
+  RentalDashboardReport,
+  RentalRequestDto,
+  RentalRequestFormPayload,
+  RentalRequestStatus,
+  ReservationExtraOptionTemplateApiRow,
+  UpdateHandoverLocationPayload,
+  UpdateRentalPayload,
+  UpdateReservationExtraOptionTemplatePayload,
+  UpdateVehicleOptionTemplatePayload,
+  UpdateVehiclePayload,
+  VehicleBodyStyleRow,
+  VehicleCatalogCreatePayload,
+  VehicleCatalogRow,
+  VehicleCatalogUpdatePayload,
+  VehicleFormCatalog,
+  VehicleFormCatalogBrandRow,
+  VehicleFormCatalogModelRow,
+  VehicleFormCatalogVehicleStatusRow,
+  VehicleOptionDefinitionPayload,
+  VehicleOptionTemplateApiRow,
+} from "@/models";
 
 export function getRentApiErrorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -1033,11 +685,6 @@ export async function fetchCitiesFromRentApi(countryId?: string): Promise<CityRo
     };
   });
 }
-
-export type CreateCityPayload = {
-  name: string;
-  countryId: string;
-};
 
 export async function createCityOnRentApi(payload: CreateCityPayload): Promise<CityRow> {
   const countryId = rentApiLongValue(payload.countryId);
@@ -1673,16 +1320,6 @@ export async function fetchRentalRequestContractPdfBlob(id: string): Promise<Blo
 export async function sendRentalRequestContractEmailOnRentApi(id: string): Promise<void> {
   await rentClient().post(`/rental-requests/${encodeURIComponent(id)}/send-contract-email`, {});
 }
-
-export type CustomerRecordStatePayload = {
-  recordKey: string;
-  active: boolean;
-};
-
-export type CustomerRecordDeletionPayload = {
-  deletedRentals: number;
-  deletedRentalRequests: number;
-};
 
 export async function fetchCustomerRecordStatesFromRentApi(): Promise<CustomerRecordStatePayload[]> {
   const { data } = await rentClient().get<unknown>("/customer-records");

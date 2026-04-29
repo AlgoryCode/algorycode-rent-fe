@@ -11,9 +11,8 @@ import {
   getRentApiErrorMessage,
   replaceVehicleImageSlotOnRentApi,
   updateVehicleOnRentApi,
-  type CreateVehiclePayload,
-  type UpdateVehiclePayload,
 } from "@/lib/rent-api";
+import type { CreateVehiclePayload, UpdateVehiclePayload } from "@/models";
 import type { VehicleImageSlot } from "@/lib/vehicle-images";
 
 export function useFleetVehicles() {

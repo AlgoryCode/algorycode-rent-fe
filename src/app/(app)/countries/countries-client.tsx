@@ -2,8 +2,9 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Globe2, Plus } from "lucide-react";
+import { Globe2 } from "lucide-react";
 import { toast } from "sonner";
+import { AddEntityButton } from "@/components/ui/add-entity-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -102,7 +103,7 @@ export function CountriesClient() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
             <Globe2 className="h-5 w-5 text-primary" />
@@ -112,10 +113,9 @@ export function CountriesClient() {
             Her ülke için renk kodu; araç listesinde o ülkeye atanmış satırlar bu renkle vurgulanır.
           </p>
         </div>
-        <Button type="button" size="sm" className="h-9 shrink-0 gap-1.5" onClick={() => setAddOpen(true)} disabled={loading}>
-          <Plus className="h-4 w-4" />
+        <AddEntityButton type="button" onClick={() => setAddOpen(true)} disabled={loading}>
           Yeni ülke
-        </Button>
+        </AddEntityButton>
       </div>
 
       {(error || formError) && (

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCustomerDirectoryRows } from "@/hooks/use-customer-directory-rows";
 import { useCustomerRecordStates } from "@/hooks/use-customer-record-states";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
@@ -72,7 +73,11 @@ type SendWizardStep =
   | "directory-wa"
   | "directory-mail";
 
-export function RequestsClient() {
+export type RequestsClientProps = {
+  embedded?: boolean;
+};
+
+export function RequestsClient({ embedded = false }: RequestsClientProps) {
   const qc = useQueryClient();
   const { allSessions } = useFleetSessions();
   const { data: customerRecordStates } = useCustomerRecordStates();
@@ -261,7 +266,7 @@ export function RequestsClient() {
     setSendDialogOpen(false);
   };
 
-  const copyEmptyFormLink = async (row: RentalRequestDto) => {
+  const copyEmptyFormLink = async () => {
     const url = emptyFormUrl();
     if (!url) return;
     try {
@@ -588,12 +593,14 @@ export function RequestsClient() {
         </DialogContent>
       </Dialog>
 
-      <header className="space-y-1">
-        <h1 className="text-lg font-semibold tracking-tight">Kiralama talepleri</h1>
-        <p className="text-xs text-muted-foreground">
-          Müşteri taleplerini referans numarasıyla takip edin, onaylayın veya reddedin.
-        </p>
-      </header>
+      {!embedded ? (
+        <header className="space-y-1">
+          <h1 className="text-lg font-semibold tracking-tight">Kiralama talepleri</h1>
+          <p className="text-xs text-muted-foreground">
+            Müşteri taleplerini referans numarasıyla takip edin, onaylayın veya reddedin.
+          </p>
+        </header>
+      ) : null}
 
       <Card className="border-primary/25 bg-gradient-to-br from-primary/[0.07] to-cyan-500/10 shadow-sm">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -646,163 +653,180 @@ export function RequestsClient() {
           {rows.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground">Kayıt bulunamadı.</p>
           ) : (
-            <div className="space-y-2">
-              {rows.map((row) => (
-                <div key={row.id} className="rounded-md border border-border/70 bg-background p-3 transition-colors hover:bg-muted/40">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{row.customer.fullName}</p>
-                      <p className="font-mono text-[11px] text-muted-foreground">{row.referenceNo}</p>
-                    </div>
-                    <div>{statusBadge(row.status)}</div>
-                  </div>
-                  <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                    <p>
-                      <span className="text-foreground">Talep gelişi:</span> {formatRequestReceivedAt(row.createdAt)}
-                    </p>
-                    <p>
-                      Kiralama dönemi: {row.startDate} → {row.endDate}
-                    </p>
-                    <p>Telefon: {row.customer.phone}</p>
-                    <p>E-posta: {row.customer.email}</p>
-                    <p>Yeşil sigorta: {row.greenInsuranceFee}</p>
-                    {row.statusMessage && <p className="sm:col-span-2">Not: {row.statusMessage}</p>}
-                    {row.contractPdfPath && (
-                      <p className="sm:col-span-2 break-all font-mono text-[10px] opacity-80">
-                        Sözleşme PDF: {row.contractPdfPath}
-                      </p>
-                    )}
-                    {row.whatsappContractSentAt && (
-                      <p className="sm:col-span-2 text-xs text-emerald-600 dark:text-emerald-400">
-                        Yönetici WhatsApp (PDF bildirimi):{" "}
-                        {new Date(row.whatsappContractSentAt).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}{" "}
-                        — gönderim denemesi tamamlandı
-                      </p>
-                    )}
-                    {row.whatsappContractError && (
-                      <p className="sm:col-span-2 text-xs text-destructive">WhatsApp / PDF iletim: {row.whatsappContractError}</p>
-                    )}
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {canShowGenerateContract(row) && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="h-8 gap-1 text-xs"
-                        disabled={generateContractMutation.isPending}
-                        onClick={() => void generateContractMutation.mutateAsync(row.id)}
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        Sözleşme oluştur
-                      </Button>
-                    )}
-                    {Boolean(row.contractPdfPath?.trim()) && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-1 text-xs"
-                        disabled={downloadContractMutation.isPending}
-                        onClick={() =>
-                          void downloadContractMutation.mutateAsync({ id: row.id, referenceNo: row.referenceNo })
-                        }
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        PDF indir
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      className="h-8 text-xs"
-                      disabled={updateMutation.isPending || row.status === "approved"}
-                      onClick={() => void applyStatus(row, "approved")}
-                    >
-                      Onayla
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="h-8 text-xs"
-                      disabled={updateMutation.isPending || row.status === "rejected"}
-                      onClick={() => void applyStatus(row, "rejected")}
-                    >
-                      Reddet
-                    </Button>
-                    <span className="hidden h-4 w-px bg-border sm:inline" aria-hidden />
-                    {Boolean(row.contractPdfPath?.trim()) ? (
-                      <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          className="h-8 gap-1 text-xs"
-                          disabled={sendContractEmailMutation.isPending}
-                          onClick={() => void sendContractEmailMutation.mutateAsync(row.id)}
-                        >
-                          <Mail className="h-3.5 w-3.5" />
-                          Mail ile gönder
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          className="h-8 gap-1 text-xs"
-                          onClick={() => sendContractWhatsApp(row)}
-                        >
-                          <MessageCircle className="h-3.5 w-3.5" />
-                          WhatsApp
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-1 text-xs"
-                          onClick={() => openContractPdfUrl(row)}
-                          title="Sözleşme PDF bağlantısını yeni sekmede aç"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          PDF’yi aç
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-1 text-xs"
-                          onClick={() => void copyEmptyFormLink(row)}
-                          title="Ön doldurmasız form bağlantısını kopyala"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          Form bağlantısı
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          className="h-8 gap-1 text-xs"
-                          onClick={() => sendEmptyFormMail(row)}
-                        >
-                          <Mail className="h-3.5 w-3.5" />
-                          Form e-posta
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          className="h-8 gap-1 text-xs"
-                          onClick={() => sendEmptyFormWhatsApp(row)}
-                        >
-                          <MessageCircle className="h-3.5 w-3.5" />
-                          Form WhatsApp
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
+            <div className="rounded-lg border">
+              <Table className="min-w-[920px] text-xs">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Müşteri</TableHead>
+                    <TableHead className="whitespace-nowrap">Referans</TableHead>
+                    <TableHead>Statü</TableHead>
+                    <TableHead>Tarihler</TableHead>
+                    <TableHead>İletişim</TableHead>
+                    <TableHead className="min-w-[280px]">İşlemler</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="align-top">
+                        <p className="font-semibold">{row.customer.fullName}</p>
+                        {row.statusMessage ? (
+                          <p className="mt-1 max-w-[14rem] text-[11px] text-muted-foreground">Not: {row.statusMessage}</p>
+                        ) : null}
+                        {row.contractPdfPath ? (
+                          <p className="mt-1 max-w-[14rem] break-all font-mono text-[10px] text-muted-foreground">
+                            PDF: {row.contractPdfPath}
+                          </p>
+                        ) : null}
+                        {row.whatsappContractSentAt ? (
+                          <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+                            WhatsApp:{" "}
+                            {new Date(row.whatsappContractSentAt).toLocaleString("tr-TR", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
+                          </p>
+                        ) : null}
+                        {row.whatsappContractError ? (
+                          <p className="mt-1 text-[11px] text-destructive">{row.whatsappContractError}</p>
+                        ) : null}
+                        <p className="mt-1 text-[11px] text-muted-foreground">Yeşil sigorta: {row.greenInsuranceFee}</p>
+                      </TableCell>
+                      <TableCell className="align-top font-mono text-[11px] text-muted-foreground">{row.referenceNo}</TableCell>
+                      <TableCell className="align-top">{statusBadge(row.status)}</TableCell>
+                      <TableCell className="align-top text-muted-foreground">
+                        <p>Geliş: {formatRequestReceivedAt(row.createdAt)}</p>
+                        <p className="mt-0.5">
+                          {row.startDate} → {row.endDate}
+                        </p>
+                      </TableCell>
+                      <TableCell className="align-top text-muted-foreground">
+                        <p className="break-all">{row.customer.phone}</p>
+                        <p className="mt-0.5 break-all">{row.customer.email}</p>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {canShowGenerateContract(row) && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              className="h-8 gap-1 text-[11px]"
+                              disabled={generateContractMutation.isPending}
+                              onClick={() => void generateContractMutation.mutateAsync(row.id)}
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              Sözleşme oluştur
+                            </Button>
+                          )}
+                          {Boolean(row.contractPdfPath?.trim()) && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-8 gap-1 text-[11px]"
+                              disabled={downloadContractMutation.isPending}
+                              onClick={() =>
+                                void downloadContractMutation.mutateAsync({ id: row.id, referenceNo: row.referenceNo })
+                              }
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              PDF indir
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            className="h-8 text-[11px]"
+                            disabled={updateMutation.isPending || row.status === "approved"}
+                            onClick={() => void applyStatus(row, "approved")}
+                          >
+                            Onayla
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-8 text-[11px]"
+                            disabled={updateMutation.isPending || row.status === "rejected"}
+                            onClick={() => void applyStatus(row, "rejected")}
+                          >
+                            Reddet
+                          </Button>
+                          {Boolean(row.contractPdfPath?.trim()) ? (
+                            <>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                className="h-8 gap-1 text-[11px]"
+                                disabled={sendContractEmailMutation.isPending}
+                                onClick={() => void sendContractEmailMutation.mutateAsync(row.id)}
+                              >
+                                <Mail className="h-3.5 w-3.5" />
+                                Mail gönder
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                className="h-8 gap-1 text-[11px]"
+                                onClick={() => sendContractWhatsApp(row)}
+                              >
+                                <MessageCircle className="h-3.5 w-3.5" />
+                                WhatsApp
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1 text-[11px]"
+                                onClick={() => openContractPdfUrl(row)}
+                                title="Sözleşme PDF bağlantısını yeni sekmede aç"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                PDF aç
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1 text-[11px]"
+                                onClick={() => void copyEmptyFormLink()}
+                                title="Ön doldurmasız form bağlantısını kopyala"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                                Form linki
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                className="h-8 gap-1 text-[11px]"
+                                onClick={() => sendEmptyFormMail(row)}
+                              >
+                                <Mail className="h-3.5 w-3.5" />
+                                Form mail
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                className="h-8 gap-1 text-[11px]"
+                                onClick={() => sendEmptyFormWhatsApp(row)}
+                              >
+                                <MessageCircle className="h-3.5 w-3.5" />
+                                Form WP
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>

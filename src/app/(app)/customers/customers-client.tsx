@@ -5,12 +5,13 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
-import { Building2, Pencil, Plus, Search, User, Users } from "lucide-react";
+import { Building2, Pencil, Search, User, Users } from "lucide-react";
 import { toast } from "sonner";
 
+import { AddEntityButton } from "@/components/ui/add-entity-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ListingPanel, ListingTableWell, ListingToolbar } from "@/components/ui/listing-panel";
 import {
   Dialog,
   DialogContent,
@@ -167,21 +168,14 @@ export function CustomersClient() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           <Users className="h-5 w-5 text-primary" />
           Müşteriler
         </h1>
-        <p className="text-xs text-muted-foreground">
-          Kiralama geçmişinden türetilen kayıtlar ve manuel eklenenler. Silme ve pasif durum sunucuda uygulanır; detay sayfasından yönetilir.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setNewOpen(true)}>
-          <Plus className="h-3.5 w-3.5" />
+        <AddEntityButton type="button" onClick={() => setNewOpen(true)}>
           Yeni müşteri
-        </Button>
+        </AddEntityButton>
       </div>
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
@@ -377,60 +371,60 @@ export function CustomersClient() {
         </TabsList>
       </Tabs>
 
-      <div className="mt-3 space-y-3">
-        <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="İsim, TC, telefon veya pasaport ara…"
-              className="h-9 pl-9"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Müşteri ara"
-            />
-          </div>
-
-          <Card className="glow-card">
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Kayıtlı müşteriler</CardTitle>
-              <CardDescription>
+      <div className="mt-3">
+        <ListingPanel>
+          <ListingToolbar>
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="İsim, TC, telefon veya pasaport ara…"
+                  className="h-9 border-border/80 bg-background pl-9"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  aria-label="Müşteri ara"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
                 {filtered.length} kayıt · toplam {rowsByKind.length} satır (sekme:{" "}
                 {kindTab === "all" ? "tümü" : kindTab === "individual" ? "bireysel" : "kurumsal"})
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-2 pb-3 sm:px-4">
-              {filtered.length === 0 ? (
-                <p className="py-8 text-center text-xs text-muted-foreground">Sonuç yok.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="h-9 w-[76px] text-xs">Tür</TableHead>
-                      <TableHead className="h-9 text-xs">İsim</TableHead>
-                      <TableHead className="hidden h-9 w-[120px] text-xs sm:table-cell">TC</TableHead>
-                      <TableHead className="hidden h-9 text-xs md:table-cell">Telefon</TableHead>
-                      <TableHead className="h-9 w-[52px] text-center text-xs">Kira</TableHead>
-                      <TableHead className="hidden h-9 w-[130px] text-xs lg:table-cell">Son işlem</TableHead>
-                      <TableHead className="h-9 w-[120px] text-right text-xs">İşlem</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((row) => {
-                      const k = resolveCustomerKind(row.customer);
-                      const isManual = row.key.startsWith("manual:");
-                      return (
-                        <TableRow
-                          key={row.key}
-                          role="button"
-                          tabIndex={0}
-                          className="cursor-pointer bg-background transition-colors hover:bg-muted/40"
-                          onClick={() => router.push(`/customers/${encodeURIComponent(row.key)}`)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              router.push(`/customers/${encodeURIComponent(row.key)}`);
-                            }
-                          }}
-                        >
+              </p>
+            </div>
+          </ListingToolbar>
+          <ListingTableWell>
+            {filtered.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted-foreground">Sonuç yok.</p>
+            ) : (
+              <Table className="min-w-[640px]">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[76px]">Tür</TableHead>
+                    <TableHead>İsim</TableHead>
+                    <TableHead className="hidden w-[120px] sm:table-cell">TC</TableHead>
+                    <TableHead className="hidden md:table-cell">Telefon</TableHead>
+                    <TableHead className="w-[52px] text-center">Kira</TableHead>
+                    <TableHead className="hidden w-[130px] lg:table-cell">Son işlem</TableHead>
+                    <TableHead className="w-[120px] text-right">İşlem</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((row) => {
+                    const k = resolveCustomerKind(row.customer);
+                    const isManual = row.key.startsWith("manual:");
+                    return (
+                      <TableRow
+                        key={row.key}
+                        role="button"
+                        tabIndex={0}
+                        className="cursor-pointer"
+                        onClick={() => router.push(`/customers/${encodeURIComponent(row.key)}`)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            router.push(`/customers/${encodeURIComponent(row.key)}`);
+                          }
+                        }}
+                      >
                           <TableCell className="py-2">
                             <Badge variant={k === "corporate" ? "secondary" : "outline"} className="text-[10px]">
                               {k === "corporate" ? "Kurumsal" : "Bireysel"}
@@ -490,11 +484,11 @@ export function CustomersClient() {
                         </TableRow>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                </TableBody>
+              </Table>
+            )}
+          </ListingTableWell>
+        </ListingPanel>
       </div>
     </div>
   );

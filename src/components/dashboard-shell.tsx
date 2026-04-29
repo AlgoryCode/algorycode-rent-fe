@@ -7,15 +7,15 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
   BarChart3,
+  Bell,
   Calendar,
   CalendarDays,
   Car,
   CarFront,
   ChevronDown,
-  Globe2,
+  CircleHelp,
   LayoutDashboard,
   Layers,
-  MailCheck,
   MapPin,
   MessagesSquare,
   LogOut,
@@ -29,7 +29,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { LanguageSelect } from "@/components/language-select";
 import { useLocale } from "@/components/locale-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,11 +75,9 @@ const ALL_NAV: (NavLinkDef | NavGroupDef)[] = [
   { type: "link", href: "/logs", msgKey: "nav.logs", icon: CalendarDays },
   { type: "link", href: "/calendar", msgKey: "nav.calendar", icon: Calendar },
   { type: "link", href: "/customers", msgKey: "nav.customers", icon: Users },
-  { type: "link", href: "/requests", msgKey: "nav.requests", icon: MailCheck },
   { type: "link", href: "/users", msgKey: "nav.users", icon: UserCog },
   { type: "link", href: "/payments", msgKey: "nav.payments", icon: Wallet },
   { type: "link", href: "/reports", msgKey: "nav.reports", icon: BarChart3 },
-  { type: "link", href: "/countries", msgKey: "nav.countries", icon: Globe2 },
   { type: "link", href: "/customers/channel", msgKey: "nav.bulkMessage", icon: MessagesSquare },
   { type: "link", href: "/settings/options/rental", msgKey: "nav.rentalOptions", icon: Layers },
   {
@@ -91,6 +88,7 @@ const ALL_NAV: (NavLinkDef | NavGroupDef)[] = [
     children: [
       { href: "/settings/locations/pickup", msgKey: "nav.handoverPickup" },
       { href: "/settings/locations/return", msgKey: "nav.handoverReturn" },
+      { href: "/countries", msgKey: "nav.countries" },
     ],
   },
   { type: "link", href: "/settings", msgKey: "nav.settings", icon: Settings },
@@ -132,7 +130,6 @@ function isNavActive(pathname: string, href: string) {
   }
   if (href === "/calendar") return pathname === "/calendar" || pathname.startsWith("/calendar/");
   if (href === "/payments") return pathname === "/payments" || pathname.startsWith("/payments/");
-  if (href === "/requests") return pathname === "/requests" || pathname.startsWith("/requests/");
   if (href === "/users") return pathname === "/users" || pathname.startsWith("/users/");
   if (href === "/settings/locations/pickup") return pathname === "/settings/locations/pickup";
   if (href === "/settings/locations/return") return pathname === "/settings/locations/return";
@@ -154,7 +151,12 @@ function isNavActive(pathname: string, href: string) {
 }
 
 function isLocationsGroupActive(pathname: string) {
-  return pathname.startsWith("/settings/locations/pickup") || pathname.startsWith("/settings/locations/return");
+  return (
+    pathname.startsWith("/settings/locations/pickup") ||
+    pathname.startsWith("/settings/locations/return") ||
+    pathname === "/countries" ||
+    pathname.startsWith("/countries/")
+  );
 }
 
 function isNavGroupActive(groupId: string, pathname: string) {
@@ -311,14 +313,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const showTemplateActions = pathname !== "/dashboard";
 
   useEffect(() => {
-    setOpenByGroupId((prev) => ({
-      ...prev,
-      vehicles: prev.vehicles || isVehiclesGroupActive(pathname),
-      locations: prev.locations || isLocationsGroupActive(pathname),
-    }));
-  }, [pathname]);
-
-  useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
@@ -392,7 +386,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         value={routeSearch}
         onChange={(e) => setRouteSearch(e.target.value)}
         placeholder={t("shell.searchPlaceholder")}
-        className="h-8 pr-9 text-xs"
+        className="h-10 rounded-xl border-transparent bg-slate-100 pr-10 text-sm focus-visible:border-sky-500 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
         onKeyDown={(e) => {
           if (e.key === "Enter" && routeSearchResults.length > 0) {
             e.preventDefault();
@@ -408,7 +402,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         type="button"
         variant="ghost"
         size="icon"
-        className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        className="absolute right-1.5 top-1/2 h-7 w-7 -translate-y-1/2 text-slate-500 hover:text-sky-600"
         aria-label={t("shell.searchRun")}
         onClick={() => {
           if (routeSearchResults.length > 0) {
@@ -467,15 +461,23 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <Suspense fallback={null}>
         <RentRbacToastInner />
       </Suspense>
-      <aside className="hidden w-52 shrink-0 flex-col border-r border-border bg-card/50 sm:flex">
-        <Link href="/dashboard" className="flex h-12 items-center gap-2 px-4 hover:bg-muted/50">
-          <CarFront className="h-5 w-5 shrink-0 text-primary" />
+      <aside className="hidden h-screen w-[280px] shrink-0 flex-col border-r border-slate-200 bg-white shadow-sm sm:flex">
+        <Link href="/dashboard" className="flex items-center gap-3 px-6 pb-3 pt-6">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500 text-white">
+            <CarFront className="h-5 w-5 shrink-0" />
+          </div>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold leading-tight">AlgoryRent</p>
-            <p className="truncate text-[10px] text-muted-foreground">{t("shell.subtitle")}</p>
+            <p className="truncate text-xl font-bold leading-tight text-slate-900">FleetControl</p>
+            <p className="truncate text-xs text-slate-500">Admin Portal</p>
           </div>
         </Link>
-        <nav className="flex flex-col gap-0.5 p-2">
+        <div className="px-3 pb-2">
+          <Button className="h-10 w-full justify-center gap-2 rounded-xl bg-sky-500 text-sm font-semibold text-white hover:bg-sky-600">
+            <span className="text-base leading-none">+</span>
+            New Booking
+          </Button>
+        </div>
+        <nav className="flex flex-1 flex-col gap-1 px-3 py-3">
           {filteredDesktopNav.map((item) => {
             if (item.type === "link") {
               const active = isNavActive(pathname, item.href);
@@ -485,8 +487,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-colors",
-                    active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    "flex items-center gap-2.5 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
+                    active
+                      ? "border-r-4 border-sky-500 bg-sky-50 text-sky-600"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -507,10 +511,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 <CollapsibleTrigger
                   type="button"
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "flex w-full items-center gap-2.5 rounded-lg px-4 py-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     groupActive
-                      ? "bg-primary/15 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      ? "border-r-4 border-sky-500 bg-sky-50 text-sky-600"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
                   )}
                 >
                   <GroupIcon className="h-4 w-4 shrink-0" />
@@ -520,7 +524,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                     aria-hidden
                   />
                 </CollapsibleTrigger>
-                <CollapsibleContent className="ml-2 mt-0.5 space-y-0.5 border-l border-border/60 pl-2">
+                <CollapsibleContent className="ml-3 mt-1 space-y-0.5 border-l border-border/60 pl-2">
                   {item.children.map((c) => {
                     const active = isNavActive(pathname, c.href);
                     return (
@@ -528,8 +532,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                         key={c.href}
                         href={c.href}
                         className={cn(
-                          "flex items-center rounded-md py-1.5 pl-2 pr-2 text-[11px] font-medium transition-colors",
-                          active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                          "flex items-center rounded-md py-1.5 pl-2 pr-2 text-xs font-medium transition-colors",
+                          active ? "bg-sky-500 text-white" : "text-muted-foreground hover:bg-slate-50 hover:text-foreground",
                         )}
                       >
                         {t(c.msgKey)}
@@ -541,6 +545,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
+        <div className="space-y-1 border-t border-slate-100 px-3 py-2">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2.5 rounded-lg px-4 py-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            onClick={() => void logout()}
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </button>
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -662,7 +676,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="min-w-0 flex-1 px-1">{renderRouteSearch()}</div>
           <div className="flex shrink-0 items-center gap-2">
-            <LanguageSelect variant="compact" />
             <Button
               type="button"
               variant="outline"
@@ -677,15 +690,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <header className="sticky top-0 z-30 hidden h-11 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur sm:flex">
-          {renderRouteSearch("max-w-sm")}
-          <div className="flex shrink-0 items-center gap-2">
-            <LanguageSelect variant="header" />
+        <header className="sticky top-0 z-30 hidden h-16 items-center justify-between gap-6 border-b border-slate-200 bg-white/80 px-8 backdrop-blur-md sm:flex">
+          {renderRouteSearch("max-w-md")}
+          <div className="flex shrink-0 items-center gap-4">
+            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full text-slate-500 hover:text-sky-500">
+              <Bell className="h-4 w-4" />
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full text-slate-500 hover:text-sky-500">
+              <CircleHelp className="h-4 w-4" />
+            </Button>
+            <div className="h-8 w-px bg-slate-200" />
             <UserAvatarLogoutMenu session={sessionIdentity} menuPlacement="below" onLogout={() => void logout()} />
           </div>
         </header>
 
-        <div className="sticky top-12 z-20 bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:top-11 sm:px-4">
+        <div className="sticky top-12 z-20 bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:top-16 sm:px-8">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             {showTemplateActions ? (
               <Button
@@ -705,7 +724,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <main className="flex-1 overflow-auto p-3 sm:p-4">{children}</main>
+        <main className="flex-1 overflow-auto bg-[#f7f9fb] p-3 sm:p-8">{children}</main>
       </div>
     </div>
   );

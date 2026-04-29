@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { AddEntityButton } from "@/components/ui/add-entity-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -225,9 +226,11 @@ export function VehicleCatalogManageClient() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <Button type="button" size="sm" className="h-8 text-xs" onClick={startCreate}>
-                    Yeni ekle
-                  </Button>
+                  <div className="flex justify-end">
+                    <AddEntityButton type="button" onClick={startCreate}>
+                      Yeni ekle
+                    </AddEntityButton>
+                  </div>
                 )}
 
                 <Card className="glow-card">

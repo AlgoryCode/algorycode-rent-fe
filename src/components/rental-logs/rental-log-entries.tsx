@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowRight, ChevronDown, ImageIcon, MessageSquare } from
 
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { RentalSession } from "@/lib/mock-fleet";
 import { sessionCreatedAt } from "@/lib/rental-metadata";
@@ -138,27 +139,42 @@ function RentalDetailTabs({ s }: { s: RentalSession }) {
         {accidents.length === 0 ? (
           <p className="py-2 text-xs text-muted-foreground">Bu kiralama için kaza bildirimi yok.</p>
         ) : (
-          <ul className="space-y-3">
-            {accidents.map((a) => (
-              <li key={a.id} className="rounded-md border bg-background p-2.5 text-xs">
-                <p className="text-[10px] text-muted-foreground">
-                  {format(parseISO(a.at), "d MMM yyyy HH:mm", { locale: tr })}
-                </p>
-                <p className="mt-1">{a.description}</p>
-                {a.photos && a.photos.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {a.photos.map((p) => (
-                      <figure key={p.id} className="w-20 shrink-0 sm:w-24">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={p.url} alt={p.caption || "Kaza"} className="aspect-video w-full rounded border object-cover" />
-                        {p.caption && <figcaption className="mt-0.5 text-[9px] text-muted-foreground">{p.caption}</figcaption>}
-                      </figure>
-                    ))}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto rounded-md border">
+            <Table className="min-w-[480px] text-xs">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Zaman</TableHead>
+                  <TableHead>Açıklama</TableHead>
+                  <TableHead className="min-w-[120px]">Fotoğraflar</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accidents.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell className="whitespace-nowrap text-[10px] text-muted-foreground">
+                      {format(parseISO(a.at), "d MMM yyyy HH:mm", { locale: tr })}
+                    </TableCell>
+                    <TableCell>{a.description}</TableCell>
+                    <TableCell>
+                      {a.photos && a.photos.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {a.photos.map((p) => (
+                            <figure key={p.id} className="w-20 shrink-0 sm:w-24">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={p.url} alt={p.caption || "Kaza"} className="aspect-video w-full rounded border object-cover" />
+                              {p.caption && <figcaption className="mt-0.5 text-[9px] text-muted-foreground">{p.caption}</figcaption>}
+                            </figure>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </TabsContent>
     </Tabs>
@@ -174,51 +190,96 @@ export function RentalLogEntries({ sessions, plateOf, expandableDetails }: Props
 
   if (expandableDetails) {
     return (
-      <ul className="mt-4 space-y-2">
-        {sessions.map((s) => (
-          <li key={s.id} className="overflow-hidden rounded-lg border bg-background">
-            <Collapsible>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="group flex w-full items-start justify-between gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/40 sm:px-4"
-                >
-                  <SessionSummary s={s} plateOf={plateOf} />
-                  <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="border-t border-border/60 bg-background/40 px-3 py-3 sm:px-4">
-                  <RentalDetailTabs s={s} />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </li>
-        ))}
-      </ul>
+      <div className="mt-4 rounded-lg border">
+        <Table className="text-xs">
+          <TableBody>
+            {sessions.map((s) => (
+              <TableRow key={s.id} className="hover:bg-transparent">
+                <TableCell className="p-0">
+                  <div className="overflow-hidden border-b border-border last:border-0">
+                    <Collapsible>
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="group flex w-full items-start justify-between gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/40 sm:px-4"
+                        >
+                          <SessionSummary s={s} plateOf={plateOf} />
+                          <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="border-t border-border/60 bg-background/40 px-3 py-3 sm:px-4">
+                          <RentalDetailTabs s={s} />
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     );
   }
 
   return (
-    <ul className="mt-4 space-y-0 divide-y divide-border rounded-lg border bg-background">
-      {sessions.map((s) => (
-        <li
-          key={s.id}
-          role="link"
-          tabIndex={0}
-          aria-label={`Kiralama detayı: ${s.customer.fullName}`}
-          className="flex cursor-pointer flex-col gap-1 bg-background px-3 py-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-start sm:gap-4"
-          onClick={() => router.push(`/rentals/${s.id}`)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              router.push(`/rentals/${s.id}`);
-            }
-          }}
-        >
-          <SessionSummary s={s} plateOf={plateOf} showIdChip />
-        </li>
-      ))}
-    </ul>
+    <div className="mt-4 rounded-lg border">
+      <Table className="min-w-[720px] text-xs">
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Oluşturulma</TableHead>
+            <TableHead>Müşteri</TableHead>
+            <TableHead>Statü</TableHead>
+            {plateOf ? <TableHead>Plaka</TableHead> : null}
+            <TableHead>Dönem</TableHead>
+            <TableHead>TC</TableHead>
+            <TableHead className="w-[1%] whitespace-nowrap">ID</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sessions.map((s) => (
+            <TableRow
+              key={s.id}
+              role="link"
+              tabIndex={0}
+              aria-label={`Kiralama detayı: ${s.customer.fullName}`}
+              className="cursor-pointer"
+              onClick={() => router.push(`/rentals/${s.id}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  router.push(`/rentals/${s.id}`);
+                }
+              }}
+            >
+              <TableCell className="whitespace-nowrap text-[11px] text-muted-foreground">
+                {format(parseISO(sessionCreatedAt(s)), "d MMM yyyy, HH:mm", { locale: tr })}
+              </TableCell>
+              <TableCell className="font-medium">{s.customer.fullName}</TableCell>
+              <TableCell>
+                <Badge variant={statusBadgeVariant(sessionStatus(s))} className="text-[10px]">
+                  {RENTAL_STATUS_LABEL[sessionStatus(s)]}
+                </Badge>
+              </TableCell>
+              {plateOf ? (
+                <TableCell className="font-mono text-[11px] text-muted-foreground">{plateOf(s).plate}</TableCell>
+              ) : null}
+              <TableCell className="tabular-nums text-muted-foreground">
+                <span className="font-mono text-foreground">{s.startDate}</span>
+                {" → "}
+                <span className="font-mono text-foreground">{s.endDate}</span>
+              </TableCell>
+              <TableCell className="font-mono text-[11px]">{s.customer.nationalId}</TableCell>
+              <TableCell>
+                <code className="rounded bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                  {s.id.length > 12 ? `${s.id.slice(0, 8)}…` : s.id}
+                </code>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

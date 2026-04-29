@@ -8,9 +8,8 @@ import {
   fetchRentalsFromRentApi,
   getRentApiErrorMessage,
   updateRentalOnRentApi,
-  type CreateRentalPayload,
-  type UpdateRentalPayload,
 } from "@/lib/rent-api";
+import type { CreateRentalPayload, UpdateRentalPayload } from "@/models";
 
 export function useFleetSessions() {
   const qc = useQueryClient();

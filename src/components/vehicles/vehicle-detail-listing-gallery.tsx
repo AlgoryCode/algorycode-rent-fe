@@ -66,10 +66,6 @@ export function VehicleDetailListingGallery({ images }: Props) {
           })}
         </div>
       )}
-
-      <p className="text-center text-[10px] text-muted-foreground sm:text-[11px]">
-        {VEHICLE_IMAGE_SLOTS.find((s) => s.key === heroKey)?.label ?? "Önizleme"} — küçük resme tıklayarak değiştirin
-      </p>
     </div>
   );
 }
