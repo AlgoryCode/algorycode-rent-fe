@@ -1,15 +1,15 @@
-/**
- * Yalnızca Spring Cloud Gateway kökü: auth → `{gateway}/authservice`, rent → `{gateway}/rent`.
- *
- * Öncelik:
- * 1. `NEXT_PUBLIC_GATEWAY_URL` veya `NEXT_PUBLIC_BASE_API_URL` (sonda `/` yok)
- * 2. `NEXT_PUBLIC_LOCAL_PROD=true` | `1` | `yes` → prod gateway (`npm run local_prod`)
- * 3. Aksi: `next dev` → `http://localhost:8072`, production build → `https://gateway.algorycode.com`
- */
-
 const stripTrailingSlash = (s: string) => s.replace(/\/+$/, "");
 
-const DEFAULT_PROD_GATEWAY = "https://gateway.algorycode.com";
+const API_TARGETS = {
+  local: {
+    gatewayOrigin: "http://localhost:8072",
+    authServiceBase: "http://localhost:8081/authservice",
+  },
+  prod: {
+    gatewayOrigin: "https://gateway.algorycode.com",
+    authServiceBase: "https://auth.algorycode.com/authservice",
+  },
+} as const;
 
 function isLocalProdFlag(): boolean {
   const v = process.env.NEXT_PUBLIC_LOCAL_PROD?.trim().toLowerCase();
@@ -17,17 +17,13 @@ function isLocalProdFlag(): boolean {
 }
 
 function gatewayOrigin(): string {
-  const raw =
-    process.env.NEXT_PUBLIC_GATEWAY_URL?.trim() ||
-    process.env.NEXT_PUBLIC_BASE_API_URL?.trim() ||
-    "";
-  if (raw) return stripTrailingSlash(raw);
-  if (isLocalProdFlag()) {
-    return DEFAULT_PROD_GATEWAY;
-  }
-  return process.env.NODE_ENV === "development"
-    ? "http://localhost:8072"
-    : DEFAULT_PROD_GATEWAY;
+  const useProd = isLocalProdFlag() || process.env.NODE_ENV !== "development";
+  return stripTrailingSlash(useProd ? API_TARGETS.prod.gatewayOrigin : API_TARGETS.local.gatewayOrigin);
+}
+
+function authServiceBase(): string {
+  const useProd = isLocalProdFlag() || process.env.NODE_ENV !== "development";
+  return stripTrailingSlash(useProd ? API_TARGETS.prod.authServiceBase : API_TARGETS.local.authServiceBase);
 }
 
 export function resolveBaseApiUrl(): string {
@@ -37,7 +33,7 @@ export function resolveBaseApiUrl(): string {
 export const baseApiUrl = resolveBaseApiUrl();
 
 export function getAuthApiRoot(): string {
-  return `${gatewayOrigin()}/authservice`;
+  return authServiceBase();
 }
 
 export function getRentApiRoot(): string {
