@@ -11,17 +11,22 @@ import { toast } from "@/components/ui/sonner";
 import {
   AlertTriangle,
   BarChart3,
-  Bell,
   Building2,
+  BriefcaseBusiness,
   CarFront,
   CalendarDays,
-  History,
+  Car,
+  CheckCircle2,
+  Fuel,
   KeyRound,
   PackagePlus,
+  Settings2,
   ScrollText,
+  Sparkles,
   User,
   UserCircle2,
   UserPlus,
+  Zap,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -110,6 +115,7 @@ type AdditionalDriverDraft = {
 
 type ReportRange = "1w" | "1m" | "6m" | "1y";
 type RentalFormStep = 1 | 2 | 3 | 4 | 5;
+type MobileVehicleTab = "summary" | "technical" | "history";
 const COUNTRY_NONE = "__none__";
 const SPECS_FUEL_NONE = "__fuel_none__";
 const SPECS_TRANS_NONE = "__trans_none__";
@@ -248,6 +254,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
   const [deleteVehicleOpen, setDeleteVehicleOpen] = useState(false);
   const [deletingVehicle, setDeletingVehicle] = useState(false);
   const [savingVehicle, setSavingVehicle] = useState(false);
+  const [mobileVehicleTab, setMobileVehicleTab] = useState<MobileVehicleTab>("summary");
   const [editPlate, setEditPlate] = useState(vehicle.plate);
   const [editBrand, setEditBrand] = useState(vehicle.brand);
   const [editModel, setEditModel] = useState(vehicle.model);
@@ -528,11 +535,6 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
   }, [vehicle.id]);
   const batteryPct = 45 + (visualSeed % 50);
   const batteryMiles = Math.round(batteryPct * 3.8);
-  const totalRangeMiles = 320 + (visualSeed % 120);
-  const odometerMiles = 6000 + (visualSeed % 56000);
-  const tyrePsi = (33 + ((visualSeed % 70) / 10)).toFixed(1);
-  const tyreHealthPct = 82 + (visualSeed % 14);
-  const brakeHealthPct = 76 + (visualSeed % 18);
   const heroImage =
     galleryImages.front ??
     galleryImages.left ??
@@ -540,19 +542,6 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     galleryImages.rear ??
     galleryImages.interiorDash ??
     galleryImages.interiorRear;
-  const lastRental = rentalLogs[0];
-  const lastRentalActor = lastRental?.customer?.fullName?.trim() || lastRental?.customer?.email?.trim() || "Müşteri";
-  const lastRentalWhen = lastRental?.createdAt
-    ? format(parseISO(lastRental.createdAt), "d MMM HH:mm", { locale: tr })
-    : lastRental
-      ? `${lastRental.startDate} → ${lastRental.endDate}`
-      : "Kayıt bulunamadı";
-  const lastRentalInitials = useMemo(() => {
-    const parts = lastRentalActor.split(" ").filter(Boolean);
-    if (parts.length === 0) return "NA";
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
-  }, [lastRentalActor]);
 
   const initNewRentalFormForDay = useCallback(
     (day: Date) => {
@@ -1038,11 +1027,12 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                   caption_label: "text-xs font-medium",
                   weekday: "text-[11px] font-semibold text-foreground/90",
                   day: "h-7 w-7 p-0",
-                  day_button: "h-7 w-7 rounded-full text-[11px]",
-                  selected: "bg-primary text-primary-foreground hover:bg-primary",
-                  range_start: "bg-primary text-primary-foreground rounded-full",
-                  range_end: "bg-primary text-primary-foreground rounded-full",
-                  range_middle: "bg-primary/20 text-foreground",
+                  day_button:
+                    "h-7 w-7 rounded-md text-[11px] transition-colors hover:bg-muted aria-selected:bg-sky-500 aria-selected:text-white aria-selected:font-semibold",
+                  selected: "bg-sky-500 text-white hover:bg-sky-500",
+                  range_start: "rounded-md bg-sky-500 text-white",
+                  range_end: "rounded-md bg-sky-500 text-white",
+                  range_middle: "rounded-md bg-sky-100 text-sky-900 dark:bg-sky-500/25 dark:text-sky-100",
                 }}
               />
               <div className="mt-1 flex justify-end border-t border-border/60 pt-2">
@@ -1399,213 +1389,272 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
   }
 
   return (
-    <div className="bg-background pb-44 md:pb-10">
-      <div className="mx-auto max-w-5xl space-y-6 px-4 py-4 md:max-w-7xl md:space-y-5 md:px-0 md:py-0">
-      <section className="grid grid-cols-1 gap-4 md:hidden">
-        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm">
-          <div className="aspect-[16/10] w-full">
-            {heroImage ? (
-              <img src={heroImage} alt="" className="h-full w-full object-cover" />
+    <div className="bg-background pb-44 lg:pb-10">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-4 lg:max-w-7xl lg:space-y-5 lg:px-0 lg:py-0">
+      <section className="space-y-3 lg:hidden">
+        <div className="sticky top-0 z-30 -mx-1 bg-[#f7f9fb]/95 px-1 py-1 backdrop-blur">
+          <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+            <div className="grid grid-cols-3 gap-1 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setMobileVehicleTab("summary")}
+                className={cn(
+                  "rounded-lg py-2 font-semibold transition-colors",
+                  mobileVehicleTab === "summary" ? "bg-indigo-50 text-indigo-700 shadow-sm" : "text-slate-500",
+                )}
+              >
+                Detaylar
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileVehicleTab("technical")}
+                className={cn(
+                  "rounded-lg py-2 font-semibold transition-colors",
+                  mobileVehicleTab === "technical" ? "bg-indigo-50 text-indigo-700 shadow-sm" : "text-slate-500",
+                )}
+              >
+                Teknik
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileVehicleTab("history")}
+                className={cn(
+                  "rounded-lg py-2 font-semibold transition-colors",
+                  mobileVehicleTab === "history" ? "bg-indigo-50 text-indigo-700 shadow-sm" : "text-slate-500",
+                )}
+              >
+                Gecmis
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {mobileVehicleTab === "summary" && (
+          <>
+            <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+              <div className="relative overflow-hidden rounded-lg bg-slate-100">
+                <div className="aspect-[4/3] w-full">
+                  {heroImage ? (
+                    <img src={heroImage} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">Gorsel yok</div>
+                  )}
+                </div>
+                <div className="absolute right-2 top-2">
+                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide", statusClass)}>
+                    {statusLabel}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-4 gap-2">
+                {[galleryImages.front, galleryImages.left, galleryImages.right].map((image, idx) => (
+                  <div key={`mobile-thumb-${idx}`} className="h-14 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+                    {image ? <img src={image} alt="" className="h-full w-full object-cover" /> : null}
+                  </div>
+                ))}
+                <div className="flex h-14 items-center justify-center rounded-md border border-slate-200 bg-slate-100 text-[10px] font-semibold text-slate-500">
+                  +{Math.max(0, Object.values(galleryImages).filter(Boolean).length - 3)} MORE
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-primary/70">Premium Class</p>
+              <h2 className="mt-1 text-2xl font-bold leading-tight text-slate-900">
+                {vehicle.brand} {vehicle.model}
+              </h2>
+              <div className="mt-3 flex items-center gap-2">
+                <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{vehicle.year}</span>
+                <span className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 font-mono text-[10px] font-semibold text-indigo-700">
+                  {vehicle.plate}
+                </span>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-xl bg-indigo-700 p-4 text-white shadow-lg">
+              <p className="text-[10px] uppercase tracking-wide text-indigo-100/90">Daily Rental Price</p>
+              <div className="mt-1 flex items-end gap-1">
+                <span className="text-4xl font-black">{dailyPriceLabel}</span>
+                <span className="pb-1 text-xs text-indigo-100">/day</span>
+              </div>
+              <div className="mt-4 space-y-2 border-t border-white/15 pt-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-indigo-100">Commission Rate</span>
+                  <span className="font-semibold text-emerald-300">
+                    {vehicle.commissionEnabled && vehicle.commissionRatePercent != null ? `%${vehicle.commissionRatePercent}` : "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-indigo-100">Broker Support</span>
+                  <span className="font-medium">{vehicle.commissionBrokerPhone || "—"}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">System Status</p>
+                <span className={cn("text-[11px] font-bold", vehicle.external ? "text-rose-600" : "text-emerald-600")}>
+                  {vehicle.external ? "EXTERNAL" : "INTERNAL"}
+                </span>
+              </div>
+              <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5">
+                <span className="text-xs font-medium text-slate-700">Maintenance Mode</span>
+                <button
+                  type="button"
+                  onClick={() => setEditOpen(true)}
+                  className={cn(
+                    "relative inline-flex h-6 w-11 items-center rounded-full border transition-colors",
+                    vehicle.maintenance ? "border-indigo-700 bg-indigo-700" : "border-slate-300 bg-slate-200",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                      vehicle.maintenance ? "translate-x-6" : "translate-x-1",
+                    )}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-900">Logistics</h3>
+              <div className="mt-3 flex items-start gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-600">
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">Main Hub</p>
+                  <p className="text-xs font-semibold text-slate-800">{countryMeta?.name ?? "Terminal A, Neo City"}</p>
+                </div>
+              </div>
+              <div className="mt-3 h-28 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                <img
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuCi4CPvT6C4wsIouMLNMeicu8GWN3H0tw9KekzHXspOg4RXTAJ9WhqNWi-ufpA9bwA3WyXrQEXOyE9qJOllYTIAv1aKoTCjBcz1FwPI29Noz0ELj3cW2gXOa2eQpPLDmRwR40rV_e5Q6vYNZ7kaBin7cza5FAQZWgctMiHSft6ODRXn5So83SrSXfP1othQ_WfX7EvSLOEex2StMW3W6MvpVkAdKzm-AXeout283LOFYJoU1H5XI9hKx3w4lNmXzDpOa6lNNdsjtg"
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-indigo-600" />
+                <h3 className="text-lg font-bold text-slate-900">Highlights</h3>
+              </div>
+              <ul className="mt-3 space-y-2">
+                {(vehicle.highlights?.length ? vehicle.highlights : ["Adaptive Air Suspension", "Panoramic Glass Roof", "Premium Interior"]).map(
+                  (item) => (
+                    <li key={item} className="flex items-center gap-2 text-xs text-slate-700">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      <span>{item}</span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+          </>
+        )}
+
+        {mobileVehicleTab === "technical" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-900">Vehicle Details</h3>
+              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                EV Performance
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <Zap className="mb-2 h-4 w-4 text-indigo-600" />
+                <p className="text-[10px] uppercase tracking-widest text-slate-400">Engine</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{vehicle.engine || `${batteryMiles} km Electric`}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <Fuel className="mb-2 h-4 w-4 text-indigo-600" />
+                <p className="text-[10px] uppercase tracking-widest text-slate-400">Fuel Type</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{vehicle.fuelType || "Electric (BEV)"}</p>
+              </div>
+              <div className="col-span-2 flex items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                <div className="rounded-lg bg-indigo-600 p-2 text-white">
+                  <Settings2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500">Transmission</p>
+                  <p className="text-sm font-bold text-indigo-700">{vehicle.transmissionType || "2-Speed Automatic"}</p>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <Car className="mb-2 h-4 w-4 text-indigo-600" />
+                <p className="text-[10px] uppercase tracking-widest text-slate-400">Body Style</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{vehicle.bodyStyleLabel || "Sedan / Sportback"}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <User className="mb-2 h-4 w-4 text-indigo-600" />
+                <p className="text-[10px] uppercase tracking-widest text-slate-400">Seats</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{vehicle.seats ? `${vehicle.seats} Adults` : "4 Adults"}</p>
+              </div>
+              <div className="col-span-2 flex items-center justify-between rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <BriefcaseBusiness className="h-4 w-4 text-indigo-600" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-slate-400">Cargo Capacity</p>
+                    <p className="text-sm font-semibold text-slate-900">{vehicle.luggage ? `${vehicle.luggage} bags` : "366L + 84L (Frunk)"}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <p className="text-[10px] uppercase tracking-widest text-slate-400">Model Year</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{vehicle.year}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <p className="text-[10px] uppercase tracking-widest text-slate-400">License Plate</p>
+                <p className="mt-1 font-mono text-sm font-bold tracking-widest text-slate-900">{vehicle.plate}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mobileVehicleTab === "history" && (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-900">Kiralama Gecmisi</h3>
+              <p className="mt-1 text-xs text-slate-500">Bu araca ait tum kiralama kayitlari</p>
+            </div>
+            {rentalLogs.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500 shadow-sm">Bu arac icin gecmis kayit yok.</div>
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">Görsel yok</div>
+              rentalLogs.map((row) => (
+                <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{row.customer?.fullName || row.customer?.email || "Musteri"}</p>
+                      <p className="mt-0.5 text-[11px] text-slate-500">
+                        {row.startDate} - {row.endDate}
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                        row.status === "completed"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : row.status === "cancelled"
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-sky-100 text-sky-700",
+                      )}
+                    >
+                      {row.status === "completed" ? "Tamamlandi" : row.status === "cancelled" ? "Iptal" : "Aktif"}
+                    </span>
+                  </div>
+                </div>
+              ))
             )}
           </div>
-          <div className="absolute left-4 top-4">
-            <span className={cn("inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold shadow", statusClass, "bg-white/90")}>
-              <span className="h-2 w-2 rounded-full bg-current" />
-              {statusLabel}
-            </span>
-          </div>
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent p-4">
-            <h2 className="truncate text-2xl font-bold text-white">
-              {vehicle.brand} {vehicle.model}
-            </h2>
-            <p className="font-mono text-xs text-white/90">{vehicle.plate}</p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">Premium Fleet</p>
-            <h3 className="text-3xl font-bold text-slate-900">{vehicle.brand} {vehicle.model}</h3>
-            <p className="text-sm text-slate-500">{vehicle.year} • {countryMeta?.name ?? "Bölge bilgisi yok"} • {vehicle.plate}</p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Mileage</p>
-              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">{odometerMiles.toLocaleString("tr-TR")} km</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Battery</p>
-              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">{batteryPct}%</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Daily</p>
-              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">{dailyPriceLabel}</p>
-            </div>
-          </div>
-
-          <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-slate-900">Recent Activity</h4>
-              <span className="text-[11px] text-primary">Live</span>
-            </div>
-            <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-sky-600">
-                <KeyRound className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-900">Last Check-out</p>
-                <p className="text-[11px] text-slate-500">{lastRentalActor} • {lastRentalWhen}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                <AlertTriangle className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-900">Service Due</p>
-                <p className="text-[11px] text-slate-500">{status === "maintenance" ? "Bakım modunda" : "Yaklaşık 1,200 mil içinde"}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </section>
 
-      <div className="flex overflow-x-auto border-b border-slate-200 md:hidden">
-        <button type="button" className="whitespace-nowrap border-b-2 border-primary px-5 py-3 text-xs font-semibold uppercase tracking-wide text-primary">
-          Specs
-        </button>
-        <button type="button" className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          History
-        </button>
-        <button type="button" className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Maintenance
-        </button>
-        <button type="button" className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Documents
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:hidden">
-        <Button type="button" size="sm" variant="outline" className="h-11 w-full gap-1.5 text-xs sm:h-10 sm:text-sm" asChild>
-          <Link href={`/vehicles/${vehicle.id}/options`}>
-            <PackagePlus className="h-3.5 w-3.5" />
-            Opsiyon ekle
-          </Link>
-        </Button>
-        <Button type="button" size="sm" variant="outline" className="h-11 w-full gap-1.5 text-xs sm:h-10 sm:text-sm" onClick={() => setEditOpen(true)}>
-          Araç güncelle
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          className="h-11 w-full gap-1.5 text-xs sm:h-10 sm:text-sm"
-          disabled={vehicle.maintenance}
-          onClick={() => openForDay(new Date())}
-        >
-          <KeyRound className="h-3.5 w-3.5" />
-          Kiralama başlat
-        </Button>
-      </div>
-
-      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 md:hidden">
-        <div className="min-w-[170px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-[11px] text-slate-500">Total Range</p>
-          <p className="mt-2 text-xl font-semibold text-slate-900">{totalRangeMiles} mi</p>
-        </div>
-        <div className="min-w-[170px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-[11px] text-slate-500">Tyre PSI</p>
-          <p className="mt-2 text-xl font-semibold tabular-nums text-slate-900">{tyrePsi}</p>
-        </div>
-        <div className="min-w-[170px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-[11px] text-slate-500">Fleet Health</p>
-          <p className="mt-2 text-xl font-semibold text-slate-900">{status === "maintenance" ? "Service" : "Optimal"}</p>
-        </div>
-      </div>
-
-      <div className="space-y-4 md:hidden">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">Technical Specifications</h3>
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Transmission</p>
-              <p className="mt-1 text-sm text-slate-900">{vehicle.transmissionType || "Auto"}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Fuel Type</p>
-              <p className="mt-1 text-sm text-slate-900">{vehicle.fuelType || "Electric"}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Seats</p>
-              <p className="mt-1 text-sm text-slate-900">{vehicle.seats ? `${vehicle.seats} Seats` : "5 Seats"}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">License Plate</p>
-              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">{vehicle.plate}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-            <h3 className="text-base font-semibold text-slate-900">Recent Rental</h3>
-            <Link href="/logs" className="text-xs font-semibold text-primary">
-              View All
-            </Link>
-          </div>
-          <div className="flex items-center justify-between px-4 py-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-slate-800">
-                {lastRentalInitials}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">{lastRentalActor}</p>
-                <p className="text-xs text-slate-500">{lastRentalWhen}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-semibold text-slate-900">{dailyPriceLabel}</p>
-              <p className="text-[11px] text-emerald-600">{lastRental ? "Completed" : "No record"}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl bg-primary p-4 text-white shadow-lg">
-          <h4 className="mb-3 text-base font-semibold">Location Overview</h4>
-          <div className="relative mb-3 h-40 overflow-hidden rounded-lg">
-            <img
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5EEmKzovqUuI2VTPJL0wOLvh2cQ1e6lHIOVblgDTbxa2lWqEbNaUSQq74aCpawqBrA6TaQzzTEFWKNPC123SzQvwnlfvRHyuVntvPqQLQ1d7nMnUEU7OZPEKYDuRJwXQrj6OYAuEDmPGba_IqdBVF5kPOj6NdKCS5Cn7cfSiwlQuDKVt-HkJgsrgo1Px5aoFbwFuT9gp0FusBOON2OLsDexcUhOw-ZgcLw-HV_oOkCRWUWkncZcfHkI4H29Zi5InBubCe9BUxyg"
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          </div>
-          <p className="text-xs text-white/90">{countryMeta?.name ?? "Terminal 3 Garage"} • {vehicle.plate}</p>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h4 className="mb-3 text-base font-semibold text-slate-900">Asset Health</h4>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-500">Tires</span>
-              <span className="font-medium text-slate-900">{tyreHealthPct}%</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full bg-emerald-400" style={{ width: `${tyreHealthPct}%` }} />
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-500">Brakes</span>
-              <span className="font-medium text-slate-900">{brakeHealthPct}%</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full bg-emerald-400" style={{ width: `${brakeHealthPct}%` }} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="hidden grid-cols-1 gap-2 sm:grid-cols-3 md:grid">
+      <div className="hidden gap-2 lg:grid lg:grid-cols-3">
         <Button type="button" size="sm" variant="outline" className="h-10 w-full gap-1.5 text-sm" asChild>
           <Link href={`/vehicles/${vehicle.id}/options`}>
             <PackagePlus className="h-3.5 w-3.5" />
@@ -1621,7 +1670,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         </Button>
       </div>
 
-      <div className="hidden grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start md:grid">
+      <div className="hidden gap-6 lg:grid lg:grid-cols-3 lg:items-start">
         <Card className="order-1 min-w-0 overflow-hidden rounded-xl border-slate-200 shadow-sm lg:col-span-2">
           <CardHeader className="pb-2 pt-4">
             <CardTitle className="text-sm">Galeri ve medya yönetimi</CardTitle>
@@ -1682,7 +1731,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         </Card>
       </div>
 
-      <Card className="hidden rounded-xl border-slate-200 shadow-sm md:block">
+      <Card className="hidden rounded-xl border-slate-200 shadow-sm lg:block">
         <CardHeader className="py-3">
           <CardTitle className="text-sm">Operasyon merkezi</CardTitle>
         </CardHeader>
@@ -1956,7 +2005,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         </CardContent>
       </Card>
 
-      <Card className="hidden rounded-xl border-destructive/35 bg-gradient-to-b from-destructive/[0.06] to-destructive/[0.02] shadow-sm md:block">
+      <Card className="hidden rounded-xl border-destructive/35 bg-gradient-to-b from-destructive/[0.06] to-destructive/[0.02] shadow-sm lg:block">
         <CardHeader className="pb-2 pt-4">
           <CardTitle className="flex items-center gap-2 text-sm text-destructive">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
@@ -1981,36 +2030,37 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
 
         </div>
 
-        <div className="fixed bottom-16 left-0 z-40 flex w-full items-center justify-around border-t border-slate-200 bg-white/85 px-4 py-3 backdrop-blur md:hidden">
-          <Button type="button" variant="outline" className="mr-2 h-11 flex-1 text-xs" onClick={() => setEditOpen(true)}>
-            Edit Details
+        <div className="fixed bottom-16 left-0 z-40 flex w-full items-center justify-around border-t border-slate-200 bg-white/90 px-3 py-2.5 backdrop-blur lg:hidden">
+          <Button type="button" variant="outline" className="mr-2 h-10 flex-1 rounded-md border-slate-300 text-[11px] font-semibold" asChild>
+            <Link href={`/vehicles/${vehicle.id}/options`}>
+              Download PDF Report
+            </Link>
           </Button>
           <Button
             type="button"
-            className="ml-2 h-11 flex-[1.5] text-xs"
-            disabled={vehicle.maintenance}
-            onClick={() => openForDay(new Date())}
+            className="ml-2 h-10 flex-[1.2] rounded-md bg-indigo-700 text-[11px] font-semibold hover:bg-indigo-800"
+            onClick={() => setEditOpen(true)}
           >
-            Book Now
+            Edit Vehicle Details
           </Button>
         </div>
 
-        <nav className="fixed bottom-0 left-0 z-40 flex w-full items-center justify-around border-t border-slate-200 bg-white/90 px-3 py-2 backdrop-blur md:hidden">
+        <nav className="fixed bottom-0 left-0 z-40 flex w-full items-center justify-around border-t border-slate-200 bg-white/90 px-3 py-2 backdrop-blur lg:hidden">
           <button type="button" className="flex flex-col items-center justify-center rounded-xl bg-blue-50 px-3 py-1 text-blue-600">
             <CarFront className="h-4 w-4" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">Fleet</span>
           </button>
           <button type="button" className="flex flex-col items-center justify-center px-3 py-1 text-slate-400">
-            <History className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">History</span>
+            <CalendarDays className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Booking</span>
           </button>
           <button type="button" className="flex flex-col items-center justify-center px-3 py-1 text-slate-400">
             <BarChart3 className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Stats</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Data</span>
           </button>
           <button type="button" className="flex flex-col items-center justify-center px-3 py-1 text-slate-400">
-            <Bell className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Alerts</span>
+            <User className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Profile</span>
           </button>
         </nav>
 

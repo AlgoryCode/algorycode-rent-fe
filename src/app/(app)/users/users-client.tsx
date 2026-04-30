@@ -240,7 +240,7 @@ export function UsersClient() {
             <p className="py-10 text-center text-xs text-muted-foreground">Sonuç yok.</p>
           ) : (
             <div className="rounded-lg border">
-              <div className="space-y-2 p-3 md:hidden">
+              <div className="space-y-2 p-3 lg:hidden">
                 {rows.map((u) => (
                   <div key={`mobile-${u.id}`} className="rounded-xl border border-border/70 bg-card p-3">
                     <div className="flex items-start justify-between gap-2">
@@ -267,7 +267,7 @@ export function UsersClient() {
                   </div>
                 ))}
               </div>
-              <div className="hidden md:block">
+              <div className="hidden lg:block">
               <Table className="min-w-[560px] text-xs">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">

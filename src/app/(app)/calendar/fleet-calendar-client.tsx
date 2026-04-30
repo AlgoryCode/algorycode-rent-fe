@@ -110,7 +110,7 @@ export function FleetCalendarClient() {
 
   return (
     <div className="mx-auto max-w-[min(100%,90rem)] space-y-4">
-      <div className="hidden flex-wrap items-center justify-between gap-3 md:flex">
+      <div className="hidden flex-wrap items-center justify-between gap-3 lg:flex">
         <div className="space-y-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Planlama Modulu</p>
           <h1 className="text-3xl font-semibold tracking-tight">Kiralama Takvimi</h1>
@@ -135,7 +135,7 @@ export function FleetCalendarClient() {
 
       <Card className="rounded-2xl border bg-white/95 shadow-sm dark:bg-card">
         <CardContent className="space-y-4 px-4 py-4 sm:px-6">
-          <div className="hidden rounded-xl border border-border/80 bg-muted/30 p-3 md:block">
+          <div className="hidden rounded-xl border border-border/80 bg-muted/30 p-3 lg:block">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Button
@@ -194,7 +194,7 @@ export function FleetCalendarClient() {
             <p className="py-16 text-center text-sm text-muted-foreground">Takvim yukleniyor...</p>
           ) : (
             <>
-              <div className="space-y-6 md:hidden">
+              <div className="space-y-6 lg:hidden">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-semibold text-slate-900">{format(month, "LLLL yyyy", { locale: tr })}</h2>
                   <div className="flex gap-1">
@@ -273,7 +273,7 @@ export function FleetCalendarClient() {
                   <Plus className="h-8 w-8" />
                 </Button>
               </div>
-              <div className="hidden overflow-x-auto md:block">
+              <div className="hidden overflow-x-auto lg:block">
               <div className="min-w-[920px] rounded-2xl border bg-card">
                 <div className="grid grid-cols-7 border-b">
                   {weekdayLabels.map((label) => (

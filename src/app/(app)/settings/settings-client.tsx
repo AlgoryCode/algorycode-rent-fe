@@ -15,6 +15,7 @@ import { authService } from "@/lib/auth-service";
 const MIN_PASSWORD_LEN = 8;
 
 export function SettingsClient() {
+  const [activeTab, setActiveTab] = useState("general");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -60,18 +61,18 @@ export function SettingsClient() {
       <div>
         <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           <Settings2 className="h-5 w-5 text-primary" />
-          Ayarlar
+          Hesabım
         </h1>
-        <p className="text-xs text-muted-foreground">Hesap ve güvenlik tercihleri.</p>
+        <p className="text-xs text-muted-foreground">Hesap bilgileri ve ayar tercihleri.</p>
       </div>
 
-      <Tabs defaultValue="general" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="h-9 w-full justify-start sm:w-auto">
           <TabsTrigger value="general" className="text-xs">
-            Genel
+            Hesap Bilgileri
           </TabsTrigger>
           <TabsTrigger value="security" className="text-xs">
-            Güvenlik
+            Ayarlar
           </TabsTrigger>
         </TabsList>
 
@@ -87,6 +88,11 @@ export function SettingsClient() {
             <CardContent className="pb-4 text-xs text-muted-foreground">
               Oturumu kapatmak için üst menüdeki hesap avatarına tıklayıp{" "}
               <span className="font-medium text-foreground">Çıkış</span> öğesini seçin.
+              <div className="mt-3">
+                <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => setActiveTab("security")}>
+                  Ayarlara git
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

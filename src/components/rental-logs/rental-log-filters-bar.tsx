@@ -88,11 +88,12 @@ export function RentalLogFiltersBar({ values, onChange, showVehicleQuery, manual
                   caption_label: "text-xs font-medium",
                   weekday: "text-[11px] font-semibold text-foreground/90",
                   day: "h-7 w-7 p-0",
-                  day_button: "h-7 w-7 rounded-full text-[11px]",
-                  selected: "bg-primary text-primary-foreground hover:bg-primary",
-                  range_start: "bg-primary text-primary-foreground rounded-full",
-                  range_end: "bg-primary text-primary-foreground rounded-full",
-                  range_middle: "bg-primary/20 text-foreground",
+                  day_button:
+                    "h-7 w-7 rounded-md text-[11px] transition-colors hover:bg-muted aria-selected:bg-sky-500 aria-selected:text-white aria-selected:font-semibold",
+                  selected: "bg-sky-500 text-white hover:bg-sky-500",
+                  range_start: "rounded-md bg-sky-500 text-white",
+                  range_end: "rounded-md bg-sky-500 text-white",
+                  range_middle: "rounded-md bg-sky-100 text-sky-900 dark:bg-sky-500/25 dark:text-sky-100",
                 }}
               />
               <div className="mt-1 flex items-center justify-end gap-1.5 border-t border-border/60 pt-2">

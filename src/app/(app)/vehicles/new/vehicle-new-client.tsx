@@ -7,7 +7,6 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -38,6 +37,7 @@ const SPECS_TRANS_NONE = "__trans_none__";
 const SPECS_BODY_NONE = "__body_none__";
 const BRAND_NONE = "__brand_none__";
 const MODEL_NONE = "__model_none__";
+type NewVehicleStep = 1 | 2 | 3;
 
 export function VehicleNewClient() {
   const router = useRouter();
@@ -52,6 +52,7 @@ export function VehicleNewClient() {
     queryFn: fetchVehicleFormCatalogFromRentApi,
   });
   const [saving, setSaving] = useState(false);
+  const [step, setStep] = useState<NewVehicleStep>(1);
   const [plate, setPlate] = useState("");
   const [brandId, setBrandId] = useState(BRAND_NONE);
   const [modelId, setModelId] = useState(MODEL_NONE);
@@ -124,6 +125,82 @@ export function VehicleNewClient() {
         (t.description ?? "").toLocaleLowerCase("tr").includes(q),
     );
   }, [optionSearch, optionTemplates]);
+
+  const validateStep = (targetStep: NewVehicleStep): boolean => {
+    const p = normalizePlate(plate);
+    let b = "";
+    let m = "";
+    if (useBrandModelCatalog) {
+      b = selectedBrandRow?.name?.trim() ?? "";
+      const modelRow = modelOptionsForBrand.find((x) => x.id === modelId);
+      m = modelRow?.name?.trim() ?? "";
+    } else {
+      b = brandManual.trim();
+      m = modelManual.trim();
+    }
+    const y = parseInt(year, 10);
+    if (targetStep >= 1) {
+      if (!p || !b || !m || !Number.isFinite(y) || y < 1950 || y > new Date().getFullYear() + 1) {
+        toast.error("Plaka, marka, model ve geçerli model yılı gerekli.");
+        return false;
+      }
+      const dup = allVehicles.some((v) => normalizePlate(v.plate) === p);
+      if (dup) {
+        toast.error("Bu plaka zaten kayıtlı.");
+        return false;
+      }
+    }
+    if (targetStep >= 2) {
+      if (externalVehicle && !externalCompany.trim()) {
+        toast.error("Harici araç için firma adı girin.");
+        return false;
+      }
+      const rate = externalVehicle ? Number.parseFloat(commissionRatePercent.trim().replace(",", ".")) : undefined;
+      if (externalVehicle && (!Number.isFinite(rate) || (rate ?? 0) <= 0 || (rate ?? 0) > 100)) {
+        toast.error("Komisyon oranı yüzde olarak 0 ile 100 arasında olmalı.");
+        return false;
+      }
+      const rentalPrice = Number.parseFloat(rentalDailyPrice.trim().replace(",", "."));
+      if (!Number.isFinite(rentalPrice) || rentalPrice <= 0) {
+        toast.error("Günlük kiralama fiyatı zorunlu ve sıfırdan büyük olmalı.");
+        return false;
+      }
+      const seatsParsed = seats.trim() === "" ? undefined : Number.parseInt(seats.trim(), 10);
+      if (seats.trim() !== "" && (!Number.isFinite(seatsParsed) || seatsParsed! < 1 || seatsParsed! > 20)) {
+        toast.error("Koltuk sayısı 1–20 arası veya boş olmalıdır.");
+        return false;
+      }
+      const luggageParsed = luggage.trim() === "" ? undefined : Number.parseInt(luggage.trim(), 10);
+      if (luggage.trim() !== "" && (!Number.isFinite(luggageParsed) || luggageParsed! < 0)) {
+        toast.error("Bagaj (valiz) için geçerli bir sayı girin veya boş bırakın.");
+        return false;
+      }
+    }
+    if (targetStep >= 3) {
+      if (vehicleCountry === COUNTRY_NONE) {
+        toast.error("Ülke seçimi zorunludur.");
+        return false;
+      }
+      if (!defaultPickupId.trim()) {
+        toast.error("Varsayılan alış noktası seçin.");
+        return false;
+      }
+      const images = compactVehicleImages(draftImages);
+      const missingVehicleImages = REQUIRED_VEHICLE_IMAGE_SLOTS.filter((slot) => !images?.[slot]);
+      if (missingVehicleImages.length > 0) {
+        toast.error("Araç için ön, arka, sol, sağ, kokpit ve arka koltuk fotoğrafları zorunlu.");
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const nextStep = () => {
+    if (step >= 3) return;
+    const next = (step + 1) as NewVehicleStep;
+    if (!validateStep(step)) return;
+    setStep(next);
+  };
 
   const submitNewVehicle = async () => {
     if (!catalog) {
@@ -233,14 +310,20 @@ export function VehicleNewClient() {
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <Card className="glow-card overflow-hidden">
-        <CardHeader className="space-y-1 border-b border-border/60 pb-4 pt-5">
-          <CardTitle className="text-lg">Yeni araç</CardTitle>
-          <CardDescription className="text-xs">
-            Plaka benzersiz olmalı. Görseller base64 olarak yüklenir (demo). Tüm açılar zorunludur.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 px-4 py-4 sm:px-6">
+      <div className="space-y-4">
+        <div className="space-y-1 px-1 pb-1 pt-2">
+          <h1 className="text-lg font-semibold">Add New Vehicle</h1>
+          <p className="text-xs text-muted-foreground">
+            Configure global logistics and finalize asset media.
+          </p>
+          <div className="pt-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Step {step} of 3</p>
+            <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
+              <div className={cn("h-1.5 rounded-full bg-emerald-400 transition-all", step === 1 ? "w-1/3" : step === 2 ? "w-2/3" : "w-full")} />
+            </div>
+          </div>
+        </div>
+        <div className="space-y-3 px-1 py-2 sm:px-2">
           {catalogLoading ? (
             <p className="text-xs text-muted-foreground">Araç formu için katalog yükleniyor…</p>
           ) : null}
@@ -252,96 +335,120 @@ export function VehicleNewClient() {
               </Button>
             </div>
           ) : null}
-          <div className="space-y-1">
-            <Label htmlFor="nv-plate">Plaka</Label>
-            <Input
-              id="nv-plate"
-              value={plate}
-              onChange={(e) => setPlate(e.target.value)}
-              placeholder="34 ABC 123"
-              className="font-mono"
-              disabled={formLocked}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {useBrandModelCatalog ? (
-              <>
-                <div className="space-y-1">
-                  <Label className="text-xs">Marka</Label>
-                  <Select
-                    value={brandId}
-                    onValueChange={(v) => {
-                      setBrandId(v);
-                      setModelId(MODEL_NONE);
-                    }}
-                    disabled={formLocked}
-                  >
-                    <SelectTrigger className="h-9 w-full text-xs">
-                      <SelectValue placeholder="Seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={BRAND_NONE}>Seçin</SelectItem>
-                      {(catalog?.brands ?? []).map((br) => (
-                        <SelectItem key={br.id} value={br.id}>
-                          {br.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Model</Label>
-                  <Select value={modelId} onValueChange={setModelId} disabled={formLocked || brandId === BRAND_NONE}>
-                    <SelectTrigger className="h-9 w-full text-xs">
-                      <SelectValue placeholder={brandId === BRAND_NONE ? "Önce marka seçin" : "Seçin"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={MODEL_NONE}>Seçin</SelectItem>
-                      {modelOptionsForBrand.map((mo) => (
-                        <SelectItem key={mo.id} value={mo.id}>
-                          {mo.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="space-y-1">
-                  <Label htmlFor="nv-brand">Marka</Label>
-                  <Input
-                    id="nv-brand"
-                    value={brandManual}
-                    onChange={(e) => setBrandManual(e.target.value)}
-                    disabled={formLocked}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="nv-model">Model</Label>
-                  <Input
-                    id="nv-model"
-                    value={modelManual}
-                    onChange={(e) => setModelManual(e.target.value)}
-                    disabled={formLocked}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="nv-year">Model yılı</Label>
-            <Input
-              id="nv-year"
-              type="number"
-              min={1950}
-              max={new Date().getFullYear() + 1}
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              disabled={formLocked}
-            />
-          </div>
-          <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
+          {step === 1 && (
+            <>
+              <div className="space-y-1">
+                <Label htmlFor="nv-plate">Plaka</Label>
+                <Input
+                  id="nv-plate"
+                  value={plate}
+                  onChange={(e) => setPlate(e.target.value)}
+                  placeholder="34 ABC 123"
+                  className="font-mono"
+                  disabled={formLocked}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {useBrandModelCatalog ? (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Marka</Label>
+                      <Select
+                        value={brandId}
+                        onValueChange={(v) => {
+                          setBrandId(v);
+                          setModelId(MODEL_NONE);
+                        }}
+                        disabled={formLocked}
+                      >
+                        <SelectTrigger className="h-9 w-full text-xs">
+                          <SelectValue placeholder="Seçin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={BRAND_NONE}>Seçin</SelectItem>
+                          {(catalog?.brands ?? []).map((br) => (
+                            <SelectItem key={br.id} value={br.id}>
+                              {br.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Model</Label>
+                      <Select value={modelId} onValueChange={setModelId} disabled={formLocked || brandId === BRAND_NONE}>
+                        <SelectTrigger className="h-9 w-full text-xs">
+                          <SelectValue placeholder={brandId === BRAND_NONE ? "Önce marka seçin" : "Seçin"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={MODEL_NONE}>Seçin</SelectItem>
+                          {modelOptionsForBrand.map((mo) => (
+                            <SelectItem key={mo.id} value={mo.id}>
+                              {mo.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <Label htmlFor="nv-brand">Marka</Label>
+                      <Input
+                        id="nv-brand"
+                        value={brandManual}
+                        onChange={(e) => setBrandManual(e.target.value)}
+                        disabled={formLocked}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="nv-model">Model</Label>
+                      <Input
+                        id="nv-model"
+                        value={modelManual}
+                        onChange={(e) => setModelManual(e.target.value)}
+                        disabled={formLocked}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="nv-year">Model yılı</Label>
+                <Input
+                  id="nv-year"
+                  type="number"
+                  min={1950}
+                  max={new Date().getFullYear() + 1}
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                  disabled={formLocked}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="nv-fleet-op" className="text-xs">
+                  Filo durumu
+                </Label>
+                <Select value={fleetStatusCode} onValueChange={setFleetStatusCode} disabled={formLocked}>
+                  <SelectTrigger id="nv-fleet-op" className="h-9 w-full text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fleetStatusRows.map((s) => (
+                      <SelectItem key={s.code} value={s.code} disabled={s.code === "rented"}>
+                        {s.labelTr}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Araç özellikleri
             </p>
@@ -418,63 +525,68 @@ export function VehicleNewClient() {
               </div>
             </div>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="nv-country">Ülke</Label>
-            <Select value={vehicleCountry} onValueChange={setVehicleCountry} disabled={formLocked}>
-              <SelectTrigger id="nv-country" className="w-full">
-                <SelectValue placeholder="Ülke seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={COUNTRY_NONE}>Atanmadı</SelectItem>
-                {countriesSorted.map((c) => (
-                  <SelectItem key={c.id} value={c.code}>
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-border/60"
-                        style={{ backgroundColor: c.colorCode }}
-                        aria-hidden
-                      />
-                      {c.name} ({c.code})
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>Varsayılan alış noktası</Label>
-            <Select value={defaultPickupId || undefined} onValueChange={setDefaultPickupId} disabled={formLocked}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="PICKUP noktası seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                {pickupLocs.map((loc) => (
-                  <SelectItem key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>Teslim noktaları</Label>
-            <p className="text-[11px] text-muted-foreground">
-              Açılır listede arayıp birden fazla seçebilirsiniz. Boş bırakırsanız bu araç için teslim kısıtı olmaz.
-            </p>
-            <HandoverReturnMultiCombobox
-              locations={returnLocs}
-              value={selectedReturnIds}
-              onChange={setSelectedReturnIds}
-              placeholder="Teslim noktası seçin…"
-              disabled={formLocked}
-              emptyMessage={
-                catalog && returnLocs.length === 0
-                  ? "Katalogda teslim noktası yok."
-                  : "Ayarlar → Teslim noktalarından RETURN kaydı ekleyin"
-              }
-            />
-          </div>
-          <div className="space-y-2 rounded-md border border-border/50 bg-muted/20 p-3">
+              <label className={cn("flex cursor-pointer items-center gap-2 text-xs", formLocked && "pointer-events-none opacity-60")}>
+                <input
+                  type="checkbox"
+                  checked={externalVehicle}
+                  onChange={(e) => setExternalVehicle(e.target.checked)}
+                  className="rounded border-input"
+                  disabled={formLocked}
+                />
+                Harici araç (başka firmadan)
+              </label>
+              {externalVehicle && (
+                <>
+                  <div className="space-y-1">
+                    <Label htmlFor="nv-external-company">Harici firma adı</Label>
+                    <Input
+                      id="nv-external-company"
+                      value={externalCompany}
+                      onChange={(e) => setExternalCompany(e.target.value)}
+                      placeholder="Örn: X Rent A Car"
+                      disabled={formLocked}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="nv-commission-rate">Komisyon oranı (%)</Label>
+                    <Input
+                      id="nv-commission-rate"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={commissionRatePercent}
+                      onChange={(e) => setCommissionRatePercent(e.target.value)}
+                      placeholder="Örn: 12.5"
+                      disabled={formLocked}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="nv-commission-broker-phone">Komisyoncu telefonu (opsiyonel)</Label>
+                    <Input
+                      id="nv-commission-broker-phone"
+                      value={commissionBrokerPhone}
+                      onChange={(e) => setCommissionBrokerPhone(e.target.value)}
+                      placeholder="+90 5xx ..."
+                      disabled={formLocked}
+                    />
+                  </div>
+                </>
+              )}
+              <div className="space-y-1">
+                <Label htmlFor="nv-rental-price">Günlük kiralama fiyatı</Label>
+                <Input
+                  id="nv-rental-price"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={rentalDailyPrice}
+                  onChange={(e) => setRentalDailyPrice(e.target.value)}
+                  placeholder="0.00"
+                  disabled={formLocked}
+                />
+              </div>
+              <div className="space-y-2 rounded-md border border-border/50 bg-muted/20 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-xs">Ek opsiyonlar (şablondan)</Label>
               <Button variant="ghost" className="h-auto px-1 py-0 text-[11px] text-primary" asChild>
@@ -547,115 +659,112 @@ export function VehicleNewClient() {
               )}
             </div>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="nv-fleet-op" className="text-xs">
-              Filo durumu
-            </Label>
-            <Select value={fleetStatusCode} onValueChange={setFleetStatusCode} disabled={formLocked}>
-              <SelectTrigger id="nv-fleet-op" className="h-9 w-full text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {fleetStatusRows.map((s) => (
-                  <SelectItem key={s.code} value={s.code} disabled={s.code === "rented"}>
-                    {s.labelTr}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <label className={cn("flex cursor-pointer items-center gap-2 text-xs", formLocked && "pointer-events-none opacity-60")}>
-            <input
-              type="checkbox"
-              checked={externalVehicle}
-              onChange={(e) => setExternalVehicle(e.target.checked)}
-              className="rounded border-input"
-              disabled={formLocked}
-            />
-            Harici araç (başka firmadan)
-          </label>
-          {externalVehicle && (
-            <>
-              <div className="space-y-1">
-                <Label htmlFor="nv-external-company">Harici firma adı</Label>
-                <Input
-                  id="nv-external-company"
-                  value={externalCompany}
-                  onChange={(e) => setExternalCompany(e.target.value)}
-                  placeholder="Örn: X Rent A Car"
-                  disabled={formLocked}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="nv-commission-rate">Komisyon oranı (%)</Label>
-                <Input
-                  id="nv-commission-rate"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="0.01"
-                  value={commissionRatePercent}
-                  onChange={(e) => setCommissionRatePercent(e.target.value)}
-                  placeholder="Örn: 12.5"
-                  disabled={formLocked}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="nv-commission-broker-phone">Komisyoncu telefonu (opsiyonel)</Label>
-                <Input
-                  id="nv-commission-broker-phone"
-                  value={commissionBrokerPhone}
-                  onChange={(e) => setCommissionBrokerPhone(e.target.value)}
-                  placeholder="+90 5xx ..."
-                  disabled={formLocked}
-                />
-              </div>
             </>
           )}
-          <div className="space-y-1">
-            <Label htmlFor="nv-rental-price">Günlük kiralama fiyatı</Label>
-            <Input
-              id="nv-rental-price"
-              type="number"
-              min={0}
-              step="0.01"
-              value={rentalDailyPrice}
-              onChange={(e) => setRentalDailyPrice(e.target.value)}
-              placeholder="0.00"
-              disabled={formLocked}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="nv-highlights">Öne çıkanlar (opsiyonel)</Label>
-            <textarea
-              id="nv-highlights"
-              value={highlightsText}
-              onChange={(e) => setHighlightsText(e.target.value)}
-              placeholder={"Her satır bir madde (en fazla 30).\nÖrn: Kasko dahil\n7/24 yol yardımı"}
-              rows={4}
-              disabled={formLocked}
-              className="flex min-h-[88px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-            />
-            <p className="text-[10px] text-muted-foreground">İlan ve müşteri arayüzünde sırayla gösterilir.</p>
-          </div>
-          <VehicleImageSlotsEditor value={draftImages} onChange={setDraftImages} />
-        </CardContent>
-        <CardFooter className="flex flex-col-reverse gap-2 border-t border-border/60 bg-muted/10 px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
-          <Button type="button" variant="outline" size="sm" className="h-9 w-full text-xs sm:w-auto" asChild>
-            <Link href="/vehicles">İptal</Link>
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="hero"
-            className="h-9 w-full text-xs sm:w-auto"
-            disabled={saving || formLocked}
-            onClick={() => void submitNewVehicle()}
-          >
-            {saving ? "Kaydediliyor…" : "Kaydet"}
-          </Button>
-        </CardFooter>
-      </Card>
+
+          {step === 3 && (
+            <>
+              <div className="space-y-1">
+                <Label htmlFor="nv-country">Ülke</Label>
+                <Select value={vehicleCountry} onValueChange={setVehicleCountry} disabled={formLocked}>
+                  <SelectTrigger id="nv-country" className="w-full">
+                    <SelectValue placeholder="Ülke seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={COUNTRY_NONE}>Atanmadı</SelectItem>
+                    {countriesSorted.map((c) => (
+                      <SelectItem key={c.id} value={c.code}>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-border/60"
+                            style={{ backgroundColor: c.colorCode }}
+                            aria-hidden
+                          />
+                          {c.name} ({c.code})
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Varsayılan alış noktası</Label>
+                <Select value={defaultPickupId || undefined} onValueChange={setDefaultPickupId} disabled={formLocked}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="PICKUP noktası seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pickupLocs.map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Teslim noktaları</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Açılır listede arayıp birden fazla seçebilirsiniz. Boş bırakırsanız bu araç için teslim kısıtı olmaz.
+                </p>
+                <HandoverReturnMultiCombobox
+                  locations={returnLocs}
+                  value={selectedReturnIds}
+                  onChange={setSelectedReturnIds}
+                  placeholder="Teslim noktası seçin…"
+                  disabled={formLocked}
+                  emptyMessage={
+                    catalog && returnLocs.length === 0
+                      ? "Katalogda teslim noktası yok."
+                      : "Ayarlar → Teslim noktalarından RETURN kaydı ekleyin"
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="nv-highlights">Öne çıkanlar (opsiyonel)</Label>
+                <textarea
+                  id="nv-highlights"
+                  value={highlightsText}
+                  onChange={(e) => setHighlightsText(e.target.value)}
+                  placeholder={"Her satır bir madde (en fazla 30).\nÖrn: Kasko dahil\n7/24 yol yardımı"}
+                  rows={4}
+                  disabled={formLocked}
+                  className="flex min-h-[88px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                />
+                <p className="text-[10px] text-muted-foreground">İlan ve müşteri arayüzünde sırayla gösterilir.</p>
+              </div>
+              <VehicleImageSlotsEditor value={draftImages} onChange={setDraftImages} />
+            </>
+          )}
+        </div>
+        <div className="flex flex-col-reverse gap-2 border-t border-border/60 bg-muted/10 px-1 py-4 sm:flex-row sm:justify-end sm:px-2">
+          {step === 1 ? (
+            <Button type="button" variant="outline" size="sm" className="h-9 w-full text-xs sm:w-auto" asChild>
+              <Link href="/vehicles">İptal</Link>
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" size="sm" className="h-9 w-full text-xs sm:w-auto" onClick={() => setStep((prev) => (prev - 1) as NewVehicleStep)}>
+              Back
+            </Button>
+          )}
+          {step < 3 ? (
+            <Button type="button" size="sm" variant="hero" className="h-9 w-full text-xs sm:w-auto" disabled={formLocked} onClick={nextStep}>
+              Next
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="hero"
+              className="h-9 w-full text-xs sm:w-auto"
+              disabled={saving || formLocked}
+              onClick={() => void submitNewVehicle()}
+            >
+              {saving ? "Kaydediliyor…" : "Submit & Create Vehicle"}
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

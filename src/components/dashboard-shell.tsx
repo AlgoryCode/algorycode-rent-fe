@@ -73,7 +73,17 @@ const ALL_NAV: (NavLinkDef | NavGroupDef)[] = [
       { href: "/settings/vehicle-catalog", msgKey: "nav.vehicleFeatures" },
     ],
   },
-  { type: "link", href: "/logs", msgKey: "nav.logs", icon: CalendarDays },
+  {
+    type: "group",
+    id: "rentals",
+    msgKey: "nav.logs",
+    icon: CalendarDays,
+    children: [
+      { href: "/logs/list", msgKey: "nav.logsBrowse" },
+      { href: "/logs/start", msgKey: "nav.logsStart" },
+      { href: "/logs/requests", msgKey: "nav.logsRequests" },
+    ],
+  },
   { type: "link", href: "/calendar", msgKey: "nav.calendar", icon: Calendar },
   { type: "link", href: "/customers", msgKey: "nav.customers", icon: Users },
   { type: "link", href: "/users", msgKey: "nav.users", icon: UserCog },
@@ -114,38 +124,42 @@ function isVehiclesGroupActive(pathname: string) {
 }
 
 function isNavActive(pathname: string, href: string) {
-  if (href === "/dashboard") return pathname === "/dashboard";
-  if (href === "/vehicles") return pathname === "/vehicles" || pathname.startsWith("/vehicles/");
-  if (href === "/reports") return pathname === "/reports" || pathname.startsWith("/reports/");
-  if (href === "/countries") return pathname === "/countries" || pathname.startsWith("/countries/");
-  if (href === "/customers") {
+  const cleanHref = href.split("?")[0] ?? href;
+  if (cleanHref === "/dashboard") return pathname === "/dashboard";
+  if (cleanHref === "/vehicles") return pathname === "/vehicles" || pathname.startsWith("/vehicles/");
+  if (cleanHref === "/reports") return pathname === "/reports" || pathname.startsWith("/reports/");
+  if (cleanHref === "/countries") return pathname === "/countries" || pathname.startsWith("/countries/");
+  if (cleanHref === "/customers") {
     return (
       pathname === "/customers" ||
       (pathname.startsWith("/customers/") && !pathname.startsWith("/customers/channel"))
     );
   }
-  if (href === "/customers/channel") {
+  if (cleanHref === "/customers/channel") {
     return pathname === "/customers/channel" || pathname.startsWith("/customers/channel/");
   }
-  if (href === "/logs") {
+  if (cleanHref === "/logs") {
     return pathname === "/logs" || pathname.startsWith("/logs/") || pathname.startsWith("/rentals/");
   }
-  if (href === "/calendar") return pathname === "/calendar" || pathname.startsWith("/calendar/");
-  if (href === "/payments") return pathname === "/payments" || pathname.startsWith("/payments/");
-  if (href === "/users") return pathname === "/users" || pathname.startsWith("/users/");
-  if (href === "/settings/locations/pickup") return pathname === "/settings/locations/pickup";
-  if (href === "/settings/locations/return") return pathname === "/settings/locations/return";
-  if (href === "/settings/options/vehicle") return pathname === "/settings/options/vehicle";
-  if (href === "/settings/vehicle-catalog") {
+  if (cleanHref === "/logs/list" || cleanHref === "/logs/start" || cleanHref === "/logs/requests") {
+    return pathname === cleanHref;
+  }
+  if (cleanHref === "/calendar") return pathname === "/calendar" || pathname.startsWith("/calendar/");
+  if (cleanHref === "/payments") return pathname === "/payments" || pathname.startsWith("/payments/");
+  if (cleanHref === "/users") return pathname === "/users" || pathname.startsWith("/users/");
+  if (cleanHref === "/settings/locations/pickup") return pathname === "/settings/locations/pickup";
+  if (cleanHref === "/settings/locations/return") return pathname === "/settings/locations/return";
+  if (cleanHref === "/settings/options/vehicle") return pathname === "/settings/options/vehicle";
+  if (cleanHref === "/settings/vehicle-catalog") {
     return pathname === "/settings/vehicle-catalog" || pathname.startsWith("/settings/vehicle-catalog/");
   }
-  if (href === "/settings/options/rental") {
+  if (cleanHref === "/settings/options/rental") {
     return pathname === "/settings/options/rental" || pathname.startsWith("/settings/options/rental/");
   }
-  if (href === "/settings/coupons") {
+  if (cleanHref === "/settings/coupons") {
     return pathname === "/settings/coupons" || pathname.startsWith("/settings/coupons/");
   }
-  if (href === "/settings") {
+  if (cleanHref === "/settings") {
     return (
       pathname === "/settings" &&
       !pathname.startsWith("/settings/options") &&
@@ -154,6 +168,16 @@ function isNavActive(pathname: string, href: string) {
     );
   }
   return false;
+}
+
+function isNavChildActive(pathname: string, searchParams: { get: (key: string) => string | null }, href: string) {
+  const [base, query = ""] = href.split("?");
+  if (!isNavActive(pathname, base)) return false;
+  if (!query) return true;
+  const qp = new URLSearchParams(query);
+  const sekme = qp.get("sekme");
+  if (base === "/logs" && sekme) return searchParams.get("sekme") === sekme;
+  return true;
 }
 
 function isLocationsGroupActive(pathname: string) {
@@ -167,6 +191,7 @@ function isLocationsGroupActive(pathname: string) {
 
 function isNavGroupActive(groupId: string, pathname: string) {
   if (groupId === "vehicles") return isVehiclesGroupActive(pathname);
+  if (groupId === "rentals") return pathname === "/logs" || pathname.startsWith("/logs/") || pathname.startsWith("/rentals/");
   if (groupId === "locations") return isLocationsGroupActive(pathname);
   return false;
 }
@@ -306,6 +331,7 @@ function RentRbacToastInner() {
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { t, locale } = useLocale();
   const { hasManagerAccess } = useRentFeRoles();
@@ -392,7 +418,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         value={routeSearch}
         onChange={(e) => setRouteSearch(e.target.value)}
         placeholder={t("shell.searchPlaceholder")}
-        className="h-10 rounded-xl border-transparent bg-slate-100 pr-10 text-sm focus-visible:border-sky-500 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
+        className="h-10 rounded-xl border-transparent bg-tertiary/60 pr-10 text-sm focus-visible:border-primary focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-primary"
         onKeyDown={(e) => {
           if (e.key === "Enter" && routeSearchResults.length > 0) {
             e.preventDefault();
@@ -408,7 +434,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         type="button"
         variant="ghost"
         size="icon"
-        className="absolute right-1.5 top-1/2 h-7 w-7 -translate-y-1/2 text-slate-500 hover:text-sky-600"
+        className="absolute right-1.5 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-primary"
         aria-label={t("shell.searchRun")}
         onClick={() => {
           if (routeSearchResults.length > 0) {
@@ -467,7 +493,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     { href: "/vehicles", label: "Vehicles", icon: Car },
     { href: "/logs", label: "Rentals", icon: CalendarDays },
     { href: "/calendar", label: "Calendar", icon: Calendar },
-    { href: "/settings", label: "Settings", icon: Settings },
+    { href: "/settings", label: "Hesabim", icon: Users },
   ] as const;
 
   return (
@@ -475,22 +501,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <Suspense fallback={null}>
         <RentRbacToastInner />
       </Suspense>
-      <aside className="hidden h-screen w-[280px] shrink-0 flex-col border-r border-slate-200 bg-white shadow-sm sm:flex">
+      <aside className="hidden h-screen w-[280px] shrink-0 flex-col border-r border-tertiary bg-neutral shadow-sm lg:flex">
         <Link href="/dashboard" className="flex items-center gap-3 px-6 pb-3 pt-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500 text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <CarFront className="h-5 w-5 shrink-0" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-xl font-bold leading-tight text-slate-900">FleetControl</p>
-            <p className="truncate text-xs text-slate-500">Admin Portal</p>
+            <p className="truncate text-xl font-bold leading-tight text-foreground">FleetControl</p>
+            <p className="truncate text-xs text-muted-foreground">Admin Portal</p>
           </div>
         </Link>
-        <div className="px-3 pb-2">
-          <Button className="h-10 w-full justify-center gap-2 rounded-xl bg-sky-500 text-sm font-semibold text-white hover:bg-sky-600">
-            <span className="text-base leading-none">+</span>
-            New Booking
-          </Button>
-        </div>
         <nav className="flex flex-1 flex-col gap-1 px-3 py-3">
           {filteredDesktopNav.map((item) => {
             if (item.type === "link") {
@@ -503,8 +523,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   className={cn(
                     "flex items-center gap-2.5 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
                     active
-                      ? "border-r-4 border-sky-500 bg-sky-50 text-sky-600"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                      ? "border-r-4 border-primary bg-tertiary/60 text-primary"
+                      : "text-muted-foreground hover:bg-tertiary/40 hover:text-foreground",
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -527,8 +547,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-lg px-4 py-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     groupActive
-                      ? "border-r-4 border-sky-500 bg-sky-50 text-sky-600"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                      ? "border-r-4 border-primary bg-tertiary/60 text-primary"
+                      : "text-muted-foreground hover:bg-tertiary/40 hover:text-foreground",
                   )}
                 >
                   <GroupIcon className="h-4 w-4 shrink-0" />
@@ -540,14 +560,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="ml-3 mt-1 space-y-0.5 border-l border-border/60 pl-2">
                   {item.children.map((c) => {
-                    const active = isNavActive(pathname, c.href);
+                    const active = isNavChildActive(pathname, searchParams, c.href);
                     return (
                       <Link
                         key={c.href}
                         href={c.href}
                         className={cn(
                           "flex items-center rounded-md py-1.5 pl-2 pr-2 text-xs font-medium transition-colors",
-                          active ? "bg-sky-500 text-white" : "text-muted-foreground hover:bg-slate-50 hover:text-foreground",
+                          active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-tertiary/40 hover:text-foreground",
                         )}
                       >
                         {t(c.msgKey)}
@@ -559,10 +579,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="space-y-1 border-t border-slate-100 px-3 py-2">
+        <div className="space-y-1 border-t border-tertiary px-3 py-2">
           <button
             type="button"
-            className="flex w-full items-center gap-2.5 rounded-lg px-4 py-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            className="flex w-full items-center gap-2.5 rounded-lg px-4 py-3 text-left text-sm font-medium text-muted-foreground hover:bg-tertiary/40 hover:text-foreground"
             onClick={() => void logout()}
           >
             <LogOut className="h-4 w-4" />
@@ -642,7 +662,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                       </CollapsibleTrigger>
                       <CollapsibleContent className="ml-3 mt-0.5 space-y-0.5 border-l border-border/60 pl-2">
                         {item.children.map((c) => {
-                          const active = isNavActive(pathname, c.href);
+                          const active = isNavChildActive(pathname, searchParams, c.href);
                           return (
                             <SheetClose key={c.href} asChild>
                               <Link
@@ -678,47 +698,55 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
 
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur-md sm:hidden">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-tertiary bg-neutral/90 px-4 backdrop-blur-md lg:hidden">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[10px] font-semibold text-slate-700">
-              {initialsFromSessionIdentity(sessionIdentity)}
-            </div>
-            <p className="truncate text-lg font-bold tracking-tight text-slate-900">Dashboard</p>
+            {showTemplateActions ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full text-primary"
+                aria-label={t("shell.back")}
+                onClick={goBack}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-10 w-10 rounded-full text-sky-500"
+              className="h-10 w-10 rounded-full text-primary"
               aria-label="Open navigation"
               aria-expanded={mobileNavOpen}
               onClick={() => setMobileNavOpen(true)}
             >
               <Search className="h-5 w-5" />
             </Button>
-            <Button type="button" variant="ghost" size="icon" className="relative h-10 w-10 rounded-full text-sky-500">
+            <Button type="button" variant="ghost" size="icon" className="relative h-10 w-10 rounded-full text-primary">
               <Bell className="h-5 w-5" />
               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
             </Button>
           </div>
         </header>
 
-        <header className="sticky top-0 z-30 hidden h-16 items-center justify-between gap-6 border-b border-slate-200 bg-white/80 px-8 backdrop-blur-md sm:flex">
+        <header className="sticky top-0 z-30 hidden h-16 items-center justify-between gap-6 border-b border-tertiary bg-neutral/90 px-8 backdrop-blur-md lg:flex">
           {renderRouteSearch("max-w-md")}
           <div className="flex shrink-0 items-center gap-4">
-            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full text-slate-500 hover:text-sky-500">
+            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-primary">
               <Bell className="h-4 w-4" />
             </Button>
-            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full text-slate-500 hover:text-sky-500">
+            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-primary">
               <CircleHelp className="h-4 w-4" />
             </Button>
-            <div className="h-8 w-px bg-slate-200" />
+            <div className="h-8 w-px bg-tertiary" />
             <UserAvatarLogoutMenu session={sessionIdentity} menuPlacement="below" onLogout={() => void logout()} />
           </div>
         </header>
 
-        <div className="sticky top-12 z-20 hidden bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:top-16 sm:block sm:px-8">
+        <div className="sticky top-12 z-20 hidden bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:top-16 lg:block lg:px-8">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             {showTemplateActions ? (
               <Button
@@ -738,8 +766,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f7f9fb] p-3 pb-24 sm:p-8">{children}</main>
-        <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-slate-200 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] sm:hidden">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-tertiary/25 p-3 pb-24 lg:p-8 lg:pb-8">{children}</main>
+        <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-tertiary bg-neutral px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] lg:hidden">
           {mobilePrimaryNav.map((item) => {
             const Icon = item.icon;
             const active = isNavActive(pathname, item.href);
@@ -749,10 +777,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={cn(
                   "flex min-w-[68px] flex-col items-center justify-center rounded-xl px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors",
-                  active ? "bg-sky-50 text-sky-600" : "text-slate-500",
+                  active ? "bg-tertiary/70 text-primary" : "text-muted-foreground",
                 )}
               >
-                <Icon className={cn("h-5 w-5", active && "text-sky-600")} />
+                <Icon className={cn("h-5 w-5", active && "text-primary")} />
                 {item.label}
               </Link>
             );

@@ -396,7 +396,7 @@ export function CustomersClient() {
               <p className="py-8 text-center text-xs text-muted-foreground">Sonuç yok.</p>
             ) : (
               <>
-              <div className="space-y-2 p-3 md:hidden">
+              <div className="space-y-2 p-3 lg:hidden">
                 {filtered.map((row) => {
                   const k = resolveCustomerKind(row.customer);
                   const isManual = row.key.startsWith("manual:");
@@ -455,14 +455,14 @@ export function CustomersClient() {
                   );
                 })}
               </div>
-              <div className="hidden md:block">
+              <div className="hidden lg:block">
               <Table className="min-w-[640px]">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="w-[76px]">Tür</TableHead>
                     <TableHead>İsim</TableHead>
                     <TableHead className="hidden w-[120px] sm:table-cell">TC</TableHead>
-                    <TableHead className="hidden md:table-cell">Telefon</TableHead>
+                    <TableHead className="hidden lg:table-cell">Telefon</TableHead>
                     <TableHead className="w-[52px] text-center">Kira</TableHead>
                     <TableHead className="hidden w-[130px] lg:table-cell">Son işlem</TableHead>
                     <TableHead className="w-[120px] text-right">İşlem</TableHead>
@@ -502,7 +502,7 @@ export function CustomersClient() {
                             </span>
                           </TableCell>
                           <TableCell className="hidden py-2 font-mono text-xs sm:table-cell">{row.customer.nationalId || "—"}</TableCell>
-                          <TableCell className="hidden py-2 text-xs md:table-cell">{row.customer.phone}</TableCell>
+                          <TableCell className="hidden py-2 text-xs lg:table-cell">{row.customer.phone}</TableCell>
                           <TableCell className="py-2 text-center">
                             <Badge variant="secondary" className="tabular-nums">
                               {row.totalRentals}

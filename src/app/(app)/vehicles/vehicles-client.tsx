@@ -1,20 +1,26 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { startOfDay } from "date-fns";
 import {
   ArrowDownUp,
+  BarChart3,
   BatteryCharging,
+  CarFront,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Download,
   Fuel,
   ListFilter,
+  ListChecks,
   Plus,
+  PlusCircle,
   Search,
   SquarePen,
+  Wrench,
 } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { AddEntityLink } from "@/components/ui/add-entity-actions";
@@ -88,6 +94,7 @@ function fleetStatusBadgeClass(status: FleetStatus): string {
 
 export function VehiclesClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { allVehicles, ready, error: fleetError } = useFleetVehicles();
   const { allSessions } = useFleetSessions();
@@ -104,6 +111,7 @@ export function VehiclesClient() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const PAGE_SIZE = 8;
+  const showMobileList = searchParams.get("sekme") === "liste";
 
   const today = startOfDay(new Date());
 
@@ -281,8 +289,122 @@ export function VehiclesClient() {
         </SheetContent>
       </Sheet>
 
-      <div className="mx-auto max-w-[92rem] space-y-4 md:space-y-5">
-      <div className="mx-auto w-full max-w-md space-y-4 px-4 pt-1 md:hidden">
+      <div className="mx-auto max-w-[92rem] space-y-4 lg:space-y-5">
+      <div className={cn("mx-auto w-full max-w-md space-y-4 px-4 pt-1 lg:hidden", showMobileList && "hidden")}>
+        <div className="px-1">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-primary">Operations</p>
+          <h2 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">Vehicle Management</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            className="aspect-square rounded-xl border border-border bg-card p-3 transition-colors hover:bg-tertiary/30 active:scale-95"
+            onClick={() => router.push("/vehicles?sekme=liste")}
+          >
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <CarFront className="h-7 w-7" />
+              </div>
+              <span className="text-center text-sm font-semibold text-foreground">View Vehicles</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="aspect-square rounded-xl border border-border bg-card p-3 transition-colors hover:bg-tertiary/30 active:scale-95"
+            onClick={() => {
+              void queryClient.prefetchQuery({
+                queryKey: rentKeys.vehicleFormCatalog(),
+                queryFn: fetchVehicleFormCatalogFromRentApi,
+              });
+              router.push("/vehicles/new");
+            }}
+          >
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary/25 text-secondary-foreground">
+                <PlusCircle className="h-7 w-7" />
+              </div>
+              <span className="text-center text-sm font-semibold text-foreground">Register New Vehicle</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="aspect-square rounded-xl border border-border bg-card p-3 transition-colors hover:bg-tertiary/30 active:scale-95"
+            onClick={() => router.push("/settings/options/vehicle")}
+          >
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-tertiary text-tertiary-foreground">
+                <Wrench className="h-7 w-7" />
+              </div>
+              <span className="text-center text-sm font-semibold text-foreground">Additional Services</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="aspect-square rounded-xl border border-border bg-card p-3 transition-colors hover:bg-tertiary/30 active:scale-95"
+            onClick={() => router.push("/settings/vehicle-catalog")}
+          >
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <ListChecks className="h-7 w-7" />
+              </div>
+              <span className="text-center text-sm font-semibold text-foreground">Vehicle Features</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="aspect-square rounded-xl border border-border bg-card p-3 transition-colors hover:bg-tertiary/30 active:scale-95"
+            onClick={() => router.push("/logs")}
+          >
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <ClipboardList className="h-7 w-7" />
+              </div>
+              <span className="text-center text-sm font-semibold text-foreground">Maintenance Log</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="aspect-square rounded-xl border border-border bg-card p-3 transition-colors hover:bg-tertiary/30 active:scale-95"
+            onClick={() => router.push("/reports")}
+          >
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary/25 text-secondary-foreground">
+                <BarChart3 className="h-7 w-7" />
+              </div>
+              <span className="text-center text-sm font-semibold text-foreground">Analytics</span>
+            </div>
+          </button>
+        </div>
+        <div className="rounded-xl border border-border/70 bg-tertiary/25 p-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quick Access</h3>
+          <div className="mt-2 space-y-2">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-card px-3 py-2.5 text-left"
+              onClick={() => router.push("/logs")}
+            >
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+                <Wrench className="h-4 w-4 text-primary" />
+                Roadside Assistance
+              </span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-card px-3 py-2.5 text-left"
+              onClick={() => router.push("/payments")}
+            >
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+                <Fuel className="h-4 w-4 text-secondary-foreground" />
+                Fuel Management
+              </span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className={cn("mx-auto w-full max-w-md space-y-4 px-4 pt-1 lg:hidden", !showMobileList && "hidden")}>
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
@@ -364,7 +486,7 @@ export function VehiclesClient() {
         </div>
       </div>
 
-      <div className="hidden flex-col gap-3 md:flex md:flex-row md:items-end md:justify-between">
+      <div className="hidden flex-col gap-3 lg:flex lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Fleet Inventory</h1>
         </div>
@@ -380,9 +502,9 @@ export function VehiclesClient() {
         />
       </div>
 
-      <ListingPanel>
-        <ListingToolbar className="hidden md:block">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.3fr_0.8fr_0.8fr_auto] md:items-end">
+      <ListingPanel className={cn("lg:block", !showMobileList && "hidden")}>
+        <ListingToolbar className="hidden lg:block">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.3fr_0.8fr_0.8fr_auto] lg:items-end">
                 <div className="space-y-1">
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Search Fleet</p>
                   <div className="relative min-w-0">
@@ -459,7 +581,7 @@ export function VehiclesClient() {
                     <p className="py-10 text-center text-sm text-muted-foreground">Sonuç yok. Aramayı veya filtreyi değiştirin.</p>
                   ) : (
                     <>
-                      <div className="space-y-3 px-4 pb-8 pt-1 md:hidden">
+                      <div className="space-y-3 px-4 pb-8 pt-1 lg:hidden">
                         {pagedRows.map(({ v, status }) => {
                           const cover = vehicleCoverUrl(v);
                           const pct = vehiclePseudoFuelPct(v);
@@ -521,7 +643,7 @@ export function VehiclesClient() {
                           );
                         })}
                       </div>
-                      <div className="hidden md:block">
+                      <div className="hidden lg:block">
                         <Table className="min-w-[800px]">
                           <TableHeader>
                             <TableRow className="hover:bg-transparent">
@@ -556,7 +678,7 @@ export function VehiclesClient() {
                                 >
                                   <TableCell>
                                     <div className="flex items-center gap-3">
-                                      <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-md bg-muted md:h-16 md:w-24">
+                                      <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-md bg-muted lg:h-16 lg:w-24">
                                         {cover ? (
                                           <>
                                             {/* eslint-disable-next-line @next/next/no-img-element -- data URL + harici demo URL */}
@@ -591,7 +713,7 @@ export function VehiclesClient() {
                                   </TableCell>
                                   <TableCell className="font-mono text-sm font-medium">{v.plate}</TableCell>
                                   <TableCell>{statusBadge(status)}</TableCell>
-                                  <TableCell className="text-xs text-muted-foreground md:text-sm">
+                                  <TableCell className="text-xs text-muted-foreground lg:text-sm">
                                     <p className="text-foreground">{v.fuelType ?? "—"}</p>
                                     <p>{v.transmissionType ?? "—"}</p>
                                   </TableCell>
@@ -625,23 +747,23 @@ export function VehiclesClient() {
                   )}
 
                   {filtered.length > 0 ? (
-                    <div className="flex flex-col gap-2 border-t border-border/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                    <div className="flex flex-col gap-2 border-t border-border/80 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-5">
                       <p className="text-xs text-muted-foreground">
-                        <span className="md:hidden">
+                        <span className="lg:hidden">
                           {(safePage - 1) * PAGE_SIZE + (pagedRows.length ? 1 : 0)}-
                           {(safePage - 1) * PAGE_SIZE + pagedRows.length} / {filtered.length} araç
                         </span>
-                        <span className="hidden md:inline">
+                        <span className="hidden lg:inline">
                           Showing {(safePage - 1) * PAGE_SIZE + (pagedRows.length ? 1 : 0)}-
                           {(safePage - 1) * PAGE_SIZE + pagedRows.length} of {filtered.length} vehicles
                         </span>
                       </p>
-                      <div className="flex items-center justify-center gap-1 md:justify-end">
+                      <div className="flex items-center justify-center gap-1 lg:justify-end">
                         <Button
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="h-9 w-9 rounded-full md:h-8 md:w-8 md:rounded-md"
+                          className="h-9 w-9 rounded-full lg:h-8 lg:w-8 lg:rounded-md"
                           disabled={safePage <= 1}
                           onClick={() => setPage((p) => Math.max(1, p - 1))}
                         >
@@ -656,7 +778,7 @@ export function VehiclesClient() {
                               variant="outline"
                               size="sm"
                               className={cn(
-                                "h-9 min-w-9 px-2 rounded-full md:h-8 md:min-w-8 md:rounded-md",
+                                "h-9 min-w-9 px-2 rounded-full lg:h-8 lg:min-w-8 lg:rounded-md",
                                 p === safePage &&
                                   "border-sky-500 bg-sky-500 text-white shadow-sm hover:bg-sky-600 hover:text-white",
                               )}
@@ -670,7 +792,7 @@ export function VehiclesClient() {
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="h-9 w-9 rounded-full md:h-8 md:w-8 md:rounded-md"
+                          className="h-9 w-9 rounded-full lg:h-8 lg:w-8 lg:rounded-md"
                           disabled={safePage >= totalPages}
                           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                         >
@@ -686,7 +808,7 @@ export function VehiclesClient() {
 
       <Button
         type="button"
-        className="fixed bottom-20 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#006591] text-white shadow-lg transition-transform hover:bg-[#005580] active:scale-95 md:hidden"
+        className="fixed bottom-20 right-6 z-40 hidden h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-primary text-primary-foreground shadow-lg transition-transform hover:bg-primary/90 active:scale-95 lg:hidden"
         aria-label="Yeni araç"
         onClick={() => {
           void queryClient.prefetchQuery({
