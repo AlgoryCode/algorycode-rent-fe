@@ -83,7 +83,6 @@ export function RequestsClient({ embedded = false }: RequestsClientProps) {
   const { data: customerRecordStates } = useCustomerRecordStates();
   const directoryRows = useCustomerDirectoryRows(allSessions, customerRecordStates);
 
-  const [statusMessage, setStatusMessage] = useState("");
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [sendWizardStep, setSendWizardStep] = useState<SendWizardStep>("source");
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -202,7 +201,7 @@ export function RequestsClient({ embedded = false }: RequestsClientProps) {
     await updateMutation.mutateAsync({
       id: row.id,
       status,
-      message: statusMessage.trim() || undefined,
+      message: undefined,
     });
   };
 
@@ -719,26 +718,6 @@ export function RequestsClient({ embedded = false }: RequestsClientProps) {
             <Send className="h-3.5 w-3.5" />
             Gönder
           </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="glow-card">
-        <CardHeader className="space-y-1 py-3">
-          <CardTitle className="text-sm">Durum notu (opsiyonel)</CardTitle>
-          <CardDescription className="text-xs">
-            Durum değişiminde bu not müşteriye bildirimde iletilir.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <Label htmlFor="request-status-message" className="sr-only">
-            Durum notu
-          </Label>
-          <Input
-            id="request-status-message"
-            value={statusMessage}
-            onChange={(e) => setStatusMessage(e.target.value)}
-            placeholder="Örn: Sözleşmeniz onaylandı, teslim saati için WhatsApp kontrol edin."
-          />
         </CardContent>
       </Card>
 
