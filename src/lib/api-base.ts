@@ -8,7 +8,7 @@ const API_TARGETS = {
   },
   prod: {
     gatewayOrigin: "https://gateway.algorycode.com",
-    rentGatewayOrigin: "https://rentgatewayapi.algorycode.com",
+    rentGatewayOrigin: "https://gateway.algorycode.com",
     authServiceBase: "https://auth.algorycode.com/authservice",
   },
 } as const;
