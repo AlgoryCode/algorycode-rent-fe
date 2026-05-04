@@ -300,6 +300,33 @@ function mapVehicleHighlights(raw: unknown): string[] | undefined {
   return out.length > 0 ? out.slice(0, 30) : undefined;
 }
 
+function parseFleetStatusCodeFromVehicleApi(raw: Record<string, unknown>): Vehicle["fleetStatusCode"] | undefined {
+  const asCode = (s: string): Vehicle["fleetStatusCode"] | undefined => {
+    const t = s.trim().toLowerCase();
+    if (t === "available") return "available";
+    if (t === "rented") return "rented";
+    if (t === "maintenance") return "maintenance";
+    return undefined;
+  };
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : undefined);
+  const direct = str(raw.fleetStatusCode) ?? str(raw.fleet_status_code) ?? str(raw.statusCode);
+  if (direct) {
+    const c = asCode(direct);
+    if (c) return c;
+  }
+  const vs = raw.vehicleStatus ?? raw.vehicle_status;
+  if (vs != null && typeof vs === "object") {
+    const code = str((vs as Record<string, unknown>).code);
+    if (code) return asCode(code);
+  }
+  const fs = raw.fleetStatus ?? raw.fleet_status;
+  if (fs != null && typeof fs === "object") {
+    const code = str((fs as Record<string, unknown>).code);
+    if (code) return asCode(code);
+  }
+  return undefined;
+}
+
 export function mapVehicleFromApi(raw: Record<string, unknown>): Vehicle {
   const cc = raw.countryCode;
   const returnLocations = mapVehicleReturnHandoverLocations(raw);
@@ -333,6 +360,7 @@ export function mapVehicleFromApi(raw: Record<string, unknown>): Vehicle {
     transmissionType: asOptionalString(raw.transmissionType),
     bodyStyleCode: asOptionalString(raw.bodyStyleCode),
     bodyStyleLabel: asOptionalString(raw.bodyStyleLabel),
+    fleetStatusCode: parseFleetStatusCodeFromVehicleApi(raw),
   };
 }
 
@@ -496,6 +524,9 @@ export function mapRentalFromApi(raw: Record<string, unknown>): RentalSession {
     startDate,
     endDate,
     createdAt,
+    outsideCountryTravel: Boolean(raw.outsideCountryTravel),
+    greenInsuranceFee: asOptionalNumber(raw.greenInsuranceFee),
+    note: asOptionalString(raw.note),
     status: normalizeRentalStatus(raw.status),
     commissionAmount: asOptionalNumber(raw.commissionAmount),
     commissionFlow:
@@ -1035,6 +1066,28 @@ export async function createCountryOnRentApi(payload: CreateCountryPayload): Pro
   return mapCountryFromApi(data as Record<string, unknown>);
 }
 
+export async function createVehicleBrandOnRentApi(payload: {
+  name: string;
+  sortOrder: number;
+}): Promise<{ id: string }> {
+  const { data } = await rentClient().post<Record<string, unknown>>("/vehicle-brands", {
+    name: payload.name.trim(),
+    sortOrder: payload.sortOrder,
+  });
+  return { id: String(data.id ?? "") };
+}
+
+export async function createVehicleModelOnRentApi(
+  brandId: string,
+  payload: { name: string; sortOrder: number },
+): Promise<{ id: string }> {
+  const { data } = await rentClient().post<Record<string, unknown>>(
+    `/vehicle-brands/${encodeURIComponent(brandId)}/models`,
+    { name: payload.name.trim(), sortOrder: payload.sortOrder },
+  );
+  return { id: String(data.id ?? "") };
+}
+
 export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Promise<Vehicle> {
   const countryCode = payload.countryCode?.trim().toUpperCase();
   if (!countryCode || countryCode.length > 64) {
@@ -1044,12 +1097,11 @@ export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Pro
   if (pickupLong == null) {
     throw new Error("Alış noktası kimliği geçersiz.");
   }
+  const vehicleModelIdNum = rentApiLongValue(payload.vehicleModelId);
+  const vehicleStatusIdNum = rentApiLongValue(payload.vehicleStatusId);
   const body: Record<string, unknown> = {
     plate: payload.plate,
-    brand: payload.brand,
-    model: payload.model,
     year: payload.year,
-    maintenance: payload.maintenance,
     external: Boolean(payload.external),
     externalCompany: payload.externalCompany?.trim() || undefined,
     rentalDailyPrice: payload.rentalDailyPrice,
@@ -1098,6 +1150,12 @@ export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Pro
   if (payload.luggage != null && Number.isFinite(payload.luggage)) body.luggage = payload.luggage;
   if (payload.transmissionType?.trim()) body.transmissionType = payload.transmissionType.trim();
   if (payload.bodyStyleCode?.trim()) body.bodyStyleCode = payload.bodyStyleCode.trim();
+  if (vehicleModelIdNum != null) {
+    body.vehicleModelId = vehicleModelIdNum;
+  }
+  if (vehicleStatusIdNum != null) {
+    body.vehicleStatusId = vehicleStatusIdNum;
+  }
   const { data } = await rentClient().post<unknown>("/vehicles", body);
   return mapVehicleFromApi(data as Record<string, unknown>);
 }
@@ -1182,6 +1240,8 @@ export async function createRentalOnRentApi(payload: CreateRentalPayload): Promi
     vehicleId: payload.vehicleId,
     startDate: payload.startDate,
     endDate: payload.endDate,
+    outsideCountryTravel: payload.outsideCountryTravel ?? false,
+    ...(payload.note?.trim() ? { note: payload.note.trim() } : {}),
     customer: {
       ...payload.customer,
       email: payload.customer.email?.trim() || undefined,
@@ -1191,15 +1251,20 @@ export async function createRentalOnRentApi(payload: CreateRentalPayload): Promi
       driverLicenseImageDataUrl: payload.customer.driverLicenseImageDataUrl || undefined,
       passportImageDataUrl: payload.customer.passportImageDataUrl || undefined,
     },
-    commissionAmount: payload.commissionAmount,
-    commissionFlow: payload.commissionFlow,
-    commissionCompany: payload.commissionCompany?.trim() || undefined,
     additionalDrivers: payload.additionalDrivers?.map((d) => ({
       ...d,
+      birthDate: d.birthDate ?? "",
+      passportImageDataUrl: d.passportImageDataUrl ?? "",
       driverLicenseNo: d.driverLicenseNo?.trim() ?? "",
       passportNo: d.passportNo?.trim() ?? "",
     })),
     status: payload.status,
+    ...(payload.reservationExtraOptionTemplateIds && payload.reservationExtraOptionTemplateIds.length > 0
+      ? { reservationExtraOptionTemplateIds: payload.reservationExtraOptionTemplateIds }
+      : {}),
+    ...(payload.vehicleOptionDefinitionIds && payload.vehicleOptionDefinitionIds.length > 0
+      ? { vehicleOptionDefinitionIds: payload.vehicleOptionDefinitionIds }
+      : {}),
   });
   return mapRentalFromApi(data as Record<string, unknown>);
 }
@@ -1208,12 +1273,11 @@ export async function updateRentalOnRentApi(id: string, payload: UpdateRentalPay
   const { data } = await rentClient().patch<unknown>(`/rentals/${id}`, {
     startDate: payload.startDate,
     endDate: payload.endDate,
-    commissionAmount:
-      payload.commissionAmount != null && Number.isFinite(payload.commissionAmount)
-        ? payload.commissionAmount
+    discountAmount:
+      payload.discountAmount != null && Number.isFinite(payload.discountAmount)
+        ? payload.discountAmount
         : undefined,
-    commissionFlow: payload.commissionFlow,
-    commissionCompany: payload.commissionCompany?.trim() || undefined,
+    discountType: payload.discountType,
     status: payload.status,
     customer: payload.customer
       ? {

@@ -69,6 +69,10 @@ export type RentalSession = {
   discountAmount?: number;
   discountType?: "PERCENT" | "AMOUNT";
   netAmount?: number;
+  /** `/rental-requests` ile uyumlu; rent-service döndürür */
+  outsideCountryTravel?: boolean;
+  greenInsuranceFee?: number;
+  note?: string;
 };
 
 export type VehicleHandoverRef = { id: string; name?: string; kind?: string };
@@ -133,6 +137,8 @@ export type Vehicle = {
   transmissionType?: string;
   /** Gövde tipi kodu (SEDAN, SUV, …) */
   bodyStyleCode?: string;
+  /** Backend filo görünüm kodu (`available` / `rented` / `maintenance`); dolu ise rozet için önceliklidir */
+  fleetStatusCode?: "available" | "rented" | "maintenance";
   /** Gövde tipi görünen adı (API) */
   bodyStyleLabel?: string;
   /** Açıdan görüntüler (data URL, demo saklama) */

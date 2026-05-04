@@ -14,56 +14,57 @@
     --popover-foreground: 245 14% 10%;
     --primary: 252 93% 47%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 146 83% 50%;
-    --secondary-foreground: 156 100% 12%;
-    --tertiary: 163 31% 90%;
-    --tertiary-foreground: 167 24% 24%;
+    --secondary: 252 52% 95%;
+    --secondary-foreground: 252 40% 28%;
+    --tertiary: 235 42% 94%;
+    --tertiary-foreground: 237 38% 24%;
     --neutral: 0 0% 100%;
     --neutral-foreground: 245 14% 10%;
-    --muted: 163 31% 94%;
+    --muted: 236 33% 95%;
     --muted-foreground: 245 8% 42%;
-    --accent: 163 31% 92%;
+    --accent: 235 38% 93%;
     --accent-foreground: 245 14% 10%;
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 164 24% 86%;
-    --input: 164 24% 86%;
+    --border: 233 27% 88%;
+    --input: 233 27% 88%;
     --ring: 252 93% 47%;
     --radius: 0.5rem;
-    --success: 142 71% 40%;
+    --success: 252 88% 44%;
     --success-foreground: 0 0% 98%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 6%;
     --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.06), 0 4px 12px hsl(0 0% 0% / 0.04);
+    --app-mobile-tab-bar-offset: calc(0.5rem + 3.125rem + max(0.75rem, env(safe-area-inset-bottom, 0px)));
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: "JetBrains Mono", monospace;
   }
 
   .dark {
-    --background: 245 22% 7%;
+    --background: 245 35% 5%;
     --foreground: 0 0% 96%;
-    --card: 245 20% 10%;
+    --card: 245 32% 8%;
     --card-foreground: 0 0% 96%;
-    --popover: 245 20% 10%;
+    --popover: 245 32% 8%;
     --popover-foreground: 0 0% 96%;
-    --primary: 252 93% 62%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 146 83% 44%;
-    --secondary-foreground: 0 0% 100%;
-    --tertiary: 167 22% 18%;
-    --tertiary-foreground: 163 31% 90%;
-    --neutral: 245 20% 10%;
+    --primary: 252 88% 64%;
+    --primary-foreground: 252 58% 5%;
+    --secondary: 245 38% 16%;
+    --secondary-foreground: 0 0% 96%;
+    --tertiary: 246 42% 12%;
+    --tertiary-foreground: 230 96% 95%;
+    --neutral: 245 32% 8%;
     --neutral-foreground: 0 0% 96%;
-    --muted: 245 18% 16%;
+    --muted: 245 30% 13%;
     --muted-foreground: 245 9% 68%;
-    --accent: 245 20% 18%;
+    --accent: 248 42% 16%;
     --accent-foreground: 0 0% 96%;
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 245 16% 22%;
-    --input: 245 16% 22%;
-    --ring: 252 93% 62%;
-    --success: 142 71% 45%;
+    --border: 246 42% 16%;
+    --input: 246 42% 16%;
+    --ring: 252 88% 64%;
+    --success: 252 76% 48%;
     --success-foreground: 0 0% 98%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 6%;
@@ -129,16 +130,48 @@
     background-color: hsl(var(--primary) / 0.1) !important;
   }
 
+  .text-emerald-50,
+  .text-emerald-100,
+  .text-emerald-200,
   .text-emerald-300,
+  .text-emerald-400,
   .text-emerald-500,
   .text-emerald-600,
-  .text-emerald-700 {
-    color: hsl(var(--secondary)) !important;
+  .text-emerald-700,
+  .text-emerald-800,
+  .text-emerald-900 {
+    color: hsl(var(--primary)) !important;
   }
 
+  .bg-emerald-50,
   .bg-emerald-100,
+  .bg-emerald-200,
+  .bg-emerald-500,
+  .bg-emerald-400,
   .bg-emerald-500\/10 {
-    background-color: hsl(var(--secondary) / 0.15) !important;
+    background-color: hsl(var(--primary) / 0.14) !important;
+  }
+
+  .border-emerald-200,
+  .border-emerald-400,
+  .border-emerald-400\/40,
+  .border-emerald-500,
+  .border-emerald-500\/20,
+  .border-emerald-500\/40,
+  .border-emerald-500\/50 {
+    border-color: hsl(var(--primary) / 0.45) !important;
+  }
+
+  .bg-green-50,
+  .bg-green-100 {
+    background-color: hsl(var(--primary) / 0.14) !important;
+  }
+
+  .text-green-700 {
+    color: hsl(var(--primary)) !important;
+  }
+
+  .border-green-200 {
+    border-color: hsl(var(--primary) / 0.35) !important;
   }
 }
-

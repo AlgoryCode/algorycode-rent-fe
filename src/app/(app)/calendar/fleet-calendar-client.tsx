@@ -92,7 +92,7 @@ export function FleetCalendarClient() {
   };
 
   const statusClasses: Record<CalendarStatus, string> = {
-    active: "border-emerald-500 bg-emerald-50 text-emerald-900",
+    active: "border-primary bg-primary/10 text-foreground",
     completed: "border-sky-400 bg-sky-50 text-sky-900",
     maintenance: "border-amber-500 bg-amber-50 text-amber-900",
     pending: "border-slate-400 bg-slate-100 text-slate-700",
@@ -102,7 +102,7 @@ export function FleetCalendarClient() {
   const todayEvents = rentalsForCell(today).slice(0, 4);
   const eventTimeLabel = (idx: number) => ["09:30", "11:00", "14:00", "16:30"][idx] ?? "10:00";
   const statusDotClass: Record<CalendarStatus, string> = {
-    active: "bg-emerald-500",
+    active: "bg-primary",
     completed: "bg-sky-500",
     maintenance: "bg-amber-500",
     pending: "bg-slate-400",
@@ -184,7 +184,7 @@ export function FleetCalendarClient() {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Aktif</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-primary" />Aktif</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-sky-500" />Tamamlandi</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" />Bakim</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-400" />Beklemede</span>
@@ -247,7 +247,7 @@ export function FleetCalendarClient() {
                         const customer = s.customer?.fullName?.trim() || "Musteri";
                         return (
                           <div key={`today-${s.id}`} className="flex items-start gap-4 rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-                            <div className={cn("rounded-lg p-2.5", status === "maintenance" ? "bg-amber-50 text-amber-600" : status === "pending" ? "bg-sky-50 text-sky-600" : "bg-emerald-50 text-emerald-600")}>
+                            <div className={cn("rounded-lg p-2.5", status === "maintenance" ? "bg-amber-50 text-amber-600" : status === "pending" ? "bg-sky-50 text-sky-600" : "bg-primary/10 text-primary")}>
                               {status === "maintenance" ? <Wrench className="h-4 w-4" /> : <CalendarDays className="h-4 w-4" />}
                             </div>
                             <div className="min-w-0 flex-1">

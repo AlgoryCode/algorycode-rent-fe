@@ -19,9 +19,9 @@ import { hrefRequiresRentManager } from "@/lib/rbac/route-policy";
 
 const quickMenuAll = [
   { href: "/reports", label: "Raporlar", icon: BarChart3, bg: "from-violet-500/25 to-indigo-500/10" },
-  { href: "/payments", label: "Ödemeler", icon: Wallet, bg: "from-emerald-500/25 to-teal-500/10" },
-  { href: "/customers", label: "Customers", icon: Users, bg: "from-cyan-500/25 to-sky-500/10" },
-  { href: "/customers/channel", label: "Toplu mesaj", icon: MessagesSquare, bg: "from-lime-500/25 to-green-500/10" },
+  { href: "/payments", label: "Ödemeler", icon: Wallet, bg: "from-primary/25 to-[hsl(245,52%,94%)]" },
+  { href: "/customers", label: "Customers", icon: Users, bg: "from-primary/28 to-[hsl(237,62%,93%)]" },
+  { href: "/customers/channel", label: "Toplu mesaj", icon: MessagesSquare, bg: "from-primary/26 to-[hsl(247,72%,92%)]" },
   { href: "/users", label: "Kullanıcılar", icon: UserCog, bg: "from-slate-500/25 to-zinc-500/10" },
   { href: "/countries", label: "Ülkeler", icon: Globe2, bg: "from-purple-500/25 to-blue-500/10" },
   { href: "/settings", label: "Ayarlar", icon: Settings, bg: "from-stone-500/25 to-neutral-500/10" },
@@ -60,7 +60,7 @@ export default function DashboardPage() {
         </div>
       </div>
       <div className="hidden flex-col items-center justify-center gap-4 p-6 lg:flex">
-        <div className="w-full max-w-lg rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-cyan-500/10 p-5 shadow-sm">
+        <div className="w-full max-w-lg rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-primary/[0.04] p-5 shadow-sm">
           <p className="text-sm font-semibold tracking-tight">Talep formu paylaşımı</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Müşteriye boş talep formu bağlantısını <span className="font-medium text-foreground">Kiralamalar</span> sayfasındaki{" "}

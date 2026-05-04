@@ -18,4 +18,6 @@ export const rentKeys = {
     [...rentKeys.all, "vehicleCalendarOccupancy", vehicleId, from, to] as const,
   /** Yeni araç formu: `GET /vehicles/form-catalog` */
   vehicleFormCatalog: () => [...rentKeys.all, "vehicleFormCatalog"] as const,
+  reservationExtraOptionTemplates: (includeInactive?: boolean) =>
+    [...rentKeys.all, "reservationExtraOptionTemplates", includeInactive ?? false] as const,
 };

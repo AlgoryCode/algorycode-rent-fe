@@ -196,7 +196,7 @@ export function CustomersClient() {
                   className={cn(
                     "flex min-h-[3.25rem] items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     nf.kind === "individual"
-                      ? "border-emerald-500/50 bg-emerald-500/10 dark:border-emerald-400/40"
+                      ? "border-primary/50 bg-primary/10 dark:border-primary/40"
                       : "border-border/80 bg-muted/15 hover:bg-muted/30",
                   )}
                 >
@@ -209,7 +209,7 @@ export function CustomersClient() {
                   className={cn(
                     "flex min-h-[3.25rem] items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     nf.kind === "corporate"
-                      ? "border-emerald-500/50 bg-emerald-500/10 dark:border-emerald-400/40"
+                      ? "border-primary/50 bg-primary/10 dark:border-primary/40"
                       : "border-border/80 bg-muted/15 hover:bg-muted/30",
                   )}
                 >
@@ -283,7 +283,7 @@ export function CustomersClient() {
                   className={cn(
                     "flex min-h-[3.25rem] items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     ef.kind === "individual"
-                      ? "border-emerald-500/50 bg-emerald-500/10 dark:border-emerald-400/40"
+                      ? "border-primary/50 bg-primary/10 dark:border-primary/40"
                       : "border-border/80 bg-muted/15 hover:bg-muted/30",
                   )}
                 >
@@ -296,7 +296,7 @@ export function CustomersClient() {
                   className={cn(
                     "flex min-h-[3.25rem] items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     ef.kind === "corporate"
-                      ? "border-emerald-500/50 bg-emerald-500/10 dark:border-emerald-400/40"
+                      ? "border-primary/50 bg-primary/10 dark:border-primary/40"
                       : "border-border/80 bg-muted/15 hover:bg-muted/30",
                   )}
                 >

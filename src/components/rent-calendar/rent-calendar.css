@@ -255,3 +255,97 @@
   color: hsl(var(--foreground));
   border-color: hsl(var(--primary) / 0.25);
 }
+
+.rdp-root.rent-calendar-skin .rdp-day.rent-cal-prev-hold-mid:not(.rdp-selected):not(.rdp-range_start):not(.rdp-range_middle):not(.rdp-range_end):not(.rent-cal-booked) .rdp-day_button {
+  background: hsl(var(--primary) / 0.22);
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--primary) / 0.25);
+  font-weight: 600;
+}
+
+.rdp-root.rent-calendar-skin .rdp-day.rent-cal-prev-hold-start:not(.rdp-selected):not(.rdp-range_start):not(.rdp-range_middle):not(.rdp-range_end):not(.rent-cal-booked) .rdp-day_button,
+.rdp-root.rent-calendar-skin .rdp-day.rent-cal-prev-hold-end:not(.rdp-selected):not(.rdp-range_start):not(.rdp-range_middle):not(.rdp-range_end):not(.rent-cal-booked) .rdp-day_button,
+.rdp-root.rent-calendar-skin .rdp-day.rent-cal-prev-hold-single:not(.rdp-selected):not(.rdp-range_start):not(.rdp-range_middle):not(.rdp-range_end):not(.rent-cal-booked) .rdp-day_button {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+  font-weight: 600;
+}
+
+.rdp-root.rent-calendar-skin .rdp-day.rent-cal-pickup-pending:not(.rent-cal-booked) .rdp-day_button {
+  background: hsl(var(--card));
+  color: hsl(var(--primary));
+  border: 2px solid hsl(var(--primary));
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.rdp-root.rent-calendar-skin .rdp-day.rent-cal-pickup-pending:not(.rent-cal-booked) .rdp-day_button:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: hsl(var(--primary) / 0.12);
+  border-color: hsl(var(--primary));
+}
+
+.rdp-root.rent-calendar-skin.rent-calendar-skin--compact {
+  --rc-gap: 0.18rem;
+  --rc-cell-min: 1.75rem;
+  --rc-cell-max: 2rem;
+  --rdp-day_button-border-radius: 0.4375rem;
+  width: fit-content;
+  max-width: min(22rem, 100%);
+  margin-inline: auto;
+  padding: 0.35rem 0.2rem 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .rdp-root.rent-calendar-skin.rent-calendar-skin--compact {
+    --rc-gap: 0.2rem;
+    --rc-cell-min: 1.85rem;
+    --rc-cell-max: 2.15rem;
+    padding: 0.4rem 0.35rem 0.55rem;
+  }
+}
+
+.rdp-root.rent-calendar-skin.rent-calendar-skin--compact .rdp-month_caption {
+  min-height: 1.875rem;
+  margin-bottom: 0.35rem;
+}
+
+@media (min-width: 640px) {
+  .rdp-root.rent-calendar-skin.rent-calendar-skin--compact .rdp-month_caption {
+    min-height: 2rem;
+    margin-bottom: 0.4rem;
+  }
+}
+
+.rdp-root.rent-calendar-skin.rent-calendar-skin--compact .rdp-weekday {
+  font-size: 0.56rem;
+  padding: 0.18rem 0;
+}
+
+.rdp-root.rent-calendar-skin.rent-calendar-skin--compact .rdp-day_button {
+  font-size: 0.6875rem;
+  border-radius: var(--rdp-day_button-border-radius);
+}
+
+.rdp-root.rent-calendar-skin.rent-calendar-skin--compact .rdp-day.rent-cal-pickup-pending:not(.rent-cal-booked) .rdp-day_button {
+  border-width: 2px;
+}
+
+@media (min-width: 640px) {
+  .rdp-root.rent-calendar-skin.rent-calendar-skin--compact .rdp-weekday {
+    font-size: 0.6rem;
+    padding: 0.22rem 0;
+  }
+
+  .rdp-root.rent-calendar-skin.rent-calendar-skin--compact .rdp-day_button {
+    font-size: 0.75rem;
+  }
+}
+
+.rdp-root.rent-calendar-skin.rent-calendar-skin--compact .rdp-button_previous,
+.rdp-root.rent-calendar-skin.rent-calendar-skin--compact .rdp-button_next {
+  width: 1.875rem;
+  height: 1.875rem;
+  min-width: 1.875rem;
+  padding: 0;
+}

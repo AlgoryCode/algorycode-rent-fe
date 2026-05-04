@@ -276,12 +276,15 @@ export function VehicleNewClient() {
 
     setSaving(true);
     try {
+      const fleetStatusRow = fleetStatusRows.find((s) => s.code === fleetStatusCode);
       const created = await addVehicle({
         plate: p,
         brand: b,
         model: m,
         year: y,
         maintenance: fleetStatusCode === "maintenance",
+        ...(useBrandModelCatalog && modelId !== MODEL_NONE ? { vehicleModelId: modelId } : {}),
+        ...(fleetStatusRow?.id ? { vehicleStatusId: fleetStatusRow.id } : {}),
         external: externalVehicle,
         externalCompany: externalVehicle ? externalCompany.trim() : undefined,
         commissionRatePercent: externalVehicle ? rate : undefined,
@@ -319,7 +322,7 @@ export function VehicleNewClient() {
           <div className="pt-1">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Step {step} of 3</p>
             <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
-              <div className={cn("h-1.5 rounded-full bg-emerald-400 transition-all", step === 1 ? "w-1/3" : step === 2 ? "w-2/3" : "w-full")} />
+              <div className={cn("h-1.5 rounded-full bg-primary transition-all", step === 1 ? "w-1/3" : step === 2 ? "w-2/3" : "w-full")} />
             </div>
           </div>
         </div>

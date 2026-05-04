@@ -344,7 +344,7 @@ export function CustomerDetailClient({ customerKey }: Props) {
                 onClick={() => setEf((s) => ({ ...s, kind: "individual" }))}
                 className={cn(
                   "flex min-h-[3rem] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-semibold",
-                  ef.kind === "individual" ? "border-emerald-500/50 bg-emerald-500/10" : "border-border/80 bg-muted/15",
+                  ef.kind === "individual" ? "border-primary/50 bg-primary/10" : "border-border/80 bg-muted/15",
                 )}
               >
                 <User className="h-3.5 w-3.5" />
@@ -355,7 +355,7 @@ export function CustomerDetailClient({ customerKey }: Props) {
                 onClick={() => setEf((s) => ({ ...s, kind: "corporate" }))}
                 className={cn(
                   "flex min-h-[3rem] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-semibold",
-                  ef.kind === "corporate" ? "border-emerald-500/50 bg-emerald-500/10" : "border-border/80 bg-muted/15",
+                  ef.kind === "corporate" ? "border-primary/50 bg-primary/10" : "border-border/80 bg-muted/15",
                 )}
               >
                 <Building2 className="h-3.5 w-3.5" />

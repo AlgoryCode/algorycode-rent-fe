@@ -243,6 +243,20 @@ export function rentalsActiveOnDay(sessions: RentalSession[], day: Date): { sess
 
 export type FleetStatus = "available" | "rented" | "maintenance";
 
+export function resolveVehicleFleetUiStatus(
+  v: Vehicle,
+  sessions: RentalSession[],
+  on: Date,
+  requests?: readonly RentalRequestDto[],
+): FleetStatus {
+  if (v.maintenance) return "maintenance";
+  const code = v.fleetStatusCode;
+  if (code === "maintenance") return "maintenance";
+  if (code === "available") return "available";
+  if (code === "rented") return "rented";
+  return vehicleFleetStatus(v, sessions, on, requests);
+}
+
 /**
  * Filo listesi / detay rozeti. {@code requests} verilirse onaylı veya bekleyen kiralama talepleri de
  * “kirada” sayılır (yalnızca {@code /rentals} kullanıldığında talep onaylı ama henüz kira oluşmamış

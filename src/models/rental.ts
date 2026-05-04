@@ -2,6 +2,9 @@ export type CreateRentalPayload = {
   vehicleId: string;
   startDate: string;
   endDate: string;
+  /** Kiralama talebi (`/rental-requests`) ile aynı alan; rent-service oluşturmada beklenir */
+  outsideCountryTravel?: boolean;
+  note?: string;
   customer: {
     fullName: string;
     nationalId: string;
@@ -13,18 +16,17 @@ export type CreateRentalPayload = {
     driverLicenseImageDataUrl?: string;
     passportImageDataUrl?: string;
   };
-  commissionAmount: number;
-  commissionFlow: "collect" | "pay";
-  commissionCompany?: string;
   additionalDrivers?: {
     fullName: string;
-    birthDate: string;
+    driverLicenseImageDataUrl: string;
+    birthDate?: string;
     driverLicenseNo?: string;
     passportNo?: string;
-    driverLicenseImageDataUrl: string;
-    passportImageDataUrl: string;
+    passportImageDataUrl?: string;
   }[];
   status?: string;
+  reservationExtraOptionTemplateIds?: string[];
+  vehicleOptionDefinitionIds?: string[];
 };
 
 export type FetchRentalsParams = {
@@ -82,9 +84,6 @@ export type FetchRentalDashboardParams = {
 export type UpdateRentalPayload = {
   startDate?: string;
   endDate?: string;
-  commissionAmount?: number;
-  commissionFlow?: "collect" | "pay";
-  commissionCompany?: string;
   discountAmount?: number;
   discountType?: "PERCENT" | "AMOUNT";
   status?: "active" | "pending" | "completed" | "cancelled";

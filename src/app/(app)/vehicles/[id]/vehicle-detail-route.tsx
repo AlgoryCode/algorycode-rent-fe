@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { VehicleDetailClient } from "./vehicle-detail-client";
 import { useIsClient } from "@/hooks/use-is-client";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
+import { vehicleNewRentHref } from "@/lib/vehicle-new-rent-route";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -14,16 +15,25 @@ export function VehicleDetailRoute({ params }: Props) {
   const searchParams = useSearchParams();
   const sayfa = searchParams.get("sayfa");
   const legacyNewRental = searchParams.get("yeniKiralama") === "1";
-  const rentalFormAsPage = sayfa === "kiralama" || legacyNewRental;
+  const shuntingNewRent = sayfa === "kiralama" || legacyNewRental;
   const { allVehicles } = useFleetVehicles();
   const mounted = useIsClient();
 
   useEffect(() => {
-    if (!legacyNewRental || sayfa === "kiralama") return;
-    router.replace(`/vehicles/${id}?sayfa=kiralama`);
-  }, [id, legacyNewRental, sayfa, router]);
+    if (!shuntingNewRent) return;
+    router.replace(vehicleNewRentHref(id));
+  }, [id, router, shuntingNewRent]);
 
   if (!mounted) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-3 animate-pulse">
+        <div className="h-8 w-48 rounded bg-muted" />
+        <div className="h-64 rounded-lg bg-muted" />
+      </div>
+    );
+  }
+
+  if (shuntingNewRent) {
     return (
       <div className="mx-auto max-w-6xl space-y-3 animate-pulse">
         <div className="h-8 w-48 rounded bg-muted" />
@@ -41,5 +51,5 @@ export function VehicleDetailRoute({ params }: Props) {
     );
   }
 
-  return <VehicleDetailClient vehicle={vehicle} rentalFormAsPage={rentalFormAsPage} />;
+  return <VehicleDetailClient vehicle={vehicle} rentalFormAsPage={false} />;
 }

@@ -39,6 +39,17 @@ function buildBreadcrumbs(
     return [{ label: "Araçlar", href: "/vehicles" }, { label: shortTitle, href: `/vehicles/${id}` }, { label: "Opsiyon ekle" }];
   }
 
+  const vehicleNewRent = path.match(/^\/vehicles\/([^/]+)\/new-rent$/);
+  if (vehicleNewRent) {
+    const id = vehicleNewRent[1];
+    const shortTitle = vehicleLabelById.get(id) ?? "Araç detayı";
+    return [
+      { label: "Kiralamalar", href: "/logs" },
+      { label: shortTitle, href: `/vehicles/${id}` },
+      { label: "Yeni kiralama" },
+    ];
+  }
+
   const vehicleDetail = path.match(/^\/vehicles\/([^/]+)$/);
   if (vehicleDetail) {
     const id = vehicleDetail[1];

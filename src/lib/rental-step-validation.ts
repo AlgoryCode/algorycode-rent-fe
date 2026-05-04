@@ -3,16 +3,15 @@ export type RentalStepValidationInput = {
   pickStart: string;
   pickEnd: string;
   fullName: string;
+  /** ISO yyyy-MM-dd; talep (`RentalRequestFormPayload`) ile aynı gereksinim */
+  customerBirthDate: string;
   phoneLocal: string;
-  saveNewCustomerProfile: boolean;
-  newCustomerEmail: string;
+  customerEmail: string;
   driverLicenseImageDataUrl: string;
   passportImageDataUrl: string;
   additionalDrivers: Array<{
     fullName: string;
-    birthDate: string;
     driverLicenseImageDataUrl: string;
-    passportImageDataUrl: string;
   }>;
 };
 
@@ -22,24 +21,25 @@ export function validateRentalStepInput(input: RentalStepValidationInput): strin
     pickStart,
     pickEnd,
     fullName,
+    customerBirthDate,
     phoneLocal,
-    saveNewCustomerProfile,
-    newCustomerEmail,
+    customerEmail,
     driverLicenseImageDataUrl,
     passportImageDataUrl,
     additionalDrivers,
   } = input;
 
   if (step === 1) {
-    if (!pickStart || !pickEnd || pickEnd < pickStart) {
-      return "Takvimde başlangıç ve bitiş gününü ayrı ayrı seçin; bitiş tarihi zorunludur.";
+    if (!pickStart || !pickEnd || pickEnd <= pickStart) {
+      return "Çıkış ve dönüş tarihlerini seçin. Dönüş, çıkışla aynı gün olamaz; en az ertesi gün seçilmelidir.";
     }
     return null;
   }
   if (step === 2) {
     if (!fullName.trim() || !phoneLocal.trim()) return "İsim ve telefon zorunludur.";
-    if (saveNewCustomerProfile && !newCustomerEmail.trim()) return "Yeni müşteri kaydı için e-posta zorunludur.";
-    if (saveNewCustomerProfile && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCustomerEmail.trim())) return "Geçerli bir e-posta adresi girin.";
+    if (!customerBirthDate.trim()) return "Doğum tarihi zorunludur.";
+    if (!customerEmail.trim()) return "E-posta zorunludur.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())) return "Geçerli bir e-posta adresi girin.";
     return null;
   }
   if (step === 3) {
@@ -48,8 +48,8 @@ export function validateRentalStepInput(input: RentalStepValidationInput): strin
   }
   if (step === 4) {
     for (const d of additionalDrivers) {
-      if (!d.fullName.trim() || !d.birthDate || !d.driverLicenseImageDataUrl || !d.passportImageDataUrl) {
-        return "Ek sürücü için isim, doğum tarihi ve iki belge fotoğrafı zorunludur.";
+      if (!d.fullName.trim() || !d.driverLicenseImageDataUrl) {
+        return "Ek sürücü için isim soyisim ve ehliyet fotoğrafı zorunludur.";
       }
     }
     return null;

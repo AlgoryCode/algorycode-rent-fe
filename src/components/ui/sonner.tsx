@@ -48,13 +48,16 @@ export function Toaster() {
   return (
     <Sonner
       duration={DEFAULT_MS}
-      richColors
       position="top-right"
       closeButton
       toastOptions={{
         classNames: {
           toast: "group border border-border bg-background text-foreground shadow-md",
           description: "text-muted-foreground",
+          success: "border-primary/35 !bg-primary !text-primary-foreground",
+          error: "border-destructive/35 !bg-destructive !text-destructive-foreground",
+          warning: "border-warning/40 !bg-warning !text-warning-foreground",
+          info: "border-primary/30 !bg-card !text-foreground",
         },
       }}
     />

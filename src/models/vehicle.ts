@@ -33,6 +33,8 @@ export type CreateVehiclePayload = {
   model: string;
   year: number;
   maintenance: boolean;
+  vehicleModelId?: string;
+  vehicleStatusId?: string;
   external?: boolean;
   externalCompany?: string;
   rentalDailyPrice: number;

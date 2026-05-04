@@ -6,33 +6,40 @@ const base = {
   pickStart: "2026-04-29",
   pickEnd: "2026-04-30",
   fullName: "Test User",
+  customerBirthDate: "1990-01-15",
   phoneLocal: "5551112233",
-  saveNewCustomerProfile: false,
-  newCustomerEmail: "",
+  customerEmail: "a@b.co",
   driverLicenseImageDataUrl: "dl",
   passportImageDataUrl: "pp",
   additionalDrivers: [] as Array<{
     fullName: string;
-    birthDate: string;
     driverLicenseImageDataUrl: string;
-    passportImageDataUrl: string;
   }>,
 };
 
 describe("validateRentalStepInput", () => {
   it("rejects invalid date range on step 1", () => {
     const err = validateRentalStepInput({ ...base, step: 1, pickEnd: "" });
-    expect(err).toBe("Takvimde başlangıç ve bitiş gününü ayrı ayrı seçin; bitiş tarihi zorunludur.");
+    expect(err).toBe("Çıkış ve dönüş tarihlerini seçin. Dönüş, çıkışla aynı gün olamaz; en az ertesi gün seçilmelidir.");
   });
 
-  it("requires valid email when saving new customer on step 2", () => {
-    const err = validateRentalStepInput({
-      ...base,
-      step: 2,
-      saveNewCustomerProfile: true,
-      newCustomerEmail: "not-an-email",
-    });
-    expect(err).toBe("Geçerli bir e-posta adresi girin.");
+  it("rejects same-day pickup and return on step 1", () => {
+    const err = validateRentalStepInput({ ...base, step: 1, pickEnd: base.pickStart });
+    expect(err).toBe(
+      "Çıkış ve dönüş tarihlerini seçin. Dönüş, çıkışla aynı gün olamaz; en az ertesi gün seçilmelidir.",
+    );
+  });
+
+  it("requires birth date on step 2", () => {
+    const empty = validateRentalStepInput({ ...base, step: 2, customerBirthDate: "" });
+    expect(empty).toBe("Doğum tarihi zorunludur.");
+  });
+
+  it("requires email on step 2", () => {
+    const empty = validateRentalStepInput({ ...base, step: 2, customerEmail: "  " });
+    expect(empty).toBe("E-posta zorunludur.");
+    const invalid = validateRentalStepInput({ ...base, step: 2, customerEmail: "not-an-email" });
+    expect(invalid).toBe("Geçerli bir e-posta adresi girin.");
   });
 
   it("requires document images on step 3", () => {
@@ -44,17 +51,20 @@ describe("validateRentalStepInput", () => {
     expect(err).toBe("Ehliyet ve pasaport görselleri zorunlu.");
   });
 
-  it("requires complete additional driver data on step 4", () => {
+  it("allows step 4 without additional driver entry", () => {
+    expect(validateRentalStepInput({ ...base, step: 4 })).toBeNull();
+  });
+
+  it("requires name and licence photo when additional driver slot is added", () => {
     const err = validateRentalStepInput({
       ...base,
       step: 4,
-      additionalDrivers: [{ fullName: "Ek", birthDate: "", driverLicenseImageDataUrl: "a", passportImageDataUrl: "b" }],
+      additionalDrivers: [{ fullName: "", driverLicenseImageDataUrl: "" }],
     });
-    expect(err).toBe("Ek sürücü için isim, doğum tarihi ve iki belge fotoğrafı zorunludur.");
+    expect(err).toBe("Ek sürücü için isim soyisim ve ehliyet fotoğrafı zorunludur.");
   });
 
-  it("returns null on valid final step", () => {
-    const err = validateRentalStepInput({ ...base, step: 5 });
-    expect(err).toBeNull();
+  it("allows step 5 (özet) without blocking", () => {
+    expect(validateRentalStepInput({ ...base, step: 5 })).toBeNull();
   });
 });

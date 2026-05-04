@@ -43,7 +43,7 @@ export function RentalLogsFleetMetrics({ metrics }: { metrics: FleetMetrics }) {
           </div>
           <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-bold uppercase tracking-tight text-slate-600">
             <span className="inline-flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               Musait: {metrics.available}
             </span>
             <span className="inline-flex items-center gap-1">

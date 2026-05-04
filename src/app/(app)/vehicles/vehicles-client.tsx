@@ -34,7 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useCountries } from "@/hooks/use-countries";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
-import { vehicleFleetStatus, type FleetStatus } from "@/lib/fleet-utils";
+import { resolveVehicleFleetUiStatus, type FleetStatus } from "@/lib/fleet-utils";
 import { fetchRentalRequestsFromRentApi, fetchVehicleFormCatalogFromRentApi } from "@/lib/rent-api";
 import { rentKeys } from "@/lib/rent-query-keys";
 import { mergeVehicleImagesWithDemo } from "@/lib/vehicle-images";
@@ -82,7 +82,7 @@ function isElectricFuelType(ft?: string): boolean {
 function fleetStatusBadgeClass(status: FleetStatus): string {
   switch (status) {
     case "available":
-      return "border border-green-200 bg-green-100 text-green-700";
+      return "border border-primary/35 bg-primary/12 text-primary";
     case "rented":
       return "border border-blue-200 bg-blue-100 text-blue-700";
     case "maintenance":
@@ -117,7 +117,7 @@ export function VehiclesClient() {
 
   const rows = useMemo(() => {
     return allVehicles.map((v) => {
-      const status = vehicleFleetStatus(v, allSessions, today, rentalRequests);
+      const status = resolveVehicleFleetUiStatus(v, allSessions, today, rentalRequests);
       return { v, status };
     });
   }, [allVehicles, allSessions, today, rentalRequests]);
@@ -374,33 +374,6 @@ export function VehiclesClient() {
               <span className="text-center text-sm font-semibold text-foreground">Analytics</span>
             </div>
           </button>
-        </div>
-        <div className="rounded-xl border border-border/70 bg-tertiary/25 p-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quick Access</h3>
-          <div className="mt-2 space-y-2">
-            <button
-              type="button"
-              className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-card px-3 py-2.5 text-left"
-              onClick={() => router.push("/logs")}
-            >
-              <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-                <Wrench className="h-4 w-4 text-primary" />
-                Roadside Assistance
-              </span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </button>
-            <button
-              type="button"
-              className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-card px-3 py-2.5 text-left"
-              onClick={() => router.push("/payments")}
-            >
-              <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-                <Fuel className="h-4 w-4 text-secondary-foreground" />
-                Fuel Management
-              </span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </button>
-          </div>
         </div>
       </div>
 

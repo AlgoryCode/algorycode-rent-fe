@@ -75,7 +75,7 @@ export function sessionEstimatedTotal(session: RentalSession, vehicle: Vehicle |
 }
 
 export function rentalLogStatusPillClass(st: RentalStatus): string {
-  if (st === "active") return "bg-emerald-100 text-emerald-700";
+  if (st === "active") return "bg-primary/12 text-primary";
   if (st === "pending") return "bg-sky-100 text-sky-700";
   if (st === "completed") return "bg-slate-100 text-slate-600";
   return "bg-rose-100 text-rose-700";

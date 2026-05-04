@@ -203,6 +203,17 @@ export function TalepClient() {
     }
   }, [startDate, endDate]);
 
+  const rentalRequestPickupPendingAnchor = useMemo(() => {
+    const s = startDate.trim();
+    if (!s || endDate.trim()) return undefined;
+    try {
+      const d = parseISO(s);
+      return Number.isNaN(d.getTime()) ? undefined : d;
+    } catch {
+      return undefined;
+    }
+  }, [startDate, endDate]);
+
   const calendarDefaultMonth = useMemo(() => {
     if (startDate) {
       try {
@@ -447,7 +458,7 @@ export function TalepClient() {
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors sm:px-3 sm:text-xs",
                 active && "border-primary bg-primary text-primary-foreground",
-                done && !active && "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100",
+                done && !active && "border-primary/40 bg-primary/10 text-foreground",
                 !active && !done && reachable && "border-border bg-muted/40 text-muted-foreground hover:bg-muted",
                 !reachable && "cursor-not-allowed border-border/50 opacity-40",
               )}
@@ -624,6 +635,7 @@ export function TalepClient() {
                         locale={tr}
                         booked={bookedDates}
                         selected={selectedDateRange}
+                        pendingPickupAnchor={rentalRequestPickupPendingAnchor}
                         defaultMonth={calendarDefaultMonth}
                         onSelect={(range) => {
                           setFormError(null);
@@ -688,6 +700,7 @@ export function TalepClient() {
                     <div className="space-y-1 sm:col-span-2">
                       <Label>Pasaport fotoğrafı (zorunlu)</Label>
                       <ImageSourceInput
+                        previewDataUrl={passportImageDataUrl || undefined}
                         onPick={async (f) => {
                           try {
                             setPassportImageDataUrl(await fileToDataUrl(f));
@@ -696,13 +709,11 @@ export function TalepClient() {
                           }
                         }}
                       />
-                      {passportImageDataUrl ? (
-                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400">Yüklendi</p>
-                      ) : null}
                     </div>
                     <div className="space-y-1 sm:col-span-2">
                       <Label>Ehliyet fotoğrafı (zorunlu)</Label>
                       <ImageSourceInput
+                        previewDataUrl={driverLicenseImageDataUrl || undefined}
                         onPick={async (f) => {
                           try {
                             setDriverLicenseImageDataUrl(await fileToDataUrl(f));
@@ -711,9 +722,6 @@ export function TalepClient() {
                           }
                         }}
                       />
-                      {driverLicenseImageDataUrl ? (
-                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400">Yüklendi</p>
-                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -790,6 +798,7 @@ export function TalepClient() {
                         <div className="space-y-1 sm:col-span-2">
                           <Label>Pasaport fotoğrafı (zorunlu)</Label>
                           <ImageSourceInput
+                            previewDataUrl={additionalDrivers[0]?.passportImageDataUrl || undefined}
                             onPick={async (f) => {
                               updateDriver(0, "passportImageDataUrl", await fileToDataUrl(f));
                             }}
@@ -798,6 +807,7 @@ export function TalepClient() {
                         <div className="space-y-1 sm:col-span-2">
                           <Label>Ehliyet fotoğrafı (zorunlu)</Label>
                           <ImageSourceInput
+                            previewDataUrl={additionalDrivers[0]?.driverLicenseImageDataUrl || undefined}
                             onPick={async (f) => {
                               updateDriver(0, "driverLicenseImageDataUrl", await fileToDataUrl(f));
                             }}

@@ -701,7 +701,7 @@ export function RequestsClient({ embedded = false }: RequestsClientProps) {
         </header>
       ) : null}
 
-      <Card className="border-primary/25 bg-gradient-to-br from-primary/[0.07] to-cyan-500/10 shadow-sm">
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/[0.07] to-primary/[0.03] shadow-sm">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 space-y-1">
             <p className="text-sm font-semibold tracking-tight">Talep formunu paylaş</p>
@@ -779,7 +779,7 @@ export function RequestsClient({ embedded = false }: RequestsClientProps) {
                           </p>
                         ) : null}
                         {row.whatsappContractSentAt ? (
-                          <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+                          <p className="mt-1 text-[11px] text-primary">
                             WhatsApp:{" "}
                             {new Date(row.whatsappContractSentAt).toLocaleString("tr-TR", {
                               dateStyle: "short",

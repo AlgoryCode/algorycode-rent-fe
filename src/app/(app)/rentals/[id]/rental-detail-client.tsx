@@ -402,7 +402,7 @@ export function RentalDetailClient({ rentalId }: Props) {
                       )}
 
                       {rental.commissionAmount != null && rental.commissionAmount > 0 && (
-                        <tr className={commissionSign < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}>
+                        <tr className={commissionSign < 0 ? "text-rose-600 dark:text-rose-400" : "text-primary"}>
                           <td className="py-1.5 pl-3 pr-2">
                             Komisyon
                             <span className="ml-1 text-[10px]">

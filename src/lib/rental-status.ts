@@ -18,7 +18,8 @@ export function normalizeRentalStatus(raw: unknown): RentalStatus {
   return "active";
 }
 
-/** Takvim çakışması ve dolu gün: iptal bu aralığı serbest bırakır. */
 export function rentalCountsForCalendar(s: RentalSession): boolean {
-  return (s.status ?? "active") !== "cancelled";
+  const st = s.status ?? "active";
+  if (st === "cancelled" || st === "completed") return false;
+  return true;
 }

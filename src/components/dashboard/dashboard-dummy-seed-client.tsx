@@ -13,12 +13,16 @@ import {
   createRentalOnRentApi,
   createRentalRequestOnRentApi,
   createReservationExtraOptionTemplateOnRentApi,
+  createVehicleBrandOnRentApi,
   createVehicleCatalogEntryOnRentApi,
+  createVehicleModelOnRentApi,
   createVehicleOnRentApi,
   createVehicleOptionTemplateOnRentApi,
+  createVehicleStatusOnRentApi,
   fetchCitiesFromRentApi,
   fetchCountriesFromRentApi,
   fetchHandoverLocationsFromRentApi,
+  fetchVehicleFormCatalogFromRentApi,
   fetchVehiclesFromRentApi,
   getRentApiErrorMessage,
   type VehicleCatalogKind,
@@ -96,9 +100,43 @@ async function invalidateRentData(qc: ReturnType<typeof useQueryClient>): Promis
   await Promise.all([
     qc.invalidateQueries({ queryKey: rentKeys.countries() }),
     qc.invalidateQueries({ queryKey: rentKeys.vehicles() }),
+    qc.invalidateQueries({ queryKey: rentKeys.vehicleFormCatalog() }),
     qc.invalidateQueries({ queryKey: rentKeys.rentals() }),
     qc.invalidateQueries({ queryKey: rentKeys.rentalRequests() }),
   ]);
+}
+
+async function ensureDummyVehicleModelAndStatus(ts: number): Promise<{ vehicleModelId: string; vehicleStatusId: string }> {
+  let catalog = await fetchVehicleFormCatalogFromRentApi();
+  if (catalog.vehicleStatuses.length === 0) {
+    try {
+      await createVehicleStatusOnRentApi({ code: "available", labelTr: "Müsait", sortOrder: 0 });
+    } catch (e) {
+      const msg = getRentApiErrorMessage(e);
+      if (!/409|Conflict|zaten|duplicate/i.test(msg)) {
+        throw e;
+      }
+    }
+    catalog = await fetchVehicleFormCatalogFromRentApi();
+  }
+  const statusRow =
+    catalog.vehicleStatuses.find((s) => s.code.toLowerCase() === "available") ?? catalog.vehicleStatuses[0];
+  if (!statusRow) {
+    throw new Error("Araç statüsü bulunamadı ve oluşturulamadı.");
+  }
+  let vehicleModelId = "";
+  for (const br of catalog.brands) {
+    if (br.models.length > 0) {
+      vehicleModelId = br.models[0].id;
+      break;
+    }
+  }
+  if (!vehicleModelId) {
+    const brand = await createVehicleBrandOnRentApi({ name: `Dummy marka ${ts}`, sortOrder: 0 });
+    const model = await createVehicleModelOnRentApi(brand.id, { name: `Dummy model ${ts}`, sortOrder: 0 });
+    vehicleModelId = model.id;
+  }
+  return { vehicleModelId, vehicleStatusId: statusRow.id };
 }
 
 export function DashboardDummySeedClient() {
@@ -277,12 +315,16 @@ export function DashboardDummySeedClient() {
         returnId = r.id;
       }
 
+      const { vehicleModelId, vehicleStatusId } = await ensureDummyVehicleModelAndStatus(ts);
+
       await createVehicleOnRentApi({
         plate: randomPlate(),
         brand: "Dummy",
         model: `Model ${ts}`,
         year: new Date().getFullYear() - 2,
         maintenance: false,
+        vehicleModelId,
+        vehicleStatusId,
         external: false,
         rentalDailyPrice: 120,
         countryCode: country.code,
@@ -309,6 +351,7 @@ export function DashboardDummySeedClient() {
         vehicleId: v.id,
         startDate: start,
         endDate: end,
+        outsideCountryTravel: false,
         customer: {
           fullName: `Dummy müşteri ${Date.now()}`,
           nationalId: randomNationalId(),
@@ -318,8 +361,6 @@ export function DashboardDummySeedClient() {
           birthDate: "1990-01-15",
           driverLicenseNo: "DUMMY-LIC",
         },
-        commissionAmount: 0,
-        commissionFlow: "collect",
         status: "active",
       });
     });

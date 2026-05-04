@@ -34,7 +34,8 @@ import { ListingPanel, ListingTableWell } from "@/components/ui/listing-panel";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
-import { vehicleFleetStatus } from "@/lib/fleet-utils";
+import { resolveVehicleFleetUiStatus } from "@/lib/fleet-utils";
+import { vehicleNewRentHref } from "@/lib/vehicle-new-rent-route";
 import {
   emptyRentalLogFilters,
   filterRentalLogSessions,
@@ -134,7 +135,7 @@ export function RentalLogsClient() {
         maintenance += 1;
         continue;
       }
-      const st = vehicleFleetStatus(v, fleetSessions, today);
+      const st = resolveVehicleFleetUiStatus(v, fleetSessions, today);
       if (st === "rented") rentedToday += 1;
       else available += 1;
     }
@@ -160,7 +161,7 @@ export function RentalLogsClient() {
       toast.error("Bu araç bakımda; kiralama oluşturulamaz.");
       return;
     }
-    router.push(`/vehicles/${vehicleId}?sayfa=kiralama`);
+    router.push(vehicleNewRentHref(vehicleId));
   };
 
   const handleExport = async () => {

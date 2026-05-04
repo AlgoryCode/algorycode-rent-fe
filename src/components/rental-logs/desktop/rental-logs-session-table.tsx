@@ -55,18 +55,12 @@ export function RentalLogsSessionTableDesktop({
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">{v ? `${v.brand} ${v.model}` : "Araç"}</p>
-                      <p className="truncate font-mono text-xs text-muted-foreground">
-                        {vehiclePlate(vehiclesById, s.vehicleId)}
-                        {v?.fuelType ? ` · ${v.fuelType}` : ""}
-                      </p>
+                      <p className="truncate font-mono text-xs text-muted-foreground">{vehiclePlate(vehiclesById, s.vehicleId)}</p>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>
                   <p className="text-sm font-medium text-foreground">{s.customer.fullName}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    Bireysel • {s.customer.nationalId || s.customer.email || s.customer.phone || "—"}
-                  </p>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   <div className="text-sm text-slate-900">
@@ -76,7 +70,6 @@ export function RentalLogsSessionTableDesktop({
                 </TableCell>
                 <TableCell className="text-right text-sm font-medium tabular-nums text-foreground">
                   <div className="text-base font-bold">{sessionEstimatedTotal(s, v)}</div>
-                  <div className="text-[11px] text-slate-500">{sessionStatus(s) === "completed" ? "Tamamlandı" : "KDV Dahil"}</div>
                 </TableCell>
                 <TableCell>
                   <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-bold ${rentalLogStatusPillClass(st)}`}>
