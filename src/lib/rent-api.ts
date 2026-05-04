@@ -364,6 +364,42 @@ export function mapVehicleFromApi(raw: Record<string, unknown>): Vehicle {
   };
 }
 
+function mapVehicleFromSnapshotApi(raw: Record<string, unknown>): Vehicle {
+  const snapshotModelRaw = asOptionalString(raw.model);
+  const snapshotNameRaw = asOptionalString(raw.name);
+  const brand = asOptionalString(raw.brand) ?? "";
+  let model = snapshotModelRaw ?? "";
+  if (!model && snapshotNameRaw) {
+    const candidate = snapshotNameRaw.trim();
+    if (brand && candidate.toLowerCase().startsWith(brand.toLowerCase() + " ")) {
+      model = candidate.slice(brand.length).trim();
+    } else {
+      model = candidate;
+    }
+  }
+  const fleetStatusCode = parseFleetStatusCodeFromVehicleApi(raw);
+  return {
+    id: String(raw.id ?? ""),
+    plate: asOptionalString(raw.plate) ?? "",
+    brand,
+    model,
+    year: asOptionalNumber(raw.year) ?? 0,
+    maintenance: Boolean(raw.maintenance) || fleetStatusCode === "maintenance",
+    external: Boolean(raw.external),
+    externalCompany: asOptionalString(raw.externalCompany),
+    rentalDailyPrice: asOptionalNumber(raw.rentalDailyPrice),
+    countryCode: asOptionalString(raw.countryCode)?.toUpperCase(),
+    images: mapVehicleImages(raw.images),
+    engine: asOptionalString(raw.engine),
+    fuelType: asOptionalString(raw.fuel),
+    transmissionType: asOptionalString(raw.transmission),
+    seats: asOptionalNumber(raw.seats),
+    luggage: asOptionalNumber(raw.luggage),
+    highlights: mapVehicleHighlights(raw.highlights),
+    fleetStatusCode,
+  };
+}
+
 export async function fetchVehicleCatalogFromRentApi(kind: VehicleCatalogKind): Promise<VehicleCatalogRow[]> {
   const { data } = await rentClient().get<unknown[]>(VEHICLE_CATALOG_API[kind]);
   if (!Array.isArray(data)) return [];
@@ -617,10 +653,14 @@ export function mapPanelUserFromApi(raw: Record<string, unknown>): PanelUser {
   };
 }
 
+export async function fetchVehicleSnapshotsFromRentApi(): Promise<unknown[]> {
+  const { data } = await rentClient().get<unknown[]>("/vehicles/snapshots");
+  return Array.isArray(data) ? data : [];
+}
+
 export async function fetchVehiclesFromRentApi(): Promise<Vehicle[]> {
-  const { data } = await rentClient().get<unknown[]>("/vehicles");
-  if (!Array.isArray(data)) return [];
-  return data.map((row) => mapVehicleFromApi(row as Record<string, unknown>));
+  const rows = await fetchVehicleSnapshotsFromRentApi();
+  return rows.map((row) => mapVehicleFromSnapshotApi(row as Record<string, unknown>));
 }
 
 export type VehicleOccupancySourceDto = "rental" | "rental_request";
