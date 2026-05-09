@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { resolveCustomerKind, type CustomerAggregateRow } from "@/lib/rental-metadata";
+import type { CustomerAggregateRow } from "@/lib/rental-metadata";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -96,9 +96,6 @@ export function CustomerPickerDialog({
                   >
                     <span className="flex flex-wrap items-center gap-1.5">
                       <span className="font-medium text-foreground">{row.customer.fullName}</span>
-                      <Badge variant="outline" className="h-5 px-1.5 text-[9px] font-normal">
-                        {resolveCustomerKind(row.customer) === "corporate" ? "Kurumsal" : "Bireysel"}
-                      </Badge>
                       {!row.recordActive && (
                         <Badge variant="muted" className="h-5 px-1.5 text-[9px] font-normal">
                           Pasif

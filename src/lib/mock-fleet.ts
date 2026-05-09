@@ -1,7 +1,20 @@
 import type { RentalStatus } from "@/lib/rental-status";
-import type { VehicleImages } from "@/lib/vehicle-images";
+import type {
+  HandoverLocationRefDto,
+  VehicleDto,
+  VehicleOptionDefinitionDto,
+} from "@/models/rent-vehicle-dto";
+import { createSeedVehicle } from "@/models/rent-vehicle-dto";
 
 export type { RentalStatus } from "@/lib/rental-status";
+
+export type Vehicle = VehicleDto;
+
+export type VehicleHandoverRef = HandoverLocationRefDto;
+
+export type VehicleOptionDefRow = VehicleOptionDefinitionDto;
+
+export { createSeedVehicle, vehicleMaintenanceBlocked } from "@/models/rent-vehicle-dto";
 
 /** Manuel / özet listede bireysel veya kurumsal müşteri ayrımı */
 export type CustomerKind = "individual" | "corporate";
@@ -31,7 +44,6 @@ export type AdditionalDriverInfo = {
 
 export type RentalAccidentReport = {
   id: string;
-  /** Olay zamanı (ISO 8601) */
   at: string;
   description: string;
   photos?: { id: string; url: string; caption?: string }[];
@@ -50,116 +62,47 @@ export type RentalSession = {
   vehicleId: string;
   startDate: string;
   endDate: string;
-  /** Kiralama kaydının oluşturulma zamanı (ISO 8601) */
   createdAt?: string;
-  /** İş akışı statüsü (yoksa aktif kabul edilir) */
   status?: RentalStatus;
   commissionAmount?: number;
   commissionFlow?: "collect" | "pay";
   commissionCompany?: string;
   customer: CustomerInfo;
   additionalDrivers?: AdditionalDriverInfo[];
-  /** Kiralama başına en fazla bir müşteri yorumu */
   feedback?: { at: string; text: string };
   photos: { id: string; url: string; caption?: string }[];
-  /** Bu kiralamaya özel kaza / hasar bildirimleri */
   accidentReports?: RentalAccidentReport[];
-  /** Backend'den gelen ek hizmet/paket kalemleri */
   options?: RentalOptionLine[];
   discountAmount?: number;
   discountType?: "PERCENT" | "AMOUNT";
   netAmount?: number;
-  /** `/rental-requests` ile uyumlu; rent-service döndürür */
   outsideCountryTravel?: boolean;
   greenInsuranceFee?: number;
   note?: string;
 };
 
-export type VehicleHandoverRef = { id: string; name?: string; kind?: string };
-
-export type VehicleOptionDefRow = {
-  id: string;
-  title: string;
-  description?: string;
-  price: number;
-  icon?: string;
-  lineOrder: number;
-  active: boolean;
-};
-
-export type Vehicle = {
-  id: string;
-  plate: string;
-  brand: string;
-  model: string;
-  year: number;
-  /** Bakımda — kiralanamaz */
-  maintenance?: boolean;
-  /** Araç başka firmadan geldiyse true */
-  external?: boolean;
-  /** Harici araç için firma adı */
-  externalCompany?: string;
-  /** Günlük kiralama fiyatı */
-  rentalDailyPrice?: number;
-  /** Araç için komisyon uygulanıyor mu */
-  commissionEnabled?: boolean;
-  /** Komisyon oranı yüzde değeri (örn: 12.5) */
-  commissionRatePercent?: number;
-  /** Komisyoncu adı soyadı */
-  commissionBrokerFullName?: string;
-  /** Komisyoncu telefonu (opsiyonel) */
-  commissionBrokerPhone?: string;
-  /** ISO 3166-1 alpha-2 — ülke rengi için */
-  countryCode?: string;
-  /** rent-service şehir kimliği */
-  cityId?: string;
-  /** Varsayılan alış / teslim handover noktaları */
-  defaultPickupHandoverLocation?: VehicleHandoverRef | null;
-  /** Kirada varsayılan teslim; çoklu listede genelde ilk eleman. */
-  defaultReturnHandoverLocation?: VehicleHandoverRef | null;
-  /** Bu araca izin verilen teslim (RETURN) noktaları, sıra korunur. */
-  returnHandoverLocations?: VehicleHandoverRef[];
-  /** Araç özel ek seçenek şablonları */
-  optionDefinitions?: VehicleOptionDefRow[];
-  /** rent-service: öne çıkanlar (sıralı metinler) */
-  highlights?: string[];
-  /** Motor / teknik (opsiyonel) */
-  engine?: string;
-  /** Yakıt: benzin, dizel, hibrit, elektrik */
-  fuelType?: string;
-  /** Gövde rengi etiketi */
-  bodyColor?: string;
-  /** Koltuk sayısı */
-  seats?: number;
-  /** Bagaj (valiz) kapasitesi — sayı olarak */
-  luggage?: number;
-  /** Vites: otomatik, manuel */
-  transmissionType?: string;
-  /** Gövde tipi kodu (SEDAN, SUV, …) */
-  bodyStyleCode?: string;
-  /** Backend filo görünüm kodu (`available` / `rented` / `maintenance`); dolu ise rozet için önceliklidir */
-  fleetStatusCode?: "available" | "rented" | "maintenance";
-  /** Gövde tipi görünen adı (API) */
-  bodyStyleLabel?: string;
-  /** Açıdan görüntüler (data URL, demo saklama) */
-  images?: VehicleImages;
-};
-
 export type { VehicleImages } from "@/lib/vehicle-images";
 
 export const seedVehicles: Vehicle[] = [
-  { id: "v1", plate: "34 ABC 101", brand: "Toyota", model: "Corolla", year: 2023 },
-  { id: "v2", plate: "06 XYZ 202", brand: "Volkswagen", model: "Passat", year: 2022 },
-  { id: "v3", plate: "35 DEF 303", brand: "Renault", model: "Clio", year: 2024 },
-  { id: "v4", plate: "16 GHI 404", brand: "Ford", model: "Focus", year: 2021, maintenance: true },
-  { id: "v5", plate: "34 JKL 505", brand: "Hyundai", model: "i20", year: 2023 },
+  createSeedVehicle({ id: 1, plate: "34 ABC 101", brand: "Toyota", model: "Corolla", year: 2023 }),
+  createSeedVehicle({ id: 2, plate: "06 XYZ 202", brand: "Volkswagen", model: "Passat", year: 2022 }),
+  createSeedVehicle({ id: 3, plate: "35 DEF 303", brand: "Renault", model: "Clio", year: 2024 }),
+  createSeedVehicle({
+    id: 4,
+    plate: "16 GHI 404",
+    brand: "Ford",
+    model: "Focus",
+    year: 2021,
+    status: "MAINTENANCE",
+    statusCode: "MAINTENANCE",
+  }),
+  createSeedVehicle({ id: 5, plate: "34 JKL 505", brand: "Hyundai", model: "i20", year: 2023 }),
 ];
 
-/** Örnek kiralama seansları (geri bildirim + foto ile). Tarihler demo için 2026 civarı. */
 export const seedSessions: RentalSession[] = [
   {
     id: "s1",
-    vehicleId: "v1",
+    vehicleId: "1",
     startDate: "2026-04-05",
     endDate: "2026-04-12",
     createdAt: "2026-04-04T09:15:00.000Z",
@@ -179,7 +122,7 @@ export const seedSessions: RentalSession[] = [
   },
   {
     id: "s2",
-    vehicleId: "v2",
+    vehicleId: "2",
     startDate: "2026-04-01",
     endDate: "2026-04-04",
     createdAt: "2026-03-28T14:22:00.000Z",
@@ -209,7 +152,7 @@ export const seedSessions: RentalSession[] = [
   },
   {
     id: "s3",
-    vehicleId: "v3",
+    vehicleId: "3",
     startDate: "2026-04-10",
     endDate: "2026-04-15",
     createdAt: "2026-04-08T11:00:00.000Z",
@@ -225,7 +168,7 @@ export const seedSessions: RentalSession[] = [
   },
   {
     id: "s4",
-    vehicleId: "v5",
+    vehicleId: "5",
     startDate: "2026-04-20",
     endDate: "2026-04-25",
     createdAt: "2026-04-01T12:00:00.000Z",

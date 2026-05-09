@@ -16,13 +16,9 @@ function browserGatewayCrossOrigin(): boolean {
     return false;
   }
 }
-import type {
-  AdditionalDriverInfo,
-  RentalSession,
-  Vehicle,
-  VehicleHandoverRef,
-  VehicleOptionDefRow,
-} from "@/lib/mock-fleet";
+import type { AdditionalDriverInfo, RentalSession, Vehicle } from "@/lib/mock-fleet";
+import type { HandoverLocationRefDto, VehicleOptionDefinitionDto, VehicleStatusDto } from "@/models/rent-vehicle-dto";
+import { parseVehicleStatusDto, vehicleDtoDefaults } from "@/models/rent-vehicle-dto";
 import type { PaymentLog, PaymentLogStatus } from "@/lib/mock-payments";
 import type { PanelUser, PanelUserRole } from "@/lib/mock-users";
 import type {
@@ -122,7 +118,7 @@ function attachRent401Refresh(client: AxiosInstance) {
 function rentClient() {
   if (!RENT_API_BASE) {
     throw new Error(
-      "RENT_API_BASE tanımsız (api-base / gateway kökü). NEXT_PUBLIC_GATEWAY_URL veya varsayılan gateway kullanılmalı.",
+      "RENT_API_BASE tanımsız (api-base / gateway kökü). NEXT_PUBLIC_RENT_GATEWAY_URL veya varsayılan gateway kullanılmalı.",
     );
   }
   const client = axios.create({
@@ -243,124 +239,150 @@ function asOptionalNumber(v: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-function mapHandoverRef(raw: unknown): VehicleHandoverRef | undefined {
+function asNullableLong(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+function parseVehicleId(raw: Record<string, unknown>): number {
+  const idRaw = raw.id;
+  if (typeof idRaw === "number" && Number.isFinite(idRaw)) return Math.trunc(idRaw);
+  const n = Number(idRaw);
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
+}
+
+function vehicleStatusFromRaw(raw: Record<string, unknown>): VehicleStatusDto {
+  if (Boolean(raw.maintenance)) return "MAINTENANCE";
+  const nested = raw.vehicleStatus ?? raw.vehicle_status;
+  if (nested != null && typeof nested === "object") {
+    const code = (nested as Record<string, unknown>).code;
+    return parseVehicleStatusDto(code);
+  }
+  return parseVehicleStatusDto(raw.status ?? raw.statusCode);
+}
+
+function mapHandoverRefDto(raw: unknown): HandoverLocationRefDto | undefined {
   if (raw == null || typeof raw !== "object") return undefined;
   const o = raw as Record<string, unknown>;
-  const id = asOptionalString(o.id);
-  if (!id) return undefined;
+  const idRaw = o.id;
+  const idNum = typeof idRaw === "number" && Number.isFinite(idRaw) ? Math.trunc(idRaw) : Number(idRaw);
+  if (!Number.isFinite(idNum)) return undefined;
+  const kindRaw = asOptionalString(o.kind)?.toUpperCase();
+  const kind = kindRaw === "PICKUP" || kindRaw === "RETURN" ? kindRaw : undefined;
+  const surcharge = asOptionalNumber(o.surchargeEur);
   return {
-    id,
-    name: asOptionalString(o.name),
-    kind: asOptionalString(o.kind),
+    id: idNum,
+    kind,
+    name: o.name != null ? String(o.name) : null,
+    description: o.description != null ? String(o.description) : undefined,
+    cityId: asNullableLong(o.cityId),
+    cityName: o.cityName != null ? String(o.cityName) : undefined,
+    countryCode: o.countryCode != null ? String(o.countryCode) : undefined,
+    lineOrder: asNullableLong(o.lineOrder),
+    active: o.active == null ? null : Boolean(o.active),
+    surchargeEur: surcharge != null && Number.isFinite(surcharge) ? surcharge : undefined,
   };
 }
 
-function mapVehicleReturnHandoverLocations(raw: Record<string, unknown>): VehicleHandoverRef[] {
+function mapVehicleReturnHandoverLocations(raw: Record<string, unknown>): HandoverLocationRefDto[] {
   const list = raw.returnHandoverLocations;
   if (Array.isArray(list) && list.length > 0) {
-    const out: VehicleHandoverRef[] = [];
+    const out: HandoverLocationRefDto[] = [];
     for (const item of list) {
-      const m = mapHandoverRef(item);
+      const m = mapHandoverRefDto(item);
       if (m) out.push(m);
     }
     if (out.length > 0) return out;
   }
-  const single = mapHandoverRef(raw.defaultReturnHandoverLocation);
+  const single = mapHandoverRefDto(raw.defaultReturnHandoverLocation);
   return single ? [single] : [];
 }
 
-function mapVehicleOptionDefinitions(raw: unknown): VehicleOptionDefRow[] | undefined {
-  if (!Array.isArray(raw) || raw.length === 0) return undefined;
-  const out: VehicleOptionDefRow[] = [];
+function mapVehicleOptionDefinitions(raw: unknown): VehicleOptionDefinitionDto[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  const out: VehicleOptionDefinitionDto[] = [];
   for (const row of raw) {
     if (row == null || typeof row !== "object") continue;
     const o = row as Record<string, unknown>;
-    const id = asOptionalString(o.id);
+    const idRaw = o.id;
+    const idNum = typeof idRaw === "number" && Number.isFinite(idRaw) ? Math.trunc(idRaw) : Number(idRaw);
     const title = asOptionalString(o.title);
-    if (!id || !title) continue;
+    if (!Number.isFinite(idNum) || !title) continue;
     const priceRaw = asOptionalNumber(o.price);
     const price = priceRaw != null && Number.isFinite(priceRaw) ? priceRaw : 0;
     const lo = asOptionalNumber(o.lineOrder);
     out.push({
-      id,
+      id: idNum,
       title,
-      description: asOptionalString(o.description),
+      description: o.description != null ? String(o.description) : undefined,
       price,
-      icon: asOptionalString(o.icon),
+      icon: o.icon != null ? String(o.icon) : undefined,
       lineOrder: lo != null && Number.isFinite(lo) ? Math.round(lo) : 0,
       active: o.active == null ? true : Boolean(o.active),
     });
   }
-  return out.length ? out : undefined;
+  return out;
 }
 
-function mapVehicleHighlights(raw: unknown): string[] | undefined {
-  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+function mapVehicleHighlights(raw: unknown): string[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
   const out = raw.map((x) => String(x).trim()).filter((s) => s.length > 0);
-  return out.length > 0 ? out.slice(0, 30) : undefined;
-}
-
-function parseFleetStatusCodeFromVehicleApi(raw: Record<string, unknown>): Vehicle["fleetStatusCode"] | undefined {
-  const asCode = (s: string): Vehicle["fleetStatusCode"] | undefined => {
-    const t = s.trim().toLowerCase();
-    if (t === "available") return "available";
-    if (t === "rented") return "rented";
-    if (t === "maintenance") return "maintenance";
-    return undefined;
-  };
-  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : undefined);
-  const direct = str(raw.fleetStatusCode) ?? str(raw.fleet_status_code) ?? str(raw.statusCode);
-  if (direct) {
-    const c = asCode(direct);
-    if (c) return c;
-  }
-  const vs = raw.vehicleStatus ?? raw.vehicle_status;
-  if (vs != null && typeof vs === "object") {
-    const code = str((vs as Record<string, unknown>).code);
-    if (code) return asCode(code);
-  }
-  const fs = raw.fleetStatus ?? raw.fleet_status;
-  if (fs != null && typeof fs === "object") {
-    const code = str((fs as Record<string, unknown>).code);
-    if (code) return asCode(code);
-  }
-  return undefined;
+  return out.length > 0 ? out.slice(0, 30) : [];
 }
 
 export function mapVehicleFromApi(raw: Record<string, unknown>): Vehicle {
   const cc = raw.countryCode;
   const returnLocations = mapVehicleReturnHandoverLocations(raw);
+  const status = vehicleStatusFromRaw(raw);
+  const statusCodeStr = asOptionalString(raw.statusCode) ?? status;
+  const rentalDaily = asOptionalNumber(raw.rentalDailyPrice);
+  const ccUpper = cc != null && String(cc).length > 0 ? String(cc).toUpperCase() : null;
   return {
-    id: String(raw.id),
-    plate: String(raw.plate),
-    brand: String(raw.brand),
-    model: String(raw.model),
-    year: Number(raw.year),
-    maintenance: Boolean(raw.maintenance),
+    id: parseVehicleId(raw),
+    vehicleModelId: asNullableLong(raw.vehicleModelId),
+    transmissionTypeId: asNullableLong(raw.transmissionTypeId),
+    bodyStyleId: asNullableLong(raw.bodyStyleId),
+    fuelTypeId: asNullableLong(raw.fuelTypeId),
+    plate: String(raw.plate ?? ""),
+    brand: String(raw.brand ?? ""),
+    model: String(raw.model ?? ""),
+    year: Number.isFinite(Number(raw.year)) ? Math.trunc(Number(raw.year)) : 0,
+    status,
+    statusCode: statusCodeStr,
     external: Boolean(raw.external),
-    externalCompany: asOptionalString(raw.externalCompany),
-    rentalDailyPrice: asOptionalNumber(raw.rentalDailyPrice),
+    externalCompany: raw.externalCompany != null ? String(raw.externalCompany) : null,
+    rentalDailyPrice: rentalDaily != null && Number.isFinite(rentalDaily) ? rentalDaily : null,
     commissionEnabled: Boolean(raw.commissionEnabled),
-    commissionRatePercent: asOptionalNumber(raw.commissionRatePercent),
-    commissionBrokerFullName: asOptionalString(raw.commissionBrokerFullName),
-    commissionBrokerPhone: asOptionalString(raw.commissionBrokerPhone),
-    countryCode: cc != null && String(cc).length > 0 ? String(cc).toUpperCase() : undefined,
-    cityId: asOptionalString(raw.cityId),
-    defaultPickupHandoverLocation: mapHandoverRef(raw.defaultPickupHandoverLocation) ?? null,
-    defaultReturnHandoverLocation: returnLocations[0] ?? mapHandoverRef(raw.defaultReturnHandoverLocation) ?? null,
-    returnHandoverLocations: returnLocations.length > 0 ? returnLocations : undefined,
+    commissionRatePercent: (() => {
+      const n = asOptionalNumber(raw.commissionRatePercent);
+      return n != null && Number.isFinite(n) ? n : null;
+    })(),
+    commissionBrokerFullName: raw.commissionBrokerFullName != null ? String(raw.commissionBrokerFullName) : null,
+    commissionBrokerPhone: raw.commissionBrokerPhone != null ? String(raw.commissionBrokerPhone) : null,
+    countryCode: ccUpper,
+    cityId: asNullableLong(raw.cityId),
+    engine: raw.engine != null ? String(raw.engine) : null,
+    fuelType: raw.fuelType != null ? String(raw.fuelType) : null,
+    bodyColor: raw.bodyColor != null ? String(raw.bodyColor) : null,
+    seats: (() => {
+      const n = asOptionalNumber(raw.seats);
+      return n != null && Number.isFinite(n) ? n : null;
+    })(),
+    luggage: (() => {
+      const n = asOptionalNumber(raw.luggage);
+      return n != null && Number.isFinite(n) ? n : null;
+    })(),
+    transmissionType: raw.transmissionType != null ? String(raw.transmissionType) : null,
+    bodyStyleCode: raw.bodyStyleCode != null ? String(raw.bodyStyleCode) : null,
+    bodyStyleLabel: raw.bodyStyleLabel != null ? String(raw.bodyStyleLabel) : null,
+    defaultPickupHandoverLocation: mapHandoverRefDto(raw.defaultPickupHandoverLocation) ?? null,
+    defaultReturnHandoverLocation:
+      returnLocations[0] ?? mapHandoverRefDto(raw.defaultReturnHandoverLocation) ?? null,
+    returnHandoverLocations: returnLocations.length > 0 ? returnLocations : [],
     optionDefinitions: mapVehicleOptionDefinitions(raw.optionDefinitions),
     highlights: mapVehicleHighlights(raw.highlights),
     images: mapVehicleImages(raw.images),
-    engine: asOptionalString(raw.engine),
-    fuelType: asOptionalString(raw.fuelType),
-    bodyColor: asOptionalString(raw.bodyColor),
-    seats: asOptionalNumber(raw.seats),
-    luggage: asOptionalNumber(raw.luggage),
-    transmissionType: asOptionalString(raw.transmissionType),
-    bodyStyleCode: asOptionalString(raw.bodyStyleCode),
-    bodyStyleLabel: asOptionalString(raw.bodyStyleLabel),
-    fleetStatusCode: parseFleetStatusCodeFromVehicleApi(raw),
   };
 }
 
@@ -377,26 +399,42 @@ function mapVehicleFromSnapshotApi(raw: Record<string, unknown>): Vehicle {
       model = candidate;
     }
   }
-  const fleetStatusCode = parseFleetStatusCodeFromVehicleApi(raw);
+  const snapshotId = raw.vehicleId ?? raw.id ?? raw.vehicle_id;
+  const idNum =
+    typeof snapshotId === "number" && Number.isFinite(snapshotId)
+      ? Math.trunc(snapshotId)
+      : Number(snapshotId);
+  const id = Number.isFinite(idNum) ? Math.trunc(idNum) : 0;
+  const status = vehicleStatusFromRaw(raw);
+  const statusCodeStr = asOptionalString(raw.statusCode) ?? status;
+  const rentalDaily = asOptionalNumber(raw.rentalDailyPrice);
+  const cc = asOptionalString(raw.countryCode)?.toUpperCase() ?? null;
   return {
-    id: String(raw.id ?? ""),
+    ...vehicleDtoDefaults(),
+    id,
     plate: asOptionalString(raw.plate) ?? "",
     brand,
     model,
     year: asOptionalNumber(raw.year) ?? 0,
-    maintenance: Boolean(raw.maintenance) || fleetStatusCode === "maintenance",
+    status,
+    statusCode: statusCodeStr,
     external: Boolean(raw.external),
-    externalCompany: asOptionalString(raw.externalCompany),
-    rentalDailyPrice: asOptionalNumber(raw.rentalDailyPrice),
-    countryCode: asOptionalString(raw.countryCode)?.toUpperCase(),
+    externalCompany: raw.externalCompany != null ? String(raw.externalCompany) : null,
+    rentalDailyPrice: rentalDaily != null && Number.isFinite(rentalDaily) ? rentalDaily : null,
+    countryCode: cc,
     images: mapVehicleImages(raw.images),
-    engine: asOptionalString(raw.engine),
-    fuelType: asOptionalString(raw.fuel),
-    transmissionType: asOptionalString(raw.transmission),
-    seats: asOptionalNumber(raw.seats),
-    luggage: asOptionalNumber(raw.luggage),
+    engine: raw.engine != null ? String(raw.engine) : null,
+    fuelType: raw.fuel != null ? String(raw.fuel) : null,
+    transmissionType: raw.transmission != null ? String(raw.transmission) : null,
+    seats: (() => {
+      const n = asOptionalNumber(raw.seats);
+      return n != null && Number.isFinite(n) ? n : null;
+    })(),
+    luggage: (() => {
+      const n = asOptionalNumber(raw.luggage);
+      return n != null && Number.isFinite(n) ? n : null;
+    })(),
     highlights: mapVehicleHighlights(raw.highlights),
-    fleetStatusCode,
   };
 }
 
@@ -653,14 +691,52 @@ export function mapPanelUserFromApi(raw: Record<string, unknown>): PanelUser {
   };
 }
 
+function unwrapRentApiList(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
+  if (data != null && typeof data === "object") {
+    const o = data as Record<string, unknown>;
+    for (const key of ["content", "items", "data", "results"] as const) {
+      const v = o[key];
+      if (Array.isArray(v)) return v;
+    }
+  }
+  return [];
+}
+
 export async function fetchVehicleSnapshotsFromRentApi(): Promise<unknown[]> {
   const { data } = await rentClient().get<unknown[]>("/vehicles/snapshots");
   return Array.isArray(data) ? data : [];
 }
 
 export async function fetchVehiclesFromRentApi(): Promise<Vehicle[]> {
-  const rows = await fetchVehicleSnapshotsFromRentApi();
-  return rows.map((row) => mapVehicleFromSnapshotApi(row as Record<string, unknown>));
+  try {
+    const { data } = await rentClient().get<unknown>("/vehicles");
+    const rows = unwrapRentApiList(data);
+    return rows.map((row) => mapVehicleFromApi(row as Record<string, unknown>));
+  } catch {
+    const rows = await fetchVehicleSnapshotsFromRentApi();
+    return rows.map((row) => mapVehicleFromSnapshotApi(row as Record<string, unknown>));
+  }
+}
+
+function normalizeVehiclePlateForLookup(p: string): string {
+  return p.replace(/\s+/g, " ").trim().toUpperCase();
+}
+
+function isVehicleCreateJsonBody(data: unknown): data is Record<string, unknown> {
+  if (data == null || typeof data !== "object" || Array.isArray(data)) return false;
+  const id = (data as Record<string, unknown>).id;
+  return id != null && String(id).trim().length > 0;
+}
+
+async function resolveVehicleAfterCreate(plate: string): Promise<Vehicle> {
+  const norm = normalizeVehiclePlateForLookup(plate);
+  const vehicles = await fetchVehiclesFromRentApi();
+  const found = vehicles.find((v) => normalizeVehiclePlateForLookup(v.plate) === norm);
+  if (found) return found;
+  throw new Error(
+    "Araç kaydı tamamlandı ancak filo listesinde bu plakayla eşleşen kayıt bulunamadı. Listeyi yenileyin.",
+  );
 }
 
 export type VehicleOccupancySourceDto = "rental" | "rental_request";
@@ -824,10 +900,6 @@ function mapHandoverLocationRow(raw: unknown): HandoverLocationApiRow {
   };
 }
 
-function sortVehicleCatalogRowsByOrder(rows: VehicleCatalogRow[]): VehicleCatalogRow[] {
-  return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.labelTr.localeCompare(b.labelTr, "tr"));
-}
-
 function mapVehicleOptionTemplateFromApiRow(row: unknown): VehicleOptionTemplateApiRow {
   const o = row as Record<string, unknown>;
   const price = typeof o.price === "number" ? o.price : Number(o.price);
@@ -865,16 +937,6 @@ function mapVehicleFormCatalog(raw: Record<string, unknown>): VehicleFormCatalog
   });
   brands.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "tr"));
 
-  const fuelTypes = Array.isArray(raw.fuelTypes)
-    ? sortVehicleCatalogRowsByOrder(raw.fuelTypes.map((x) => mapVehicleCatalogRow(x as Record<string, unknown>)))
-    : [];
-  const transmissionTypes = Array.isArray(raw.transmissionTypes)
-    ? sortVehicleCatalogRowsByOrder(raw.transmissionTypes.map((x) => mapVehicleCatalogRow(x as Record<string, unknown>)))
-    : [];
-  const bodyStyles = Array.isArray(raw.bodyStyles)
-    ? sortVehicleCatalogRowsByOrder(raw.bodyStyles.map((x) => mapVehicleCatalogRow(x as Record<string, unknown>)))
-    : [];
-
   const vehicleStatuses = Array.isArray(raw.vehicleStatuses)
     ? (raw.vehicleStatuses as Record<string, unknown>[])
         .map((o) => ({
@@ -903,9 +965,6 @@ function mapVehicleFormCatalog(raw: Record<string, unknown>): VehicleFormCatalog
 
   return {
     brands,
-    fuelTypes,
-    transmissionTypes,
-    bodyStyles,
     vehicleStatuses,
     countries,
     pickupHandoverLocations,
@@ -1138,10 +1197,13 @@ export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Pro
     throw new Error("Alış noktası kimliği geçersiz.");
   }
   const vehicleModelIdNum = rentApiLongValue(payload.vehicleModelId);
-  const vehicleStatusIdNum = rentApiLongValue(payload.vehicleStatusId);
+  const vehicleStatusIdNum = rentApiLongValue(payload.vehicleStatusId) ?? 1;
   const body: Record<string, unknown> = {
-    plate: payload.plate,
+    plate: payload.plate.trim(),
+    brand: payload.brand.trim(),
+    model: payload.model.trim(),
     year: payload.year,
+    maintenance: Boolean(payload.maintenance),
     external: Boolean(payload.external),
     externalCompany: payload.externalCompany?.trim() || undefined,
     rentalDailyPrice: payload.rentalDailyPrice,
@@ -1188,16 +1250,21 @@ export async function createVehicleOnRentApi(payload: CreateVehiclePayload): Pro
   if (payload.bodyColor?.trim()) body.bodyColor = payload.bodyColor.trim();
   if (payload.seats != null && Number.isFinite(payload.seats)) body.seats = payload.seats;
   if (payload.luggage != null && Number.isFinite(payload.luggage)) body.luggage = payload.luggage;
+  const transmissionTypeIdNum = rentApiLongValue(payload.transmissionTypeId?.trim());
+  if (transmissionTypeIdNum != null) body.transmissionTypeId = transmissionTypeIdNum;
   if (payload.transmissionType?.trim()) body.transmissionType = payload.transmissionType.trim();
+  const bodyStyleIdNum = rentApiLongValue(payload.bodyStyleId?.trim());
+  if (bodyStyleIdNum != null) body.bodyStyleId = bodyStyleIdNum;
   if (payload.bodyStyleCode?.trim()) body.bodyStyleCode = payload.bodyStyleCode.trim();
   if (vehicleModelIdNum != null) {
     body.vehicleModelId = vehicleModelIdNum;
   }
-  if (vehicleStatusIdNum != null) {
-    body.vehicleStatusId = vehicleStatusIdNum;
-  }
+  body.vehicleStatusId = vehicleStatusIdNum;
   const { data } = await rentClient().post<unknown>("/vehicles", body);
-  return mapVehicleFromApi(data as Record<string, unknown>);
+  if (isVehicleCreateJsonBody(data)) {
+    return mapVehicleFromApi(data);
+  }
+  return resolveVehicleAfterCreate(payload.plate);
 }
 
 export async function updateVehicleOnRentApi(id: string, payload: UpdateVehiclePayload): Promise<Vehicle> {
@@ -1248,7 +1315,15 @@ export async function updateVehicleOnRentApi(id: string, payload: UpdateVehicleP
   if (payload.bodyColor !== undefined) body.bodyColor = payload.bodyColor?.trim() || undefined;
   if (payload.seats !== undefined) body.seats = payload.seats;
   if (payload.luggage !== undefined) body.luggage = payload.luggage;
+  if (payload.transmissionTypeId !== undefined) {
+    const n = rentApiLongValue(payload.transmissionTypeId?.trim());
+    body.transmissionTypeId = n ?? undefined;
+  }
   if (payload.transmissionType !== undefined) body.transmissionType = payload.transmissionType?.trim() || undefined;
+  if (payload.bodyStyleId !== undefined) {
+    const n = rentApiLongValue(payload.bodyStyleId?.trim());
+    body.bodyStyleId = n ?? undefined;
+  }
   if (payload.bodyStyleCode !== undefined) body.bodyStyleCode = payload.bodyStyleCode?.trim() || undefined;
   const { data } = await rentClient().patch<unknown>(`/vehicles/${rentVehiclePathId(id)}`, body);
   return mapVehicleFromApi(data as Record<string, unknown>);
@@ -1276,36 +1351,38 @@ export async function deleteVehicleImageSlotOnRentApi(vehicleId: string, slot: V
 }
 
 export async function createRentalOnRentApi(payload: CreateRentalPayload): Promise<RentalSession> {
-  const { data } = await rentClient().post<unknown>("/rentals", {
-    vehicleId: payload.vehicleId,
+  const vehicleId = rentApiLongValue(payload.vehicleId);
+  const customerId = rentApiLongValue(payload.customerId);
+  if (vehicleId === undefined || customerId === undefined) {
+    throw new Error("vehicleId ve customerId geçerli sayısal kimlik olmalıdır.");
+  }
+  const vehicleOptionDefinitionIds = rentApiLongArray(payload.vehicleOptionDefinitionIds) ?? [];
+  const reservationExtraTemplateIds = rentApiLongArray(payload.reservationExtraTemplateIds) ?? [];
+  const additionalDrivers =
+    payload.additionalDrivers?.map((d) => ({
+      fullName: d.fullName.trim(),
+      birthDate: d.birthDate.trim(),
+      driverLicenseNo: (d.driverLicenseNo ?? "").trim(),
+      passportNo: (d.passportNo ?? "").trim(),
+      driverLicenseImageDataUrl: d.driverLicenseImageDataUrl.trim(),
+      passportImageDataUrl: d.passportImageDataUrl.trim(),
+    })) ?? [];
+
+  const body: Record<string, unknown> = {
+    vehicleId,
+    userId: payload.userId ?? null,
     startDate: payload.startDate,
     endDate: payload.endDate,
-    outsideCountryTravel: payload.outsideCountryTravel ?? false,
-    ...(payload.note?.trim() ? { note: payload.note.trim() } : {}),
-    customer: {
-      ...payload.customer,
-      email: payload.customer.email?.trim() || undefined,
-      birthDate: payload.customer.birthDate || undefined,
-      passportNo: payload.customer.passportNo?.trim() ?? "",
-      driverLicenseNo: payload.customer.driverLicenseNo?.trim() || undefined,
-      driverLicenseImageDataUrl: payload.customer.driverLicenseImageDataUrl || undefined,
-      passportImageDataUrl: payload.customer.passportImageDataUrl || undefined,
-    },
-    additionalDrivers: payload.additionalDrivers?.map((d) => ({
-      ...d,
-      birthDate: d.birthDate ?? "",
-      passportImageDataUrl: d.passportImageDataUrl ?? "",
-      driverLicenseNo: d.driverLicenseNo?.trim() ?? "",
-      passportNo: d.passportNo?.trim() ?? "",
-    })),
-    status: payload.status,
-    ...(payload.reservationExtraOptionTemplateIds && payload.reservationExtraOptionTemplateIds.length > 0
-      ? { reservationExtraOptionTemplateIds: payload.reservationExtraOptionTemplateIds }
-      : {}),
-    ...(payload.vehicleOptionDefinitionIds && payload.vehicleOptionDefinitionIds.length > 0
-      ? { vehicleOptionDefinitionIds: payload.vehicleOptionDefinitionIds }
-      : {}),
-  });
+    pickupHandoverLocationId: payload.pickupHandoverLocationId ?? null,
+    returnHandoverLocationId: payload.returnHandoverLocationId ?? null,
+    customerId,
+    additionalDrivers,
+    status: payload.status ?? null,
+    vehicleOptionDefinitionIds,
+    reservationExtraTemplateIds,
+  };
+
+  const { data } = await rentClient().post<unknown>("/rentals", body);
   return mapRentalFromApi(data as Record<string, unknown>);
 }
 
@@ -1447,6 +1524,84 @@ export async function fetchRentalRequestContractPdfBlob(id: string): Promise<Blo
 /** Müşteri e-postasına Thymeleaf şablonlu sözleşme bildirimi (Rabbit mail kuyruğu). */
 export async function sendRentalRequestContractEmailOnRentApi(id: string): Promise<void> {
   await rentClient().post(`/rental-requests/${encodeURIComponent(id)}/send-contract-email`, {});
+}
+
+export type RentCustomerRow = {
+  id: string;
+  fullName: string;
+  nationalId?: string;
+  passportNo?: string;
+  phone: string;
+  email: string;
+  birthDate?: string;
+  driverLicenseNo?: string;
+  driverLicenseImageUrl?: string;
+  passportImageUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type RentCustomerUpsertPayload = {
+  fullName: string;
+  nationalId?: string;
+  passportNo?: string;
+  phone: string;
+  email: string;
+  birthDate?: string;
+  driverLicenseNo?: string;
+  driverLicenseImageDataUrl?: string;
+  passportImageDataUrl?: string;
+};
+
+function mapRentCustomerFromApi(raw: Record<string, unknown>): RentCustomerRow {
+  return {
+    id: String(raw.id ?? ""),
+    fullName: String(raw.fullName ?? ""),
+    nationalId: asOptionalString(raw.nationalId),
+    passportNo: asOptionalString(raw.passportNo),
+    phone: String(raw.phone ?? ""),
+    email: String(raw.email ?? ""),
+    birthDate: asOptionalString(raw.birthDate),
+    driverLicenseNo: asOptionalString(raw.driverLicenseNo),
+    driverLicenseImageUrl: asOptionalString(raw.driverLicenseImageUrl),
+    passportImageUrl: asOptionalString(raw.passportImageUrl),
+    createdAt: asOptionalString(raw.createdAt),
+    updatedAt: asOptionalString(raw.updatedAt),
+  };
+}
+
+function buildRentCustomerUpsertBody(payload: RentCustomerUpsertPayload): Record<string, unknown> {
+  return {
+    fullName: payload.fullName.trim(),
+    nationalId: payload.nationalId?.trim() || "",
+    passportNo: payload.passportNo?.trim() || "",
+    phone: payload.phone.trim(),
+    email: payload.email.trim(),
+    birthDate: payload.birthDate?.trim() || undefined,
+    driverLicenseNo: payload.driverLicenseNo?.trim() || undefined,
+    driverLicenseImageDataUrl: payload.driverLicenseImageDataUrl?.trim() || undefined,
+    passportImageDataUrl: payload.passportImageDataUrl?.trim() || undefined,
+  };
+}
+
+export async function fetchCustomersFromRentApi(): Promise<RentCustomerRow[]> {
+  const { data } = await rentClient().get<unknown>("/customers");
+  const rows = unwrapRentApiList(data);
+  return rows.map((row) => mapRentCustomerFromApi(row as Record<string, unknown>));
+}
+
+export async function createCustomerOnRentApi(payload: RentCustomerUpsertPayload): Promise<RentCustomerRow> {
+  const { data } = await rentClient().post<unknown>("/customers", buildRentCustomerUpsertBody(payload));
+  return mapRentCustomerFromApi(data as Record<string, unknown>);
+}
+
+export async function updateCustomerOnRentApi(id: string, payload: RentCustomerUpsertPayload): Promise<RentCustomerRow> {
+  const { data } = await rentClient().patch<unknown>(`/customers/${encodeURIComponent(id)}`, buildRentCustomerUpsertBody(payload));
+  return mapRentCustomerFromApi(data as Record<string, unknown>);
+}
+
+export async function deleteCustomerOnRentApi(id: string): Promise<void> {
+  await rentClient().delete(`/customers/${encodeURIComponent(id)}`);
 }
 
 export async function fetchCustomerRecordStatesFromRentApi(): Promise<CustomerRecordStatePayload[]> {

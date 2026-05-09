@@ -1,0 +1,12 @@
+[
+  { "id": 1, "code": "sedan", "labelTr": "Sedan", "sortOrder": 1 },
+  { "id": 2, "code": "hatchback", "labelTr": "Hatchback", "sortOrder": 2 },
+  { "id": 3, "code": "station_wagon", "labelTr": "Station wagon", "sortOrder": 3 },
+  { "id": 4, "code": "suv", "labelTr": "SUV / crossover", "sortOrder": 4 },
+  { "id": 5, "code": "coupe", "labelTr": "Coupe", "sortOrder": 5 },
+  { "id": 6, "code": "convertible", "labelTr": "Cabrio / convertible", "sortOrder": 6 },
+  { "id": 7, "code": "mpv", "labelTr": "MPV / minivan", "sortOrder": 7 },
+  { "id": 8, "code": "van", "labelTr": "Van / panelvan", "sortOrder": 8 },
+  { "id": 9, "code": "pickup", "labelTr": "Pick-up", "sortOrder": 9 },
+  { "id": 10, "code": "roadster", "labelTr": "Roadster", "sortOrder": 10 }
+]

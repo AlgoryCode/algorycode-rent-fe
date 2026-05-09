@@ -111,6 +111,10 @@ function buildBreadcrumbs(
     return [{ label: "Lokasyonlar", href: "/settings/locations/pickup" }, { label: "Ülkeler" }];
   }
 
+  if (path === "/settings/locations/countries" || path.startsWith("/settings/locations/countries/")) {
+    return [{ label: "Lokasyonlar", href: "/settings/locations/pickup" }, { label: "Ülkeler" }];
+  }
+
   const staticLabels: Record<string, string> = {
     "/payments": "Ödemeler",
     "/reports": "Raporlar",
@@ -141,7 +145,7 @@ export function AppBreadcrumbs({ className }: { className?: string }) {
   const vehicleLabelById = useMemo(() => {
     const m = new Map<string, string>();
     for (const v of allVehicles) {
-      m.set(v.id, `${v.plate} · ${v.brand} ${v.model}`);
+      m.set(String(v.id), `${v.plate} · ${v.brand} ${v.model}`);
     }
     return m;
   }, [allVehicles]);

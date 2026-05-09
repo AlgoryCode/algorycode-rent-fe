@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VehicleBrandModelManager } from "@/components/vehicles/vehicle-brand-model-manager";
 import {
   createVehicleCatalogEntryOnRentApi,
   createVehicleStatusOnRentApi,
@@ -27,13 +28,14 @@ const FEATURE_NAME_LABEL = "Özellik adı";
 const SORT_LABEL = "Sıra no";
 const SORT_HINT = "Açılır listede üstten alta sıra; küçük sayı daha önde gösterilir.";
 
-type CatalogTab = VehicleCatalogKind | "vehicleStatus";
+type CatalogTab = VehicleCatalogKind | "vehicleStatus" | "brandModel";
 
 const TAB_META: { value: CatalogTab; label: string }[] = [
   { value: "bodyStyle", label: "Araç türü" },
   { value: "fuelType", label: "Yakıt" },
   { value: "transmissionType", label: "Vites" },
   { value: "vehicleStatus", label: "Filo statüsü" },
+  { value: "brandModel", label: "Marka ve model" },
 ];
 
 type FormState = { labelTr: string; sortOrder: string; codeOptional: string };
@@ -49,6 +51,11 @@ export function VehicleCatalogManageClient() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (kind: CatalogTab) => {
+    if (kind === "brandModel") {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     setRows([]);
     setLoading(true);
     try {
@@ -86,6 +93,7 @@ export function VehicleCatalogManageClient() {
   };
 
   const submitForm = async () => {
+    if (tab === "brandModel") return;
     const labelTr = form.labelTr.trim();
     if (!labelTr) {
       toast.error(`${FEATURE_NAME_LABEL} zorunludur.`);
@@ -128,6 +136,7 @@ export function VehicleCatalogManageClient() {
   };
 
   const removeRow = async (row: VehicleCatalogRow) => {
+    if (tab === "brandModel") return;
     if (!row.id) {
       toast.error("Kayıt kimliği eksik; listeyi yenileyip tekrar deneyin.");
       return;
@@ -171,7 +180,9 @@ export function VehicleCatalogManageClient() {
 
         {TAB_META.map((t) => (
           <TabsContent key={t.value} value={t.value} className="mt-3 space-y-4">
-            {tab === t.value ? (
+            {tab === t.value && t.value === "brandModel" ? (
+              <VehicleBrandModelManager />
+            ) : tab === t.value ? (
               <>
                 {editingCode ? (
                   <Card className="glow-card border-primary/25">

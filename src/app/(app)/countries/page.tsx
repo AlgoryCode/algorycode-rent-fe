@@ -1,5 +1,5 @@
-import { CountriesClient } from "./countries-client";
+import { redirect } from "next/navigation";
 
 export default function CountriesPage() {
-  return <CountriesClient />;
+  redirect("/settings/locations/countries");
 }

@@ -42,14 +42,11 @@ import {
   fetchVehiclesFromRentApi,
   type RentalDashboardReport,
 } from "@/lib/rent-api";
+import { formatEur, formatEurCompact } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
 
 function isoDate(d: Date) {
   return formatISO(d, { representation: "date" });
-}
-
-function chartMoney(n: number) {
-  return n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 export function ReportsDashboardClient() {
@@ -158,7 +155,7 @@ export function ReportsDashboardClient() {
               <SelectContent>
                 <SelectItem value="all">{t("reports.vehicleAll")}</SelectItem>
                 {vehicles.map((v) => (
-                  <SelectItem key={v.id} value={v.id}>
+                  <SelectItem key={v.id} value={String(v.id)}>
                     {v.plate} · {v.brand} {v.model}
                   </SelectItem>
                 ))}
@@ -212,10 +209,10 @@ export function ReportsDashboardClient() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 10 }} width={44} tickFormatter={chartMoney} />
+                  <YAxis tick={{ fontSize: 10 }} width={44} tickFormatter={formatEurCompact} />
                   <Tooltip
                     formatter={(v: number, name) =>
-                      name === "revenueEur" ? [`${chartMoney(v)} €`, t("reports.kpiRevenue")] : [v, t("reports.starts")]
+                      name === "revenueEur" ? [formatEur(v), t("reports.kpiRevenue")] : [v, t("reports.starts")]
                     }
                   />
                   <Area
@@ -239,8 +236,8 @@ export function ReportsDashboardClient() {
                 <BarChart data={vehicleChart} margin={{ top: 8, right: 8, left: 0, bottom: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-25} textAnchor="end" height={56} />
-                  <YAxis tick={{ fontSize: 10 }} width={44} tickFormatter={chartMoney} />
-                  <Tooltip formatter={(v: number) => [`${chartMoney(v)} €`, t("reports.kpiRevenue")]} />
+                  <YAxis tick={{ fontSize: 10 }} width={44} tickFormatter={formatEurCompact} />
+                  <Tooltip formatter={(v: number) => [formatEur(v), t("reports.kpiRevenue")]} />
                   <Bar
                     dataKey="revenueEur"
                     fill="hsl(var(--primary))"
@@ -275,9 +272,9 @@ function KpiRow({
     },
     {
       label: t("reports.kpiRevenue"),
-      value: `${chartMoney(Number(s.totalRevenueEur))} €`,
+      value: formatEur(Number(s.totalRevenueEur)),
       icon: Euro,
-      sub: `+${chartMoney(Number(s.totalOptionsEur))} € opts`,
+      sub: `+${formatEurCompact(Number(s.totalOptionsEur))} opts`,
     },
     {
       label: t("reports.kpiDays"),
@@ -287,9 +284,9 @@ function KpiRow({
     },
     {
       label: t("reports.kpiCommission"),
-      value: `${chartMoney(Number(s.totalCommissionEur))} €`,
+      value: formatEur(Number(s.totalCommissionEur)),
       icon: TrendingUp,
-      sub: `base ${chartMoney(Number(s.totalBaseRentalEur))} €`,
+      sub: `base ${formatEur(Number(s.totalBaseRentalEur))}`,
     },
   ];
   return (
@@ -377,7 +374,7 @@ function VehicleTable({
                 <TableCell className="text-right text-xs tabular-nums">{v.rentalCount}</TableCell>
                 <TableCell className="text-right text-xs tabular-nums">{v.rentalDayBooked}</TableCell>
                 <TableCell className="text-right text-xs tabular-nums">
-                  {chartMoney(Number(v.revenueEur))} €
+                  {formatEur(Number(v.revenueEur))}
                 </TableCell>
               </TableRow>
             ))}

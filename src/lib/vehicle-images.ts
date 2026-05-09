@@ -52,16 +52,17 @@ const DEMO_SETS: VehicleImages[] = [
   },
 ];
 
-function demoSetIndexForVehicle(vehicleId: string): number {
+function demoSetIndexForVehicle(vehicleId: string | number): number {
+  const key = String(vehicleId);
   let h = 0;
-  for (let i = 0; i < vehicleId.length; i++) h = (h * 31 + vehicleId.charCodeAt(i)) | 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
   return Math.abs(h) % DEMO_SETS.length;
 }
 
 /**
  * Araç detayında gösterilecek görseller: kullanıcı/seed dolu alanlar korunur, boş slotlar demo URL ile doldurulur.
  */
-export function mergeVehicleImagesWithDemo(images: VehicleImages | undefined, vehicleId: string): VehicleImages {
+export function mergeVehicleImagesWithDemo(images: VehicleImages | undefined, vehicleId: string | number): VehicleImages {
   const base = DEMO_SETS[demoSetIndexForVehicle(vehicleId)];
   const out: VehicleImages = { ...base };
   if (!images) return out;

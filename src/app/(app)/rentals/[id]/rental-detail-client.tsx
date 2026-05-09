@@ -32,6 +32,7 @@ import { rentKeys } from "@/lib/rent-query-keys";
 import { normalizeRentalStatus, type RentalStatus } from "@/lib/rental-status";
 import { customerRecordKey, type CustomerAggregateRow } from "@/lib/rental-metadata";
 import type { RentalSession } from "@/lib/mock-fleet";
+import { formatEur } from "@/lib/format-money";
 
 type Props = { rentalId: string };
 
@@ -58,7 +59,10 @@ export function RentalDetailClient({ rentalId }: Props) {
     queryFn: () => fetchRentalByIdFromRentApi(rentalId),
   });
 
-  const vehicle = useMemo(() => allVehicles.find((v) => v.id === rental?.vehicleId), [allVehicles, rental?.vehicleId]);
+  const vehicle = useMemo(
+    () => allVehicles.find((v) => String(v.id) === String(rental?.vehicleId ?? "")),
+    [allVehicles, rental?.vehicleId],
+  );
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -368,12 +372,12 @@ export function RentalDetailClient({ rentalId }: Props) {
                             Temel kiralama
                             {vehicle?.rentalDailyPrice != null && rentalDays > 0 && (
                               <span className="ml-1 text-[10px] text-muted-foreground">
-                                ({rentalDays} gün × {vehicle.rentalDailyPrice.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} ₺)
+                                ({rentalDays} gün × {formatEur(vehicle.rentalDailyPrice)})
                               </span>
                             )}
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums font-medium">
-                            {baseRentalAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                            {formatEur(baseRentalAmount)}
                           </td>
                         </tr>
                       )}
@@ -387,7 +391,7 @@ export function RentalDetailClient({ rentalId }: Props) {
                             )}
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums font-medium">
-                            {opt.price.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                            {formatEur(opt.price)}
                           </td>
                         </tr>
                       ))}
@@ -396,7 +400,7 @@ export function RentalDetailClient({ rentalId }: Props) {
                         <tr className="bg-muted/30">
                           <td className="py-1.5 pl-3 pr-2 font-semibold text-foreground">Ara toplam</td>
                           <td className="py-1.5 pr-3 text-right tabular-nums font-semibold">
-                            {grossTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                            {formatEur(grossTotal)}
                           </td>
                         </tr>
                       )}
@@ -414,7 +418,7 @@ export function RentalDetailClient({ rentalId }: Props) {
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums font-medium">
                             {commissionSign < 0 ? "−" : "+"}
-                            {Math.abs(rental.commissionAmount).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                            {formatEur(Math.abs(rental.commissionAmount))}
                           </td>
                         </tr>
                       )}
@@ -428,7 +432,7 @@ export function RentalDetailClient({ rentalId }: Props) {
                             )}
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums font-medium">
-                            −{discountLineAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                            −{formatEur(discountLineAmount)}
                           </td>
                         </tr>
                       )}
@@ -437,7 +441,7 @@ export function RentalDetailClient({ rentalId }: Props) {
                         <tr className="border-t-2 border-border bg-muted/20">
                           <td className="py-2 pl-3 pr-2 font-bold text-foreground text-sm">Net tutar</td>
                           <td className="py-2 pr-3 text-right tabular-nums font-bold text-sm">
-                            {netTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                            {formatEur(netTotal)}
                           </td>
                         </tr>
                       )}
@@ -700,7 +704,7 @@ export function RentalDetailClient({ rentalId }: Props) {
                 className="flex-1"
                 onClick={() => setDiscountType("AMOUNT")}
               >
-                Sabit tutar (₺)
+                Sabit tutar (EUR)
               </Button>
               <Button
                 type="button"
@@ -715,7 +719,7 @@ export function RentalDetailClient({ rentalId }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="discount-value">
-                {discountType === "PERCENT" ? "İndirim oranı (%)" : "İndirim tutarı (₺)"}
+                {discountType === "PERCENT" ? "İndirim oranı (%)" : "İndirim tutarı (EUR)"}
               </Label>
               <Input
                 id="discount-value"

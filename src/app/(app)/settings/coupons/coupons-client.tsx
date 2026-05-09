@@ -28,6 +28,7 @@ import {
   type CreateCouponPayload,
   type DiscountCouponRow,
 } from "@/lib/rent-api";
+import { formatEur } from "@/lib/format-money";
 
 type FormState = {
   code: string;
@@ -183,12 +184,12 @@ export function CouponsClient() {
                 <TableRow key={row.id}>
                   <TableCell className="font-mono font-semibold">{row.code}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{row.discountType === "PERCENT" ? "%" : "₺"}</Badge>
+                    <Badge variant="outline">{row.discountType === "PERCENT" ? "%" : "€"}</Badge>
                   </TableCell>
                   <TableCell>
                     {row.discountType === "PERCENT"
                       ? `%${row.discountValue}`
-                      : `${row.discountValue.toLocaleString("tr-TR")} ₺`}
+                      : formatEur(row.discountValue)}
                   </TableCell>
                   <TableCell className="tabular-nums">
                     {row.usageCount}
@@ -249,7 +250,7 @@ export function CouponsClient() {
                   className="flex-1"
                   onClick={() => setForm((f) => ({ ...f, discountType: "AMOUNT" }))}
                 >
-                  Sabit tutar (₺)
+                  Sabit tutar (EUR)
                 </Button>
                 <Button
                   type="button"
@@ -263,7 +264,7 @@ export function CouponsClient() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>{form.discountType === "PERCENT" ? "İndirim oranı (%)" : "İndirim tutarı (₺)"}</Label>
+              <Label>{form.discountType === "PERCENT" ? "İndirim oranı (%)" : "İndirim tutarı (EUR)"}</Label>
               <Input
                 type="number"
                 min="0"

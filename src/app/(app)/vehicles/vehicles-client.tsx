@@ -37,8 +37,10 @@ import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import { resolveVehicleFleetUiStatus, type FleetStatus } from "@/lib/fleet-utils";
 import { fetchRentalRequestsFromRentApi, fetchVehicleFormCatalogFromRentApi } from "@/lib/rent-api";
 import { rentKeys } from "@/lib/rent-query-keys";
+import { vehicleDetailHref } from "@/lib/vehicle-new-rent-route";
 import { mergeVehicleImagesWithDemo } from "@/lib/vehicle-images";
 import type { Vehicle } from "@/lib/mock-fleet";
+import { formatEurCompact } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
 
 function vehicleCoverUrl(vehicle: Vehicle) {
@@ -59,9 +61,10 @@ function statusBadge(status: FleetStatus) {
   }
 }
 
-function stableHash(s: string): number {
+function stableHash(s: string | number): number {
+  const str = String(s);
   let h = 0;
-  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) | 0;
+  for (let i = 0; i < str.length; i += 1) h = (h * 31 + str.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
 
@@ -70,10 +73,10 @@ function vehiclePseudoMileageKm(v: Vehicle): number {
 }
 
 function vehiclePseudoFuelPct(v: Vehicle): number {
-  return 12 + (stableHash(`${v.id}:fuel`) % 87);
+  return 12 + (stableHash(`${String(v.id)}:fuel`) % 87);
 }
 
-function isElectricFuelType(ft?: string): boolean {
+function isElectricFuelType(ft?: string | null): boolean {
   if (!ft) return false;
   const s = ft.toLowerCase();
   return s.includes("elektrik") || s.includes("electric") || s.includes("ev") || s.includes("tesla");
@@ -567,7 +570,7 @@ export function VehiclesClient() {
                               key={`m-${v.id}`}
                               type="button"
                               className="flex w-full gap-4 rounded-xl border border-slate-100 bg-white p-3 text-left shadow-sm transition duration-200 hover:shadow-md active:scale-[0.99]"
-                              onClick={() => router.push(`/vehicles/${v.id}`)}
+                              onClick={() => router.push(vehicleDetailHref(v.id))}
                             >
                               <div className="flex h-20 w-32 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
                                 {cover ? (
@@ -641,11 +644,11 @@ export function VehiclesClient() {
                                   tabIndex={0}
                                   aria-label={`${v.plate} ${v.brand} ${v.model}, detay`}
                                   className="cursor-pointer"
-                                  onClick={() => router.push(`/vehicles/${v.id}`)}
+                                  onClick={() => router.push(vehicleDetailHref(v.id))}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter" || e.key === " ") {
                                       e.preventDefault();
-                                      router.push(`/vehicles/${v.id}`);
+                                      router.push(vehicleDetailHref(v.id));
                                     }
                                   }}
                                 >
@@ -692,7 +695,7 @@ export function VehiclesClient() {
                                   </TableCell>
                                   <TableCell className="text-right text-sm font-semibold tabular-nums text-foreground">
                                     {v.rentalDailyPrice != null
-                                      ? `€${v.rentalDailyPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+                                      ? formatEurCompact(v.rentalDailyPrice)
                                       : "—"}
                                     <span className="ml-1 text-[11px] font-normal text-muted-foreground">/DAY</span>
                                   </TableCell>
@@ -704,7 +707,7 @@ export function VehiclesClient() {
                                       className="h-8 w-8"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        router.push(`/vehicles/${v.id}`);
+                                        router.push(vehicleDetailHref(v.id));
                                       }}
                                     >
                                       <SquarePen className="h-4 w-4" />

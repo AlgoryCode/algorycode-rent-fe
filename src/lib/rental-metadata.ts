@@ -1,4 +1,4 @@
-import type { CustomerRecordStatePayload } from "@/lib/rent-api";
+import type { CustomerRecordStatePayload, RentCustomerRow } from "@/lib/rent-api";
 import type { CustomerInfo, CustomerKind, RentalSession, Vehicle } from "@/lib/mock-fleet";
 
 export type { CustomerKind };
@@ -48,6 +48,7 @@ export type CustomerAggregateRow = {
   lastActivity: string;
   /** Sunucu müşteri durumu; kayıt yoksa true. */
   recordActive: boolean;
+  backendCustomerId?: string;
 };
 
 export function mergeCustomerDirectoryStates(
@@ -88,6 +89,44 @@ export function aggregateCustomersFromSessions(sessions: RentalSession[]): Custo
   }
 
   return rows.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
+}
+
+export function aggregateRowFromRentCustomer(row: RentCustomerRow): CustomerAggregateRow {
+  const customer: CustomerInfo = {
+    fullName: row.fullName,
+    nationalId: (row.nationalId ?? "").trim(),
+    passportNo: (row.passportNo ?? "").trim(),
+    phone: row.phone,
+    email: row.email,
+    birthDate: row.birthDate,
+    driverLicenseNo: row.driverLicenseNo,
+  };
+  const key = customerRecordKey(customer);
+  const lastActivity = row.updatedAt ?? row.createdAt ?? new Date().toISOString();
+  return {
+    key,
+    customer,
+    rentals: [],
+    totalRentals: 0,
+    lastActivity,
+    recordActive: true,
+    backendCustomerId: row.id,
+  };
+}
+
+export function mergeRentCustomerApiRowsIntoAggregates(
+  existing: CustomerAggregateRow[],
+  apiRows: RentCustomerRow[],
+): CustomerAggregateRow[] {
+  const keys = new Set(existing.map((r) => r.key));
+  const additions: CustomerAggregateRow[] = [];
+  for (const row of apiRows) {
+    const agg = aggregateRowFromRentCustomer(row);
+    if (keys.has(agg.key)) continue;
+    keys.add(agg.key);
+    additions.push(agg);
+  }
+  return [...additions, ...existing].sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 }
 
 export function vehiclePlate(vehiclesById: Map<string, Vehicle>, vehicleId: string): string {

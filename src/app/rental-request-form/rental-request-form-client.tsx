@@ -22,6 +22,7 @@ import {
   bookedDatesFromRentalRequests,
   mergeBookedDateArrays,
 } from "@/lib/fleet-utils";
+import { formatEur } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
 import type { Vehicle } from "@/lib/mock-fleet";
 import { rentKeys } from "@/lib/rent-query-keys";
@@ -78,14 +79,17 @@ function vehicleCardCoverUrl(v: Vehicle): string | undefined {
 function vehicleMatchesSearch(v: Vehicle, raw: string): boolean {
   const q = raw.trim().toLocaleLowerCase("tr-TR");
   if (!q) return true;
-  const parts = [v.plate, v.brand, v.model, String(v.year), v.id, v.externalCompany ?? ""];
+  const parts = [v.plate, v.brand, v.model, String(v.year), String(v.id), v.externalCompany ?? ""];
   const blob = parts.join(" ").toLocaleLowerCase("tr-TR");
   const blobCompact = blob.replace(/\s+/g, "");
   const qCompact = q.replace(/\s+/g, "");
   if (blob.includes(q) || blobCompact.includes(qCompact)) return true;
   const tokens = q.split(/\s+/).filter(Boolean);
   return tokens.every(
-    (t) => blob.includes(t) || blobCompact.includes(t.replace(/\s+/g, "")) || parts.some((p) => p.toLocaleLowerCase("tr-TR").includes(t)),
+    (t) =>
+      blob.includes(t) ||
+      blobCompact.includes(t.replace(/\s+/g, "")) ||
+      parts.some((p) => String(p).toLocaleLowerCase("tr-TR").includes(t)),
   );
 }
 
@@ -162,7 +166,7 @@ export function TalepClient() {
 
   const selectedVehicle = useMemo(() => {
     const targetId = queryResult?.vehicleId ?? (vehicleId !== VEHICLE_NONE ? vehicleId : undefined);
-    return targetId ? vehicles.find((v) => v.id === targetId) : undefined;
+    return targetId ? vehicles.find((v) => String(v.id) === String(targetId)) : undefined;
   }, [vehicles, vehicleId, queryResult?.vehicleId]);
 
   const { data: calendarRentals = [] } = useQuery({
@@ -567,9 +571,9 @@ export function TalepClient() {
                   </div>
                   <div className="grid max-h-[min(55vh,28rem)] grid-cols-2 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2 sm:gap-3">
                     {vehiclesFiltered.map((v) => {
-                      const disabled = Boolean(v.maintenance);
+                      const disabled = v.status === "MAINTENANCE";
                       const cover = vehicleCardCoverUrl(v);
-                      const selected = vehicleId === v.id;
+                      const selected = vehicleId === String(v.id);
                       return (
                         <button
                           key={v.id}
@@ -577,7 +581,7 @@ export function TalepClient() {
                           disabled={disabled}
                           onClick={() => {
                             if (disabled) return;
-                            setVehicleId(v.id);
+                            setVehicleId(String(v.id));
                             setStartDate("");
                             setEndDate("");
                           }}
@@ -843,7 +847,7 @@ export function TalepClient() {
                     <span className="text-sm">
                       Yurt dışına çıkış olacak
                       <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
-                        İşaretlerseniz yeşil sigorta ücreti uygulanır (yaklaşık {GREEN_INSURANCE_DISPLAY.toLocaleString("tr-TR")} ₺).
+                        İşaretlerseniz yeşil sigorta ücreti uygulanır (yaklaşık {formatEur(GREEN_INSURANCE_DISPLAY)}).
                       </span>
                     </span>
                   </label>
@@ -852,7 +856,7 @@ export function TalepClient() {
                       <div className="flex justify-between gap-2">
                         <span className="text-muted-foreground">Tahmini kira ({rentalDays} gün)</span>
                         <span className="font-semibold tabular-nums">
-                          {estimatedRentalSubtotal.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} ₺
+                          {formatEur(estimatedRentalSubtotal)}
                         </span>
                       </div>
                     ) : (
@@ -862,14 +866,14 @@ export function TalepClient() {
                       <div className="flex justify-between gap-2 text-xs">
                         <span className="text-muted-foreground">Yeşil sigorta (tahmini)</span>
                         <span className="font-medium tabular-nums">
-                          {GREEN_INSURANCE_DISPLAY.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} ₺
+                          {formatEur(GREEN_INSURANCE_DISPLAY)}
                         </span>
                       </div>
                     )}
                     {estimatedGrand != null && (
                       <div className="flex justify-between gap-2 border-t border-border/50 pt-2 font-semibold">
                         <span>Tahmini toplam</span>
-                        <span className="tabular-nums">{estimatedGrand.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} ₺</span>
+                        <span className="tabular-nums">{formatEur(estimatedGrand)}</span>
                       </div>
                     )}
                     <p className="text-[10px] text-muted-foreground pt-1">

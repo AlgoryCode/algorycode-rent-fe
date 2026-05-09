@@ -22,7 +22,7 @@ export function VehicleNewRentPageRoute({ params }: Props) {
     );
   }
 
-  const vehicle = allVehicles.find((v) => v.id === id);
+  const vehicle = allVehicles.find((v) => String(v.id) === id.trim());
   if (!vehicle) {
     return (
       <div className="mx-auto max-w-md space-y-4 py-12 text-center">

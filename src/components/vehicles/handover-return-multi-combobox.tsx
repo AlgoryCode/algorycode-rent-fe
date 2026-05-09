@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { HandoverLocationApiRow } from "@/lib/rent-api";
+import { formatEurCompact } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
 
 function parseSurchargeEur(loc: HandoverLocationApiRow): number | undefined {
@@ -19,8 +20,7 @@ function parseSurchargeEur(loc: HandoverLocationApiRow): number | undefined {
 function surchargePriceInParens(loc: HandoverLocationApiRow): string {
   const n = parseSurchargeEur(loc);
   if (n == null) return "";
-  const txt = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, "");
-  return ` (+${txt} €)`;
+  return ` (${formatEurCompact(n)})`;
 }
 
 export type HandoverReturnMultiComboboxProps = {

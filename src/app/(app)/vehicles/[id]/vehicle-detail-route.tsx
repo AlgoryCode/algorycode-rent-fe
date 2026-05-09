@@ -7,16 +7,25 @@ import { useIsClient } from "@/hooks/use-is-client";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import { vehicleNewRentHref } from "@/lib/vehicle-new-rent-route";
 
+function decodeRouteVehicleId(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 type Props = { params: Promise<{ id: string }> };
 
 export function VehicleDetailRoute({ params }: Props) {
-  const { id } = use(params);
+  const rawId = use(params).id;
+  const id = decodeRouteVehicleId(rawId);
   const router = useRouter();
   const searchParams = useSearchParams();
   const sayfa = searchParams.get("sayfa");
   const legacyNewRental = searchParams.get("yeniKiralama") === "1";
   const shuntingNewRent = sayfa === "kiralama" || legacyNewRental;
-  const { allVehicles } = useFleetVehicles();
+  const { allVehicles, ready } = useFleetVehicles();
   const mounted = useIsClient();
 
   useEffect(() => {
@@ -42,7 +51,16 @@ export function VehicleDetailRoute({ params }: Props) {
     );
   }
 
-  const vehicle = allVehicles.find((v) => v.id === id);
+  if (!ready) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-3 animate-pulse">
+        <div className="h-8 w-48 rounded bg-muted" />
+        <div className="h-64 rounded-lg bg-muted" />
+      </div>
+    );
+  }
+
+  const vehicle = allVehicles.find((v) => String(v.id).trim() === id.trim());
   if (!vehicle) {
     return (
       <div className="mx-auto max-w-md space-y-4 py-12 text-center">

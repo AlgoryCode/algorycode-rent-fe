@@ -1,0 +1,9 @@
+[
+  { "id": 1, "code": "gasoline", "labelTr": "Benzin", "sortOrder": 1 },
+  { "id": 2, "code": "diesel", "labelTr": "Dizel", "sortOrder": 2 },
+  { "id": 3, "code": "electric", "labelTr": "Elektrik (BEV)", "sortOrder": 3 },
+  { "id": 4, "code": "hybrid", "labelTr": "Hibrit (HEV)", "sortOrder": 4 },
+  { "id": 5, "code": "plug_in_hybrid", "labelTr": "Takılabilir hibrit (PHEV)", "sortOrder": 5 },
+  { "id": 6, "code": "lpg", "labelTr": "LPG", "sortOrder": 6 },
+  { "id": 7, "code": "cng", "labelTr": "CNG", "sortOrder": 7 }
+]

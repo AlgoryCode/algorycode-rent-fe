@@ -132,8 +132,8 @@ export function RentalFormOptionsLists({
                   <input
                     type="checkbox"
                     className="mt-0.5 rounded border-input"
-                    checked={selectedVehicleOptionDefIds.includes(r.id)}
-                    onChange={() => onToggleVehicleOptionDef(r.id)}
+                    checked={selectedVehicleOptionDefIds.includes(String(r.id))}
+                    onChange={() => onToggleVehicleOptionDef(String(r.id))}
                   />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{r.title}</p>

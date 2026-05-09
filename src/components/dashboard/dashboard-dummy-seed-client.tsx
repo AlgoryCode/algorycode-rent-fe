@@ -9,6 +9,7 @@ import { rentKeys } from "@/lib/rent-query-keys";
 import {
   createCityOnRentApi,
   createCountryOnRentApi,
+  createCustomerOnRentApi,
   createHandoverLocationOnRentApi,
   createRentalOnRentApi,
   createRentalRequestOnRentApi,
@@ -341,41 +342,47 @@ export function DashboardDummySeedClient() {
   const seedRental = () =>
     run("rental", async () => {
       const vehicles = await fetchVehiclesFromRentApi();
-      const v = vehicles.find((x) => !x.maintenance);
+      const v = vehicles.find((x) => x.status !== "MAINTENANCE");
       if (!v) {
         throw new Error("Kiralanabilir araç yok. Önce “Araç” ile örnek araç ekleyin.");
       }
       const start = formatLocalYmd(new Date());
       const end = addDaysLocal(start, 2);
+      const cust = await createCustomerOnRentApi({
+        fullName: `Dummy müşteri ${Date.now()}`,
+        nationalId: randomNationalId(),
+        passportNo: "",
+        phone: randomPhoneTr(),
+        email: `dummy.rental.${Date.now()}@example.com`,
+        birthDate: "1990-01-15",
+        driverLicenseNo: "DUMMY-LIC",
+      });
       await createRentalOnRentApi({
-        vehicleId: v.id,
+        vehicleId: String(v.id),
+        userId: null,
         startDate: start,
         endDate: end,
-        outsideCountryTravel: false,
-        customer: {
-          fullName: `Dummy müşteri ${Date.now()}`,
-          nationalId: randomNationalId(),
-          passportNo: "",
-          phone: randomPhoneTr(),
-          email: `dummy.rental.${Date.now()}@example.com`,
-          birthDate: "1990-01-15",
-          driverLicenseNo: "DUMMY-LIC",
-        },
+        pickupHandoverLocationId: null,
+        returnHandoverLocationId: null,
+        customerId: cust.id,
+        additionalDrivers: [],
         status: "active",
+        vehicleOptionDefinitionIds: [],
+        reservationExtraTemplateIds: [],
       });
     });
 
   const seedRentalRequest = () =>
     run("rentalRequest", async () => {
       const vehicles = await fetchVehiclesFromRentApi();
-      const v = vehicles.find((x) => !x.maintenance);
+      const v = vehicles.find((x) => x.status !== "MAINTENANCE");
       if (!v) {
         throw new Error("Araç yok. Önce “Araç” ile örnek araç ekleyin.");
       }
       const start = formatLocalYmd(new Date());
       const end = addDaysLocal(start, 2);
       await createRentalRequestOnRentApi({
-        vehicleId: v.id,
+        vehicleId: String(v.id),
         startDate: start,
         endDate: end,
         outsideCountryTravel: false,

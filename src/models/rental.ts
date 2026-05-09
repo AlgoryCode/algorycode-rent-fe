@@ -1,32 +1,22 @@
 export type CreateRentalPayload = {
   vehicleId: string;
+  userId?: string | null;
   startDate: string;
   endDate: string;
-  /** Kiralama talebi (`/rental-requests`) ile aynı alan; rent-service oluşturmada beklenir */
-  outsideCountryTravel?: boolean;
-  note?: string;
-  customer: {
-    fullName: string;
-    nationalId: string;
-    passportNo?: string;
-    phone: string;
-    email?: string;
-    birthDate?: string;
-    driverLicenseNo?: string;
-    driverLicenseImageDataUrl?: string;
-    passportImageDataUrl?: string;
-  };
+  pickupHandoverLocationId?: number | null;
+  returnHandoverLocationId?: number | null;
+  customerId: string;
   additionalDrivers?: {
     fullName: string;
-    driverLicenseImageDataUrl: string;
-    birthDate?: string;
+    birthDate: string;
     driverLicenseNo?: string;
     passportNo?: string;
-    passportImageDataUrl?: string;
+    driverLicenseImageDataUrl: string;
+    passportImageDataUrl: string;
   }[];
-  status?: string;
-  reservationExtraOptionTemplateIds?: string[];
+  status?: string | null;
   vehicleOptionDefinitionIds?: string[];
+  reservationExtraTemplateIds?: string[];
 };
 
 export type FetchRentalsParams = {

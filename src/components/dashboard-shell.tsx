@@ -80,7 +80,6 @@ const ALL_NAV: (NavLinkDef | NavGroupDef)[] = [
     icon: CalendarDays,
     children: [
       { href: "/logs/list", msgKey: "nav.logsBrowse" },
-      { href: "/logs/start", msgKey: "nav.logsStart" },
       { href: "/logs/requests", msgKey: "nav.logsRequests" },
     ],
   },
@@ -91,17 +90,7 @@ const ALL_NAV: (NavLinkDef | NavGroupDef)[] = [
   { type: "link", href: "/reports", msgKey: "nav.reports", icon: BarChart3 },
   { type: "link", href: "/customers/channel", msgKey: "nav.bulkMessage", icon: MessagesSquare },
   { type: "link", href: "/settings/options/rental", msgKey: "nav.rentalOptions", icon: Layers },
-  {
-    type: "group",
-    id: "locations",
-    msgKey: "nav.locationsGroup",
-    icon: MapPin,
-    children: [
-      { href: "/settings/locations/pickup", msgKey: "nav.handoverPickup" },
-      { href: "/settings/locations/return", msgKey: "nav.handoverReturn" },
-      { href: "/countries", msgKey: "nav.countries" },
-    ],
-  },
+  { type: "link", href: "/settings/locations/pickup", msgKey: "nav.locationsGroup", icon: MapPin },
   { type: "link", href: "/settings/coupons", msgKey: "nav.coupons", icon: Tag },
   { type: "link", href: "/settings", msgKey: "nav.settings", icon: Settings },
 ];
@@ -147,8 +136,13 @@ function isNavActive(pathname: string, href: string) {
   if (cleanHref === "/calendar") return pathname === "/calendar" || pathname.startsWith("/calendar/");
   if (cleanHref === "/payments") return pathname === "/payments" || pathname.startsWith("/payments/");
   if (cleanHref === "/users") return pathname === "/users" || pathname.startsWith("/users/");
-  if (cleanHref === "/settings/locations/pickup") return pathname === "/settings/locations/pickup";
-  if (cleanHref === "/settings/locations/return") return pathname === "/settings/locations/return";
+  if (cleanHref === "/settings/locations/pickup") {
+    return (
+      pathname.startsWith("/settings/locations/") ||
+      pathname === "/countries" ||
+      pathname.startsWith("/countries/")
+    );
+  }
   if (cleanHref === "/settings/options/vehicle") return pathname === "/settings/options/vehicle";
   if (cleanHref === "/settings/vehicle-catalog") {
     return pathname === "/settings/vehicle-catalog" || pathname.startsWith("/settings/vehicle-catalog/");
@@ -180,19 +174,9 @@ function isNavChildActive(pathname: string, searchParams: { get: (key: string) =
   return true;
 }
 
-function isLocationsGroupActive(pathname: string) {
-  return (
-    pathname.startsWith("/settings/locations/pickup") ||
-    pathname.startsWith("/settings/locations/return") ||
-    pathname === "/countries" ||
-    pathname.startsWith("/countries/")
-  );
-}
-
 function isNavGroupActive(groupId: string, pathname: string) {
   if (groupId === "vehicles") return isVehiclesGroupActive(pathname);
   if (groupId === "rentals") return pathname === "/logs" || pathname.startsWith("/logs/") || pathname.startsWith("/rentals/");
-  if (groupId === "locations") return isLocationsGroupActive(pathname);
   return false;
 }
 
@@ -338,7 +322,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [openByGroupId, setOpenByGroupId] = useState<Record<string, boolean>>(() => ({
     vehicles: isVehiclesGroupActive(pathname),
-    locations: isLocationsGroupActive(pathname),
   }));
   const [routeSearch, setRouteSearch] = useState("");
   const [sessionIdentity, setSessionIdentity] = useState<SessionIdentityFromJwt | null>(null);
@@ -488,13 +471,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const mobilePrimaryNav = [
-    { href: "/dashboard", label: "Home", icon: Home },
-    { href: "/vehicles", label: "Vehicles", icon: Car },
-    { href: "/logs", label: "Rentals", icon: CalendarDays },
-    { href: "/calendar", label: "Calendar", icon: Calendar },
-    { href: "/settings", label: "Hesabim", icon: Users },
-  ] as const;
+  const mobilePrimaryNav = useMemo(
+    () => [
+      { href: "/dashboard", label: "Home", icon: Home },
+      { href: "/vehicles", label: "Vehicles", icon: Car },
+      { href: "/logs", label: "Rentals", icon: CalendarDays },
+      { href: "/calendar", label: "Calendar", icon: Calendar },
+      { href: "/reports", label: t("nav.reports"), icon: BarChart3 },
+      { href: "/settings", label: "Hesabim", icon: Users },
+    ],
+    [t],
+  );
 
   return (
     <div className="flex h-[100dvh] min-h-0 w-full overflow-hidden bg-background">

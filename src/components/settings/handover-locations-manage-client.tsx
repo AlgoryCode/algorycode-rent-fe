@@ -4,10 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "@/components/ui/sonner";
 
 import { AddEntityButton } from "@/components/ui/add-entity-actions";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatEur } from "@/lib/format-money";
 import {
   createHandoverLocationOnRentApi,
   deleteHandoverLocationOnRentApi,
@@ -155,7 +158,7 @@ export function HandoverLocationsManageClient({
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">{heading}</h1>
@@ -233,39 +236,73 @@ export function HandoverLocationsManageClient({
           ) : rows.length === 0 ? (
             <p className="text-xs text-muted-foreground">Henüz kayıt yok.</p>
           ) : (
-            <ul className="divide-y divide-border/60">
-              {rows.map((row) => {
-                const cc = row.countryCode?.trim();
-                const metaParts = [
-                  ...(cc ? [cc] : []),
-                  `sıra ${row.lineOrder ?? 0}`,
-                  ...((row.surchargeEur ?? 0) > 0
-                    ? [
-                        `ek ücret ${new Intl.NumberFormat("tr-TR", { style: "currency", currency: "EUR" }).format(row.surchargeEur ?? 0)}`,
-                      ]
-                    : []),
-                  ...(row.active === false ? ["pasif"] : []),
-                ];
-                return (
-                <li key={row.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{row.name}</p>
-                    <p className="text-[11px] text-muted-foreground">{metaParts.join(" · ")}</p>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => startEdit(row)} disabled={Boolean(editingId)}>
-                      Düzenle
-                    </Button>
-                    {row.active !== false ? (
-                      <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => void deactivate(row)}>
-                        Pasifleştir
-                      </Button>
-                    ) : null}
-                  </div>
-                </li>
-                );
-              })}
-            </ul>
+            <div className="overflow-x-auto rounded-md border border-border/60">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="min-w-[10rem] text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ad</TableHead>
+                    <TableHead className="hidden text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">Ülke</TableHead>
+                    <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sıra</TableHead>
+                    <TableHead className="hidden text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">
+                      Ek ücret
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Durum</TableHead>
+                    <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">İşlem</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((row) => {
+                    const cc = row.countryCode?.trim();
+                    const surcharge = row.surchargeEur ?? 0;
+                    const active = row.active !== false;
+                    return (
+                      <TableRow key={row.id}>
+                        <TableCell className="max-w-[14rem] align-middle">
+                          <span className="font-medium">{row.name}</span>
+                        </TableCell>
+                        <TableCell className="hidden align-middle text-muted-foreground sm:table-cell">
+                          {cc || "—"}
+                        </TableCell>
+                        <TableCell className="align-middle text-right tabular-nums text-sm">{row.lineOrder ?? 0}</TableCell>
+                        <TableCell className="hidden align-middle text-right tabular-nums text-sm md:table-cell">
+                          {surcharge > 0 ? formatEur(surcharge) : "—"}
+                        </TableCell>
+                        <TableCell className="align-middle">
+                          {active ? (
+                            <Badge variant="success" className="text-[10px]">
+                              Aktif
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Pasif
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="align-middle text-right">
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => startEdit(row)}
+                              disabled={Boolean(editingId)}
+                            >
+                              Düzenle
+                            </Button>
+                            {active ? (
+                              <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => void deactivate(row)}>
+                                Pasifleştir
+                              </Button>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

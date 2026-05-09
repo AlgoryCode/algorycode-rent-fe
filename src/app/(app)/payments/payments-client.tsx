@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { PaymentLogStatus } from "@/lib/mock-payments";
 import { rentKeys } from "@/lib/rent-query-keys";
 import { fetchPaymentsFromRentApi, getRentApiErrorMessage } from "@/lib/rent-api";
+import { formatEur } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABEL: Record<PaymentLogStatus, string> = {
@@ -40,9 +41,6 @@ function statusBadgeVariant(s: PaymentLogStatus): "success" | "warning" | "destr
   }
 }
 
-function formatTry(n: number) {
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(n);
-}
 
 function PlateLink({ plate, vehicleId }: { plate: string; vehicleId: string }) {
   if (!vehicleId) {
@@ -98,7 +96,7 @@ export function PaymentsClient() {
           Ödemeler
         </h1>
         <p className="text-xs text-muted-foreground">
-          Ödeme logları rent API üzerinden gelir (`NEXT_PUBLIC_RENT_API_BASE`). Plaka, müşteri veya referans ile arayın;
+          Ödeme logları rent API üzerinden gelir (varsayılan gateway `/rent`). Plaka, müşteri veya referans ile arayın;
           duruma göre süzebilirsiniz.
         </p>
       </div>
@@ -164,7 +162,7 @@ export function PaymentsClient() {
                   <div key={`mobile-${p.id}`} className="rounded-xl border border-border/70 bg-card p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold tabular-nums">{formatTry(p.amountTry)}</p>
+                        <p className="text-sm font-semibold tabular-nums">{formatEur(p.amountTry)}</p>
                         <p className="mt-0.5 truncate text-xs text-muted-foreground">{p.customerName}</p>
                         <p className="truncate font-mono text-[11px] text-muted-foreground">{p.reference}</p>
                       </div>
@@ -201,7 +199,7 @@ export function PaymentsClient() {
                       <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
                         {format(parseISO(p.createdAt), "d MMM yyyy HH:mm", { locale: tr })}
                       </TableCell>
-                      <TableCell className="font-medium tabular-nums">{formatTry(p.amountTry)}</TableCell>
+                      <TableCell className="font-medium tabular-nums">{formatEur(p.amountTry)}</TableCell>
                       <TableCell>
                         <Badge variant={statusBadgeVariant(p.status)} className="text-[10px]">
                           {STATUS_LABEL[p.status]}

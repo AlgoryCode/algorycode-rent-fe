@@ -11,7 +11,9 @@ export type RentalStepValidationInput = {
   passportImageDataUrl: string;
   additionalDrivers: Array<{
     fullName: string;
+    birthDate: string;
     driverLicenseImageDataUrl: string;
+    passportImageDataUrl: string;
   }>;
 };
 
@@ -51,6 +53,8 @@ export function validateRentalStepInput(input: RentalStepValidationInput): strin
       if (!d.fullName.trim() || !d.driverLicenseImageDataUrl) {
         return "Ek sürücü için isim soyisim ve ehliyet fotoğrafı zorunludur.";
       }
+      if (!d.birthDate.trim()) return "Ek sürücü için doğum tarihi zorunludur.";
+      if (!d.passportImageDataUrl.trim()) return "Ek sürücü için pasaport fotoğrafı zorunludur.";
     }
     return null;
   }

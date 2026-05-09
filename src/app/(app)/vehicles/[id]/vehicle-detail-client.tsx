@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { addDays, addMonths, addYears, differenceInCalendarDays, eachDayOfInterval, format, isSameDay, parseISO, startOfDay, startOfMonth } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -20,6 +20,8 @@ import {
   CalendarDays,
   Car,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   Fuel,
   KeyRound,
@@ -47,6 +49,7 @@ import { RentCalendarLegend } from "@/components/rent-calendar/rent-calendar-leg
 import { RentalLogEntries } from "@/components/rental-logs/rental-log-entries";
 import { RentalLogFiltersBar } from "@/components/rental-logs/rental-log-filters-bar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +68,7 @@ import { useCountries } from "@/hooks/use-countries";
 import { useFleetSessions } from "@/hooks/use-fleet-sessions";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import {
+  createCustomerOnRentApi,
   fetchHandoverLocationsFromRentApi,
   fetchRentalsFromRentApi,
   fetchRentalRequestsFromRentApi,
@@ -75,6 +79,7 @@ import {
   fetchVehicleTransmissionTypesFromRentApi,
   getRentApiErrorMessage,
   type HandoverLocationApiRow,
+  type RentCustomerRow,
   type VehicleBodyStyleRow,
 } from "@/lib/rent-api";
 import { rentKeys } from "@/lib/rent-query-keys";
@@ -93,16 +98,17 @@ import {
   type RentalLogFilterValues,
 } from "@/lib/rental-log-filters";
 import { validateRentalStepInput } from "@/lib/rental-step-validation";
-import type { CustomerKind, Vehicle } from "@/lib/mock-fleet";
+import { vehicleMaintenanceBlocked, type Vehicle } from "@/lib/mock-fleet";
 import { CustomerPickerDialog } from "@/components/customers/customer-picker-dialog";
 import { useCustomerDirectoryRows } from "@/hooks/use-customer-directory-rows";
 import { useCustomerRecordStates } from "@/hooks/use-customer-record-states";
-import { addManualCustomer } from "@/lib/manual-customers";
 import { splitPhoneToCountryAndLocal } from "@/lib/customer-phone-split";
 import { sessionCreatedAt, type CustomerAggregateRow } from "@/lib/rental-metadata";
-import { mergeVehicleImagesWithDemo } from "@/lib/vehicle-images";
+import { mergeVehicleImagesWithDemo, VEHICLE_IMAGE_SLOTS } from "@/lib/vehicle-images";
+import { vehicleNewRentHref } from "@/lib/vehicle-new-rent-route";
 import { rentalCountsForCalendar } from "@/lib/rental-status";
 import { PHONE_COUNTRY_CODES } from "@/lib/phone-country-codes";
+import { formatEur } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
 
 import "@/components/rent-calendar/rent-calendar.css";
@@ -116,7 +122,9 @@ type Props = {
 
 type AdditionalDriverDraft = {
   fullName: string;
+  birthDate: string;
   driverLicenseImageDataUrl: string;
+  passportImageDataUrl: string;
 };
 
 type ReportRange = "1w" | "1m" | "6m" | "1y";
@@ -126,6 +134,16 @@ const COUNTRY_NONE = "__none__";
 const SPECS_FUEL_NONE = "__fuel_none__";
 const SPECS_TRANS_NONE = "__trans_none__";
 const SPECS_BODY_NONE = "__body_none__";
+const NEW_CUSTOMER_DIALOG_DEFAULT = {
+  fullName: "",
+  phone: "",
+  email: "",
+  nationalId: "",
+  passportNo: "",
+  birthDate: "",
+  driverLicenseNo: "",
+};
+
 const RENTAL_STEP_META: { step: RentalFormStep; label: string }[] = [
   { step: 1, label: "Tarih" },
   { step: 2, label: "İletişim" },
@@ -146,7 +164,7 @@ function sortVehicleCatalogRows(rows: VehicleBodyStyleRow[]): VehicleBodyStyleRo
 
 /** Araçta kayıtlı kod katalogda yoksa veya boşsa `none` döner (Select değeri tutarlı kalsın). */
 function catalogCodeIfKnown(
-  stored: string | undefined,
+  stored: string | undefined | null,
   rows: VehicleBodyStyleRow[],
   noneToken: string,
 ): string {
@@ -159,7 +177,9 @@ function catalogCodeIfKnown(
 function blankAdditionalDriver(): AdditionalDriverDraft {
   return {
     fullName: "",
+    birthDate: "",
     driverLicenseImageDataUrl: "",
+    passportImageDataUrl: "",
   };
 }
 
@@ -191,13 +211,8 @@ function formatVehicleCommissionSummary(snapshot: ReturnType<typeof vehicleRenta
     return "Bu kiralama için araçtan hesaplanan komisyon kalemi yok.";
   }
   const dir = snapshot.flow === "pay" ? "gider · ödenecek" : "gelir · alınacak";
-  const amt = snapshot.amount.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const firm = snapshot.company ? ` · ${snapshot.company}` : "";
-  return `${amt} ₺ · ${dir}${firm}`;
-}
-
-function formatTryAmount(amount: number): string {
-  return amount.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${formatEur(snapshot.amount)} · ${dir}${firm}`;
 }
 
 function greenInsuranceFeeDisplayTry(): number {
@@ -236,6 +251,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
 export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props) {
   const router = useRouter();
+  const qc = useQueryClient();
   const { allSessions, createRental } = useFleetSessions();
   const { data: customerRecordStates } = useCustomerRecordStates();
   const customerDirectoryRows = useCustomerDirectoryRows(allSessions, customerRecordStates);
@@ -249,9 +265,9 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     return { from, to };
   }, [today]);
   const { data: occupancyData } = useQuery({
-    queryKey: rentKeys.vehicleCalendarOccupancy(vehicle.id, occupancyWindow.from, occupancyWindow.to),
+    queryKey: rentKeys.vehicleCalendarOccupancy(String(vehicle.id), occupancyWindow.from, occupancyWindow.to),
     queryFn: () =>
-      fetchVehicleCalendarOccupancyFromRentApi(vehicle.id, occupancyWindow.from, occupancyWindow.to),
+      fetchVehicleCalendarOccupancyFromRentApi(String(vehicle.id), occupancyWindow.from, occupancyWindow.to),
   });
   const { data: rentalRequests = [] } = useQuery({
     queryKey: rentKeys.rentalRequests(),
@@ -262,8 +278,8 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     queryFn: () => fetchReservationExtraOptionTemplatesFromRentApi({ includeInactive: false }),
   });
   const { data: vehicleRentalSessions, isPending: vehicleRentalsPending } = useQuery({
-    queryKey: rentKeys.rentalsByVehicle(vehicle.id),
-    queryFn: () => fetchRentalsFromRentApi({ vehicleId: vehicle.id }),
+    queryKey: rentKeys.rentalsByVehicle(String(vehicle.id)),
+    queryFn: () => fetchRentalsFromRentApi({ vehicleId: String(vehicle.id) }),
   });
   const countryMeta = useMemo(() => {
     const cc = vehicle.countryCode?.toUpperCase();
@@ -284,7 +300,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
 
   const vehicleRequestLogRows = useMemo(() => {
     return rentalRequests
-      .filter((r) => (r.vehicleId ?? "") === vehicle.id && (r.status === "pending" || r.status === "approved"))
+      .filter((r) => String(r.vehicleId ?? "") === String(vehicle.id) && (r.status === "pending" || r.status === "approved"))
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   }, [rentalRequests, vehicle.id]);
 
@@ -316,12 +332,12 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
   const [quickRentExtraOpen, setQuickRentExtraOpen] = useState(false);
   const [vehicleOptsDialogOpen, setVehicleOptsDialogOpen] = useState(false);
   const [rentalOutsideCountryTravel, setRentalOutsideCountryTravel] = useState(false);
-  const [rentalInternalNote, setRentalInternalNote] = useState("");
-  /** Kiralama ile birlikte yerel müşteri listesine (tarayıcı) kayıt */
-  const [saveNewCustomerProfile, setSaveNewCustomerProfile] = useState(false);
+  const [newCustomerDialogOpen, setNewCustomerDialogOpen] = useState(false);
+  const [newCustomerSaving, setNewCustomerSaving] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({ ...NEW_CUSTOMER_DIALOG_DEFAULT });
+  const [rentalCustomerBackendId, setRentalCustomerBackendId] = useState<string>("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [newCustomerBirthDate, setNewCustomerBirthDate] = useState("");
-  const [newCustomerKind, setNewCustomerKind] = useState<CustomerKind>("individual");
   const [logFilters, setLogFilters] = useState<RentalLogFilterValues>(emptyRentalLogFilters());
   const [reportRange, setReportRange] = useState<ReportRange>("6m");
   const [editOpen, setEditOpen] = useState(false);
@@ -329,11 +345,12 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
   const [deletingVehicle, setDeletingVehicle] = useState(false);
   const [savingVehicle, setSavingVehicle] = useState(false);
   const [mobileVehicleTab, setMobileVehicleTab] = useState<MobileVehicleTab>("summary");
+  const [mobileGalleryIdx, setMobileGalleryIdx] = useState(0);
   const [editPlate, setEditPlate] = useState(vehicle.plate);
   const [editBrand, setEditBrand] = useState(vehicle.brand);
   const [editModel, setEditModel] = useState(vehicle.model);
   const [editYear, setEditYear] = useState(String(vehicle.year));
-  const [editMaintenance, setEditMaintenance] = useState(Boolean(vehicle.maintenance));
+  const [editMaintenance, setEditMaintenance] = useState(vehicle.status === "MAINTENANCE");
   const [editExternal, setEditExternal] = useState(Boolean(vehicle.external));
   const [editExternalCompany, setEditExternalCompany] = useState(vehicle.externalCompany ?? "");
   const [editCommissionRate, setEditCommissionRate] = useState(
@@ -400,13 +417,15 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
 
   useEffect(() => {
     if (!editOpen) return;
-    setEditPickupHandoverId(vehicle.defaultPickupHandoverLocation?.id ?? "");
-    const fromList = vehicle.returnHandoverLocations?.map((x) => x.id) ?? [];
+    setEditPickupHandoverId(
+      vehicle.defaultPickupHandoverLocation?.id != null ? String(vehicle.defaultPickupHandoverLocation.id) : "",
+    );
+    const fromList = vehicle.returnHandoverLocations?.map((x) => String(x.id)) ?? [];
     setEditReturnHandoverIds(
       fromList.length > 0
         ? fromList
-        : vehicle.defaultReturnHandoverLocation?.id
-          ? [vehicle.defaultReturnHandoverLocation.id]
+        : vehicle.defaultReturnHandoverLocation?.id != null
+          ? [String(vehicle.defaultReturnHandoverLocation.id)]
           : [],
     );
     void fetchHandoverLocationsFromRentApi("PICKUP").then((rows) =>
@@ -536,7 +555,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       });
     }
     for (const id of selectedVehicleOptIds) {
-      const row = vehicleOptionRowsForRent.find((r) => r.id === id);
+      const row = vehicleOptionRowsForRent.find((r) => String(r.id) === id);
       if (!row) continue;
       lines.push({
         key: `vo-${id}`,
@@ -689,7 +708,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         ),
       },
       { label: "Araç kayıt no", value: <span className="font-mono text-xs">{vehicle.id}</span> },
-      { label: "Bakım", value: vehicle.maintenance ? "Evet — kiralanamaz" : "Hayır" },
+      { label: "Bakım", value: vehicleMaintenanceBlocked(vehicle) ? "Evet — kiralanamaz" : "Hayır" },
       {
         label: "Bugünkü durum",
         value:
@@ -704,7 +723,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       { label: "Harici araç", value: vehicle.external ? "Evet" : "Hayır" },
       {
         label: "Günlük kiralama fiyatı",
-        value: vehicle.rentalDailyPrice != null ? vehicle.rentalDailyPrice.toLocaleString("tr-TR", { maximumFractionDigits: 2 }) : "—",
+        value: vehicle.rentalDailyPrice != null ? formatEur(vehicle.rentalDailyPrice) : "—",
       },
       { label: "Komisyon", value: vehicle.commissionEnabled ? "Var" : "Yok" },
       {
@@ -726,6 +745,24 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
   );
 
   const galleryImages = useMemo(() => mergeVehicleImagesWithDemo(vehicle.images, vehicle.id), [vehicle.images, vehicle.id]);
+
+  const mobileGalleryFilled = useMemo(
+    () =>
+      VEHICLE_IMAGE_SLOTS.filter(({ key }) => galleryImages[key]).map(({ key, label }) => ({
+        key,
+        label,
+        src: galleryImages[key]!,
+      })),
+    [galleryImages],
+  );
+
+  useEffect(() => {
+    setMobileGalleryIdx(0);
+  }, [vehicle.id]);
+
+  useEffect(() => {
+    setMobileGalleryIdx((i) => Math.min(i, Math.max(0, mobileGalleryFilled.length - 1)));
+  }, [mobileGalleryFilled.length]);
   const statusLabel = status === "maintenance" ? "Bakımda" : status === "rented" ? "Kirada" : "Müsait";
   const statusClass =
     status === "maintenance"
@@ -733,13 +770,13 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       : status === "rented"
         ? "border-sky-200 bg-sky-100 text-sky-800"
         : "border-primary/35 bg-primary/12 text-primary";
-  const dailyPriceLabel =
-    vehicle.rentalDailyPrice != null ? `${vehicle.rentalDailyPrice.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} ₺` : "—";
+  const dailyPriceLabel = vehicle.rentalDailyPrice != null ? formatEur(vehicle.rentalDailyPrice) : "—";
   const defaultPickupLoc = vehicle.defaultPickupHandoverLocation ?? null;
   const defaultPickupNameShown = defaultPickupLoc?.name?.trim() ?? "";
   const visualSeed = useMemo(() => {
+    const key = String(vehicle.id);
     let n = 0;
-    for (let i = 0; i < vehicle.id.length; i += 1) n = (n * 31 + vehicle.id.charCodeAt(i)) | 0;
+    for (let i = 0; i < key.length; i += 1) n = (n * 31 + key.charCodeAt(i)) | 0;
     return Math.abs(n);
   }, [vehicle.id]);
   const batteryPct = 45 + (visualSeed % 50);
@@ -765,23 +802,21 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       setPhoneLocal("");
       setDriverLicenseNo("");
       setAdditionalDrivers([]);
-      setSaveNewCustomerProfile(false);
+      setRentalCustomerBackendId("");
       setCustomerEmail("");
       setNewCustomerBirthDate("");
-      setNewCustomerKind("individual");
       setRentalStep(1);
       setMaxRentalStepReached(1);
       setSelectedRentExtraIds([]);
       setSelectedVehicleOptIds([]);
       setRentalOutsideCountryTravel(false);
-      setRentalInternalNote("");
     },
     [],
   );
 
   const openForDay = useCallback(
     (day: Date) => {
-      if (vehicle.maintenance) {
+      if (vehicleMaintenanceBlocked(vehicle)) {
         toast.error("Bu araç bakımda; kiralama oluşturulamaz.");
         return;
       }
@@ -792,29 +827,25 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       initNewRentalFormForDay(day);
       setDialogOpen(true);
     },
-    [vehicle.maintenance, initNewRentalFormForDay],
+    [vehicle.status, initNewRentalFormForDay],
   );
 
   useEffect(() => {
     if (!rentalFormAsPage) return;
-    if (vehicle.maintenance) {
+    if (vehicleMaintenanceBlocked(vehicle)) {
       toast.error("Bu araç bakımda; kiralama oluşturulamaz.");
       router.replace(`/vehicles/${vehicle.id}`);
       return;
     }
     initNewRentalFormForDay(new Date());
-  }, [rentalFormAsPage, vehicle.maintenance, vehicle.id, router, initNewRentalFormForDay]);
-
-  useEffect(() => {
-    if (!saveNewCustomerProfile) setNewCustomerKind("individual");
-  }, [saveNewCustomerProfile]);
+  }, [rentalFormAsPage, vehicle.status, vehicle.id, router, initNewRentalFormForDay]);
 
   useEffect(() => {
     setEditPlate(vehicle.plate);
     setEditBrand(vehicle.brand);
     setEditModel(vehicle.model);
     setEditYear(String(vehicle.year));
-    setEditMaintenance(Boolean(vehicle.maintenance));
+    setEditMaintenance(vehicle.status === "MAINTENANCE");
     setEditExternal(Boolean(vehicle.external));
     setEditExternalCompany(vehicle.externalCompany ?? "");
     setEditCommissionRate(vehicle.commissionRatePercent != null ? String(vehicle.commissionRatePercent) : "");
@@ -827,7 +858,23 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     setAdditionalDrivers((prev) => prev.map((d, i) => (i === idx ? { ...d, [key]: value } : d)));
   };
 
+  const applyCustomerFromRentRow = (row: RentCustomerRow) => {
+    setRentalCustomerBackendId(row.id);
+    setFullName(row.fullName);
+    setNationalId((row.nationalId ?? "").trim());
+    setPassportNo((row.passportNo ?? "").trim());
+    setDriverLicenseNo((row.driverLicenseNo ?? "").trim());
+    const { code, local } = splitPhoneToCountryAndLocal(row.phone);
+    setPhoneCountryCode(code);
+    setPhoneLocal(local);
+    setCustomerEmail(row.email.trim());
+    setNewCustomerBirthDate((row.birthDate ?? "").trim().slice(0, 10));
+    setPassportImageDataUrl("");
+    setDriverLicenseImageDataUrl("");
+  };
+
   const applyCustomerFromDirectory = (row: CustomerAggregateRow) => {
+    setRentalCustomerBackendId(row.backendCustomerId ?? "");
     const c = row.customer;
     setFullName(c.fullName);
     setNationalId((c.nationalId ?? "").trim());
@@ -846,8 +893,37 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     toast.success(`${c.fullName} bilgileri forma yüklendi.`);
   };
 
+  const submitNewCustomerFromDialog = async () => {
+    const nf = newCustomerForm;
+    if (!nf.fullName.trim() || !nf.phone.trim() || !nf.email.trim()) {
+      toast.error("Ad soyad, telefon ve e-posta zorunludur.");
+      return;
+    }
+    setNewCustomerSaving(true);
+    try {
+      const row = await createCustomerOnRentApi({
+        fullName: nf.fullName.trim(),
+        phone: nf.phone.trim(),
+        email: nf.email.trim(),
+        nationalId: nf.nationalId.trim() || "",
+        passportNo: nf.passportNo.trim() || "",
+        birthDate: nf.birthDate.trim() || undefined,
+        driverLicenseNo: nf.driverLicenseNo.trim() || undefined,
+      });
+      await qc.invalidateQueries({ queryKey: rentKeys.customers() });
+      applyCustomerFromRentRow(row);
+      toast.success("Müşteri kaydedildi; bilgiler forma yüklendi.");
+      setNewCustomerDialogOpen(false);
+      setNewCustomerForm({ ...NEW_CUSTOMER_DIALOG_DEFAULT });
+    } catch (e) {
+      toast.error(getRentApiErrorMessage(e));
+    } finally {
+      setNewCustomerSaving(false);
+    }
+  };
+
   const handleDayClick = (date: Date, modifiers: Record<string, boolean>) => {
-    if (vehicle.maintenance) return;
+    if (vehicleMaintenanceBlocked(vehicle)) return;
     if (isBeforeToday(date)) {
       toast.message("Geçmiş gün seçilemez", { description: "Kiralama başlangıcı bugün veya sonrası olmalıdır." });
       return;
@@ -950,15 +1026,20 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       return;
     }
     for (const d of additionalDrivers) {
-      if (!d.fullName.trim() || !d.driverLicenseImageDataUrl) {
-        toast.error("Ek sürücü için isim soyisim ve ehliyet fotoğrafı zorunludur.");
+      if (
+        !d.fullName.trim() ||
+        !d.driverLicenseImageDataUrl ||
+        !d.birthDate.trim() ||
+        !d.passportImageDataUrl.trim()
+      ) {
+        toast.error("Ek sürücü için isim, doğum tarihi, ehliyet ve pasaport görselleri zorunludur.");
         return;
       }
     }
     const conflict = sessionsForThisVehicle.find(
       (s) =>
         rentalCountsForCalendar(s) &&
-        s.vehicleId === vehicle.id &&
+        String(s.vehicleId) === String(vehicle.id) &&
         dateRangesOverlap(start, end, s.startDate, s.endDate),
     );
     if (conflict) {
@@ -969,7 +1050,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
     }
     const requestConflict = rentalRequests.find(
       (r) =>
-        (r.vehicleId ?? "") === vehicle.id &&
+        String(r.vehicleId ?? "") === String(vehicle.id) &&
         (r.status === "pending" || r.status === "approved") &&
         dateRangesOverlap(start, end, r.startDate, r.endDate),
     );
@@ -980,53 +1061,46 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       return;
     }
     try {
-      await createRental({
-        vehicleId: vehicle.id,
-        startDate: start,
-        endDate: end,
-        customer: {
+      let customerIdStr = rentalCustomerBackendId.trim();
+      if (!customerIdStr) {
+        const created = await createCustomerOnRentApi({
           fullName: fullName.trim(),
-          nationalId: nationalId.trim(),
+          nationalId: nationalId.trim() || "",
           passportNo: passportNo.trim() || "",
           phone,
           email,
-          birthDate: birthTrim,
+          birthDate: birthTrim || undefined,
           driverLicenseNo: driverLicenseNo.trim() || undefined,
-          driverLicenseImageDataUrl,
-          passportImageDataUrl,
-        },
-        outsideCountryTravel: rentalOutsideCountryTravel,
-        ...(rentalInternalNote.trim() ? { note: rentalInternalNote.trim() } : {}),
+          passportImageDataUrl: passportImageDataUrl || undefined,
+          driverLicenseImageDataUrl: driverLicenseImageDataUrl || undefined,
+        });
+        customerIdStr = created.id;
+        setRentalCustomerBackendId(created.id);
+      }
+      await createRental({
+        vehicleId: String(vehicle.id),
+        userId: null,
+        startDate: start,
+        endDate: end,
+        pickupHandoverLocationId: null,
+        returnHandoverLocationId: null,
+        customerId: customerIdStr,
         additionalDrivers:
           additionalDrivers.length > 0
             ? additionalDrivers.map((d) => ({
                 fullName: d.fullName.trim(),
-                driverLicenseImageDataUrl: d.driverLicenseImageDataUrl,
+                birthDate: d.birthDate.trim(),
+                driverLicenseNo: "",
+                passportNo: "",
+                driverLicenseImageDataUrl: d.driverLicenseImageDataUrl.trim(),
+                passportImageDataUrl: d.passportImageDataUrl.trim(),
               }))
-            : undefined,
+            : [],
         status: "active",
-        ...(selectedRentExtraIds.length > 0 ? { reservationExtraOptionTemplateIds: selectedRentExtraIds } : {}),
-        ...(selectedVehicleOptIds.length > 0 ? { vehicleOptionDefinitionIds: selectedVehicleOptIds } : {}),
+        vehicleOptionDefinitionIds: selectedVehicleOptIds,
+        reservationExtraTemplateIds: selectedRentExtraIds,
       });
-      if (saveNewCustomerProfile) {
-        addManualCustomer({
-          fullName: fullName.trim(),
-          nationalId: nationalId.trim() || "",
-          passportNo: passportNo.trim(),
-          phone,
-          email,
-          birthDate: newCustomerBirthDate.trim() || undefined,
-          driverLicenseNo: driverLicenseNo.trim() || undefined,
-          passportImageDataUrl: passportImageDataUrl || undefined,
-          driverLicenseImageDataUrl: driverLicenseImageDataUrl || undefined,
-          kind: newCustomerKind,
-        });
-      }
-      toast.success(
-        saveNewCustomerProfile
-          ? "Kiralama oluşturuldu; müşteri müşteri listesine kaydedildi."
-          : "Kiralama kaydı oluşturuldu.",
-      );
+      toast.success("Kiralama kaydı oluşturuldu.");
       if (rentalFormAsPage) {
         router.push("/logs");
         return;
@@ -1041,16 +1115,14 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       setPassportImageDataUrl("");
       setDriverLicenseImageDataUrl("");
       setAdditionalDrivers([]);
-      setSaveNewCustomerProfile(false);
+      setRentalCustomerBackendId("");
       setCustomerEmail("");
       setNewCustomerBirthDate("");
-      setNewCustomerKind("individual");
       setRentalStep(1);
       setMaxRentalStepReached(1);
       setSelectedRentExtraIds([]);
       setSelectedVehicleOptIds([]);
       setRentalOutsideCountryTravel(false);
-      setRentalInternalNote("");
     } catch (e) {
       toast.error(getRentApiErrorMessage(e));
     }
@@ -1453,56 +1525,14 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
               </button>
               <button
                 type="button"
-                role="switch"
-                aria-checked={saveNewCustomerProfile}
-                onClick={() => setSaveNewCustomerProfile((s) => !s)}
-                className={cn(
-                  "flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2.5 text-center shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  saveNewCustomerProfile
-                    ? "border-primary/50 bg-primary/10 dark:border-primary/40 dark:bg-primary/15"
-                    : "border-border/80 bg-muted/15 hover:border-border hover:bg-muted/30",
-                )}
+                onClick={() => setNewCustomerDialogOpen(true)}
+                className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-lg border border-border/80 bg-muted/15 px-2 py-2.5 text-center shadow-sm transition hover:border-border hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <UserPlus className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
                 <span className="text-[11px] font-semibold leading-tight text-foreground">Yeni Müşteri Kaydet</span>
               </button>
             </div>
           </div>
-          {saveNewCustomerProfile && (
-            <div className="space-y-2 rounded-lg border border-primary/25 bg-primary/[0.04] p-2.5 dark:border-primary/30 dark:bg-primary/10">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Müşteri türü</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewCustomerKind("individual")}
-                    className={cn(
-                      "flex min-h-[3rem] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      newCustomerKind === "individual"
-                        ? "border-primary/50 bg-primary/15 dark:border-primary/40"
-                        : "border-border/70 bg-background/80 hover:bg-muted/40",
-                    )}
-                  >
-                    <User className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                    Bireysel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewCustomerKind("corporate")}
-                    className={cn(
-                      "flex min-h-[3rem] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      newCustomerKind === "corporate"
-                        ? "border-primary/50 bg-primary/15 dark:border-primary/40"
-                        : "border-border/70 bg-background/80 hover:bg-muted/40",
-                    )}
-                  >
-                    <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                    Kurumsal
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
           <div className="space-y-1">
             <Label htmlFor="rental-cust-birth">Doğum tarihi *</Label>
             <Input
@@ -1526,13 +1556,8 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="fn">{saveNewCustomerProfile && newCustomerKind === "corporate" ? "Firma / unvan" : "İsim soyisim"}</Label>
-            <Input
-              id="fn"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder={saveNewCustomerProfile && newCustomerKind === "corporate" ? "Örn: ABC Lojistik A.Ş." : "Ad Soyad"}
-            />
+            <Label htmlFor="fn">İsim soyisim</Label>
+            <Input id="fn" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Ad Soyad" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="pp">Pasaport</Label>
@@ -1631,7 +1656,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                 <span className="font-medium text-foreground">Yurt dışı çıkış</span>
                 {greenInsuranceFeeDisplayTry() > 0 ? (
                   <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
-                    Yeşil sigorta için yaklaşık {formatTryAmount(greenInsuranceFeeDisplayTry())} ₺; kesin tutar rent-service ile
+                    Yeşil sigorta için yaklaşık {formatEur(greenInsuranceFeeDisplayTry())}; kesin tutar rent-service ile
                     netleşir.
                   </span>
                 ) : (
@@ -1641,21 +1666,6 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                 )}
               </span>
             </label>
-            <div className="space-y-1">
-              <Label htmlFor="rental-internal-note">Not</Label>
-              <textarea
-                id="rental-internal-note"
-                value={rentalInternalNote}
-                onChange={(e) => setRentalInternalNote(e.target.value)}
-                rows={3}
-                className={cn(
-                  "min-h-[4.5rem] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm",
-                  "ring-offset-background placeholder:text-muted-foreground",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-                )}
-                placeholder="İsteğe bağlı · operasyon veya müşteri notu"
-              />
-            </div>
           </div>
           <div className="mt-4 overflow-hidden rounded-lg border border-border/70 bg-card/35">
             <div className="flex items-start justify-between gap-2 border-b border-border/60 bg-muted/20 px-3 py-2.5 sm:px-4">
@@ -1699,6 +1709,15 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                           <Input value={d.fullName} onChange={(e) => updateAdditionalDriver(idx, "fullName", e.target.value)} />
                         </div>
                         <div className="space-y-1">
+                          <Label>Doğum tarihi</Label>
+                          <Input
+                            type="date"
+                            className="h-9"
+                            value={d.birthDate}
+                            onChange={(e) => updateAdditionalDriver(idx, "birthDate", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1">
                           <Label>Ehliyet fotoğrafı</Label>
                           <ImageSourceInput
                             previewDataUrl={d.driverLicenseImageDataUrl || undefined}
@@ -1707,6 +1726,19 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                                 updateAdditionalDriver(idx, "driverLicenseImageDataUrl", await fileToDataUrl(f));
                               } catch {
                                 toast.error("Ehliyet görseli okunamadı.");
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Pasaport fotoğrafı</Label>
+                          <ImageSourceInput
+                            previewDataUrl={d.passportImageDataUrl || undefined}
+                            onPick={async (f) => {
+                              try {
+                                updateAdditionalDriver(idx, "passportImageDataUrl", await fileToDataUrl(f));
+                              } catch {
+                                toast.error("Pasaport görseli okunamadı.");
                               }
                             }}
                           />
@@ -1723,124 +1755,132 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
 
       {rentalStep === 5 && (
         <div className="space-y-4 text-xs">
-          <div className="space-y-3 rounded-lg border border-border/70 bg-card/40 p-4 shadow-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Genel bilgiler</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="rounded-md border border-border/50 bg-background/60 p-3">
-                <p className="text-[10px] text-muted-foreground">Araç</p>
-                <p className="mt-0.5 font-medium text-foreground">
-                  {vehicle.plate} · {vehicle.brand} {vehicle.model}
-                </p>
+          <Collapsible defaultOpen className="overflow-hidden rounded-lg border border-border/70 bg-card/40 shadow-sm">
+            <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left outline-none transition-colors hover:bg-muted/30 [&[data-state=open]]:border-b [&[data-state=open]]:border-border/60 [&[data-state=open]>svg]:rotate-180">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Genel bilgiler</span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200" aria-hidden />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-3 px-4 pb-4 pt-1">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-md border border-border/50 bg-background/60 p-3">
+                    <p className="text-[10px] text-muted-foreground">Araç</p>
+                    <p className="mt-0.5 font-medium text-foreground">
+                      {vehicle.plate} · {vehicle.brand} {vehicle.model}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border/50 bg-background/60 p-3">
+                    <p className="text-[10px] text-muted-foreground">Kiralama dönemi</p>
+                    <p className="mt-0.5 font-medium text-foreground">
+                      {pickStart || "—"} → {pickEnd || "—"}
+                    </p>
+                    {rentalSummaryDays > 0 ? (
+                      <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">Toplam {rentalSummaryDays} gün</p>
+                    ) : null}
+                  </div>
+                  <div className="rounded-md border border-border/50 bg-background/60 p-3 sm:col-span-2">
+                    <p className="text-[10px] text-muted-foreground">Müşteri</p>
+                    <p className="mt-0.5 font-medium text-foreground">{fullName || "—"}</p>
+                    <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+                      {phoneCountryCode} {phoneLocal || "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border/50 bg-background/60 p-3 sm:col-span-2">
+                    <p className="text-[10px] text-muted-foreground">Doğum tarihi</p>
+                    <p className="mt-0.5 font-medium tabular-nums text-foreground">{newCustomerBirthDate || "—"}</p>
+                  </div>
+                  <div className="rounded-md border border-border/50 bg-background/60 p-3 sm:col-span-2">
+                    <p className="text-[10px] text-muted-foreground">Yurt dışı çıkış</p>
+                    <p className="mt-0.5 font-medium text-foreground">{rentalOutsideCountryTravel ? "Evet" : "Hayır"}</p>
+                  </div>
+                  <div className="rounded-md border border-border/50 bg-background/60 p-3 sm:col-span-2">
+                    <p className="text-[10px] text-muted-foreground">Ek sürücü</p>
+                    {additionalDrivers.length === 0 ? (
+                      <p className="mt-0.5 text-muted-foreground">Yok</p>
+                    ) : (
+                      <ul className="mt-1 space-y-1">
+                        {additionalDrivers.map((d, i) => (
+                          <li key={`sum-ad-${i}`} className="font-medium text-foreground">
+                            {d.fullName.trim() || "—"}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="rounded-md border border-border/50 bg-background/60 p-3">
-                <p className="text-[10px] text-muted-foreground">Kiralama dönemi</p>
-                <p className="mt-0.5 font-medium text-foreground">
-                  {pickStart || "—"} → {pickEnd || "—"}
-                </p>
-                {rentalSummaryDays > 0 ? (
-                  <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">Toplam {rentalSummaryDays} gün</p>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Collapsible defaultOpen className="overflow-hidden rounded-lg border border-border/70 bg-card/40 shadow-sm">
+            <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left outline-none transition-colors hover:bg-muted/30 [&[data-state=open]]:border-b [&[data-state=open]]:border-border/60 [&[data-state=open]>svg]:rotate-180">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Kalem detayı</span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200" aria-hidden />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-4 pt-1">
+                <div className="divide-y divide-border/50">
+                  {rentalSummaryBaseAmount != null && vehicle.rentalDailyPrice != null ? (
+                    <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground">Temel kiralama</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {rentalSummaryDays} gün × {formatEur(vehicle.rentalDailyPrice)} / gün
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-right tabular-nums font-semibold text-foreground sm:pt-0.5">
+                        {formatEur(rentalSummaryBaseAmount)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="py-3">
+                      <p className="font-medium text-foreground">Temel kiralama</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        Bu araçta günlük kira fiyatı tanımlı değil; tutar satırı gösterilmiyor.
+                      </p>
+                    </div>
+                  )}
+
+                  {rentalSummaryOptionLines.length === 0 ? (
+                    <div className="py-3 text-[11px] text-muted-foreground">Seçili opsiyon yok.</div>
+                  ) : (
+                    rentalSummaryOptionLines.map((line) => (
+                      <div
+                        key={line.key}
+                        className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{line.category}</p>
+                          <p className="mt-0.5 font-medium text-foreground">{line.title}</p>
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">{line.subtitle}</p>
+                        </div>
+                        <p className="shrink-0 text-right tabular-nums font-semibold text-foreground sm:pt-1">
+                          {formatEur(line.amount)}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                  {rentalOutsideCountryTravel ? (
+                    <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground">Yeşil sigorta</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">Yurt dışı çıkış · tek sefer (tahmini)</p>
+                      </div>
+                      <p className="shrink-0 text-right tabular-nums font-semibold text-foreground sm:pt-1">
+                        {rentalSummaryGreenInsuranceTry > 0 ? formatEur(rentalSummaryGreenInsuranceTry) : "—"}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+                {rentalSummaryGross != null ? (
+                  <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+                    <span className="font-semibold text-foreground">Ara toplam</span>
+                    <span className="text-base font-bold tabular-nums text-foreground">{formatEur(rentalSummaryGross)}</span>
+                  </div>
                 ) : null}
               </div>
-              <div className="rounded-md border border-border/50 bg-background/60 p-3 sm:col-span-2">
-                <p className="text-[10px] text-muted-foreground">Müşteri</p>
-                <p className="mt-0.5 font-medium text-foreground">{fullName || "—"}</p>
-                <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
-                  {phoneCountryCode} {phoneLocal || "—"}
-                </p>
-              </div>
-              <div className="rounded-md border border-border/50 bg-background/60 p-3 sm:col-span-2">
-                <p className="text-[10px] text-muted-foreground">Doğum tarihi</p>
-                <p className="mt-0.5 font-medium tabular-nums text-foreground">{newCustomerBirthDate || "—"}</p>
-              </div>
-              <div className="rounded-md border border-border/50 bg-background/60 p-3 sm:col-span-2">
-                <p className="text-[10px] text-muted-foreground">Yurt dışı çıkış</p>
-                <p className="mt-0.5 font-medium text-foreground">{rentalOutsideCountryTravel ? "Evet" : "Hayır"}</p>
-              </div>
-              {rentalInternalNote.trim() ? (
-                <div className="rounded-md border border-border/50 bg-background/60 p-3 sm:col-span-2">
-                  <p className="text-[10px] text-muted-foreground">Not</p>
-                  <p className="mt-0.5 whitespace-pre-wrap font-medium leading-snug text-foreground">{rentalInternalNote.trim()}</p>
-                </div>
-              ) : null}
-              <div className="rounded-md border border-border/50 bg-background/60 p-3 sm:col-span-2">
-                <p className="text-[10px] text-muted-foreground">Ek sürücü</p>
-                {additionalDrivers.length === 0 ? (
-                  <p className="mt-0.5 text-muted-foreground">Yok</p>
-                ) : (
-                  <ul className="mt-1 space-y-1">
-                    {additionalDrivers.map((d, i) => (
-                      <li key={`sum-ad-${i}`} className="font-medium text-foreground">
-                        {d.fullName.trim() || "—"}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-border/70 bg-card/40 p-4 shadow-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Kalem detayı</p>
-            <div className="mt-3 divide-y divide-border/50">
-              {rentalSummaryBaseAmount != null && vehicle.rentalDailyPrice != null ? (
-                <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground">Temel kiralama</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {rentalSummaryDays} gün × {formatTryAmount(vehicle.rentalDailyPrice)} ₺ / gün
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-right tabular-nums font-semibold text-foreground sm:pt-0.5">
-                    {formatTryAmount(rentalSummaryBaseAmount)} ₺
-                  </p>
-                </div>
-              ) : (
-                <div className="py-3">
-                  <p className="font-medium text-foreground">Temel kiralama</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Bu araçta günlük kira fiyatı tanımlı değil; tutar satırı gösterilmiyor.
-                  </p>
-                </div>
-              )}
-
-              {rentalSummaryOptionLines.length === 0 ? (
-                <div className="py-3 text-[11px] text-muted-foreground">Seçili opsiyon yok.</div>
-              ) : (
-                rentalSummaryOptionLines.map((line) => (
-                  <div
-                    key={line.key}
-                    className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{line.category}</p>
-                      <p className="mt-0.5 font-medium text-foreground">{line.title}</p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">{line.subtitle}</p>
-                    </div>
-                    <p className="shrink-0 text-right tabular-nums font-semibold text-foreground sm:pt-1">
-                      {formatTryAmount(line.amount)} ₺
-                    </p>
-                  </div>
-                ))
-              )}
-              {rentalOutsideCountryTravel ? (
-                <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground">Yeşil sigorta</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">Yurt dışı çıkış · tek sefer (tahmini)</p>
-                  </div>
-                  <p className="shrink-0 text-right tabular-nums font-semibold text-foreground sm:pt-1">
-                    {rentalSummaryGreenInsuranceTry > 0 ? `${formatTryAmount(rentalSummaryGreenInsuranceTry)} ₺` : "—"}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-            {rentalSummaryGross != null ? (
-              <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
-                <span className="font-semibold text-foreground">Ara toplam</span>
-                <span className="text-base font-bold tabular-nums text-foreground">{formatTryAmount(rentalSummaryGross)} ₺</span>
-              </div>
-            ) : null}
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           <div className="rounded-lg border border-border/70 bg-muted/25 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Komisyon (tahmini)</p>
@@ -1855,7 +1895,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
               </p>
             </div>
             <p className="text-right text-lg font-bold tabular-nums text-foreground sm:text-xl">
-              {rentalSummaryNet != null ? `${formatTryAmount(rentalSummaryNet)} ₺` : "—"}
+              {rentalSummaryNet != null ? formatEur(rentalSummaryNet) : "—"}
             </p>
           </div>
         </div>
@@ -1885,6 +1925,99 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       <Button type="button" size="sm" variant="hero" className="h-9 w-full text-xs sm:w-auto" onClick={handleRentalPrimaryAction}>
         {rentalStep < 5 ? "İleri" : "Kaydet"}
       </Button>
+    </>
+  );
+
+  const rentalCustomerDialogs = (
+    <>
+      <CustomerPickerDialog
+        open={customerPickerOpen}
+        onOpenChange={setCustomerPickerOpen}
+        rows={customerDirectoryRows}
+        onPick={applyCustomerFromDirectory}
+      />
+      <Dialog
+        open={newCustomerDialogOpen}
+        onOpenChange={(open) => {
+          setNewCustomerDialogOpen(open);
+          if (!open) setNewCustomerForm({ ...NEW_CUSTOMER_DIALOG_DEFAULT });
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Yeni müşteri</DialogTitle>
+            <DialogDescription className="text-xs">Zorunlu alanları doldurup kaydedin; bilgiler kiralama adımına aktarılır.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Ad soyad *</Label>
+              <Input
+                className="h-9 text-sm"
+                value={newCustomerForm.fullName}
+                onChange={(e) => setNewCustomerForm((s) => ({ ...s, fullName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Telefon *</Label>
+              <Input
+                className="h-9 text-sm"
+                value={newCustomerForm.phone}
+                onChange={(e) => setNewCustomerForm((s) => ({ ...s, phone: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">E-posta *</Label>
+              <Input
+                className="h-9 text-sm"
+                type="email"
+                value={newCustomerForm.email}
+                onChange={(e) => setNewCustomerForm((s) => ({ ...s, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">TC / kimlik no</Label>
+              <Input
+                className="h-9 text-sm"
+                value={newCustomerForm.nationalId}
+                onChange={(e) => setNewCustomerForm((s) => ({ ...s, nationalId: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Pasaport no</Label>
+              <Input
+                className="h-9 text-sm"
+                value={newCustomerForm.passportNo}
+                onChange={(e) => setNewCustomerForm((s) => ({ ...s, passportNo: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Doğum tarihi</Label>
+              <Input
+                className="h-9 text-sm"
+                type="date"
+                value={newCustomerForm.birthDate}
+                onChange={(e) => setNewCustomerForm((s) => ({ ...s, birthDate: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Ehliyet no</Label>
+              <Input
+                className="h-9 text-sm"
+                value={newCustomerForm.driverLicenseNo}
+                onChange={(e) => setNewCustomerForm((s) => ({ ...s, driverLicenseNo: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" size="sm" className="h-9 text-xs" onClick={() => setNewCustomerDialogOpen(false)}>
+              Vazgeç
+            </Button>
+            <Button type="button" size="sm" className="h-9 text-xs" onClick={submitNewCustomerFromDialog} disabled={newCustomerSaving}>
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 
@@ -2020,29 +2153,82 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
           open={vehicleOptsDialogOpen}
           onOpenChange={setVehicleOptsDialogOpen}
         />
-        <CustomerPickerDialog
-          open={customerPickerOpen}
-          onOpenChange={setCustomerPickerOpen}
-          rows={customerDirectoryRows}
-          onPick={applyCustomerFromDirectory}
-        />
+        {rentalCustomerDialogs}
       </>
     );
   }
 
   return (
-    <div className="bg-background pb-44 lg:pb-10">
-      <div className="mx-auto max-w-5xl space-y-6 px-4 py-4 lg:max-w-7xl lg:space-y-5 lg:px-0 lg:py-0">
+    <div className="bg-background w-full min-w-0 space-y-6 px-4 py-4 pb-28 lg:space-y-5 lg:px-0 lg:py-0 lg:pb-10">
       <section className="space-y-3 lg:hidden">
-        <div className="sticky top-0 z-30 -mx-1 bg-[#f7f9fb]/95 px-1 py-1 backdrop-blur">
-          <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-            <div className="grid grid-cols-3 gap-1 text-[11px]">
+        <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          {mobileGalleryFilled.length === 0 ? (
+            <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-lg bg-slate-100">
+              <span className="text-xs text-slate-500">Gorsel yok</span>
+              <div className="absolute right-2 top-2">
+                <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide", statusClass)}>
+                  {statusLabel}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="relative overflow-hidden rounded-lg bg-slate-100">
+                <div className="aspect-[4/3] w-full">
+                  <img src={mobileGalleryFilled[mobileGalleryIdx]!.src} alt="" className="h-full w-full object-cover" />
+                </div>
+                <div className="absolute right-2 top-2 z-[1]">
+                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide", statusClass)}>
+                    {statusLabel}
+                  </span>
+                </div>
+                {mobileGalleryFilled.length > 1 ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Onceki gorsel"
+                      disabled={mobileGalleryIdx <= 0}
+                      onClick={() => setMobileGalleryIdx((i) => Math.max(0, i - 1))}
+                      className="absolute left-2 top-1/2 z-[2] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/50 text-white shadow-md backdrop-blur-[2px] transition-opacity disabled:pointer-events-none disabled:opacity-25 active:bg-black/65"
+                    >
+                      <ChevronLeft className="h-7 w-7" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Sonraki gorsel"
+                      disabled={mobileGalleryIdx >= mobileGalleryFilled.length - 1}
+                      onClick={() => setMobileGalleryIdx((i) => Math.min(mobileGalleryFilled.length - 1, i + 1))}
+                      className="absolute right-2 top-1/2 z-[2] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/50 text-white shadow-md backdrop-blur-[2px] transition-opacity disabled:pointer-events-none disabled:opacity-25 active:bg-black/65"
+                    >
+                      <ChevronRight className="h-7 w-7" aria-hidden />
+                    </button>
+                  </>
+                ) : null}
+              </div>
+              {mobileGalleryFilled.length > 1 ? (
+                <p className="mt-2 px-1 text-center text-[10px] font-medium tabular-nums text-slate-500">
+                  {mobileGalleryFilled[mobileGalleryIdx]?.label} · {mobileGalleryIdx + 1} / {mobileGalleryFilled.length}
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div className="sticky top-0 z-30 -mx-1">
+          <div className="supports-[backdrop-filter]:bg-background/70 backdrop-blur-lg pb-0 pt-2">
+            <nav
+              className="flex w-full items-stretch divide-x divide-border/55 overflow-hidden rounded-xl bg-muted/30 dark:bg-muted/25"
+              aria-label="Arac bolumleri"
+            >
               <button
                 type="button"
                 onClick={() => setMobileVehicleTab("summary")}
+                aria-current={mobileVehicleTab === "summary" ? "page" : undefined}
                 className={cn(
-                  "rounded-lg py-2 font-semibold transition-colors",
-                  mobileVehicleTab === "summary" ? "bg-indigo-50 text-indigo-700 shadow-sm" : "text-slate-500",
+                  "relative min-h-[48px] min-w-0 flex-1 px-1.5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors duration-200 ease-out",
+                  mobileVehicleTab === "summary"
+                    ? "bg-primary/16 text-primary dark:bg-primary/24"
+                    : "bg-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground active:bg-muted/60",
                 )}
               >
                 Detaylar
@@ -2050,9 +2236,12 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
               <button
                 type="button"
                 onClick={() => setMobileVehicleTab("technical")}
+                aria-current={mobileVehicleTab === "technical" ? "page" : undefined}
                 className={cn(
-                  "rounded-lg py-2 font-semibold transition-colors",
-                  mobileVehicleTab === "technical" ? "bg-indigo-50 text-indigo-700 shadow-sm" : "text-slate-500",
+                  "relative min-h-[48px] min-w-0 flex-1 px-1.5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors duration-200 ease-out",
+                  mobileVehicleTab === "technical"
+                    ? "bg-primary/16 text-primary dark:bg-primary/24"
+                    : "bg-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground active:bg-muted/60",
                 )}
               >
                 Teknik
@@ -2060,46 +2249,22 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
               <button
                 type="button"
                 onClick={() => setMobileVehicleTab("history")}
+                aria-current={mobileVehicleTab === "history" ? "page" : undefined}
                 className={cn(
-                  "rounded-lg py-2 font-semibold transition-colors",
-                  mobileVehicleTab === "history" ? "bg-indigo-50 text-indigo-700 shadow-sm" : "text-slate-500",
+                  "relative min-h-[48px] min-w-0 flex-1 px-1.5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors duration-200 ease-out",
+                  mobileVehicleTab === "history"
+                    ? "bg-primary/16 text-primary dark:bg-primary/24"
+                    : "bg-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground active:bg-muted/60",
                 )}
               >
                 Gecmis
               </button>
-            </div>
+            </nav>
           </div>
         </div>
 
         {mobileVehicleTab === "summary" && (
           <>
-            <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-              <div className="relative overflow-hidden rounded-lg bg-slate-100">
-                <div className="aspect-[4/3] w-full">
-                  {heroImage ? (
-                    <img src={heroImage} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">Gorsel yok</div>
-                  )}
-                </div>
-                <div className="absolute right-2 top-2">
-                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide", statusClass)}>
-                    {statusLabel}
-                  </span>
-                </div>
-              </div>
-              <div className="mt-2 grid grid-cols-4 gap-2">
-                {[galleryImages.front, galleryImages.left, galleryImages.right].map((image, idx) => (
-                  <div key={`mobile-thumb-${idx}`} className="h-14 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
-                    {image ? <img src={image} alt="" className="h-full w-full object-cover" /> : null}
-                  </div>
-                ))}
-                <div className="flex h-14 items-center justify-center rounded-md border border-slate-200 bg-slate-100 text-[10px] font-semibold text-slate-500">
-                  +{Math.max(0, Object.values(galleryImages).filter(Boolean).length - 3)} MORE
-                </div>
-              </div>
-            </div>
-
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-[10px] uppercase tracking-[0.18em] text-primary/70">Premium Class</p>
               <h2 className="mt-1 text-2xl font-bold leading-tight text-slate-900">
@@ -2134,34 +2299,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">System Status</p>
-                <span className={cn("text-[11px] font-bold", vehicle.external ? "text-rose-600" : "text-indigo-100")}>
-                  {vehicle.external ? "EXTERNAL" : "INTERNAL"}
-                </span>
-              </div>
-              <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5">
-                <span className="text-xs font-medium text-slate-700">Maintenance Mode</span>
-                <button
-                  type="button"
-                  onClick={() => setEditOpen(true)}
-                  className={cn(
-                    "relative inline-flex h-6 w-11 items-center rounded-full border transition-colors",
-                    vehicle.maintenance ? "border-indigo-700 bg-indigo-700" : "border-slate-300 bg-slate-200",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                      vehicle.maintenance ? "translate-x-6" : "translate-x-1",
-                    )}
-                  />
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-lg font-bold text-slate-900">Logistics</h3>
+              <h3 className="text-lg font-bold text-slate-900">Location</h3>
               <div className="mt-3 flex items-start gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-600">
                   <Building2 className="h-4 w-4" />
@@ -2306,7 +2444,13 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         <Button type="button" size="sm" variant="outline" className="h-10 w-full gap-1.5 text-sm" onClick={() => setEditOpen(true)}>
           Araç güncelle
         </Button>
-        <Button type="button" size="sm" className="h-10 w-full gap-1.5 text-sm" disabled={vehicle.maintenance} onClick={() => openForDay(new Date())}>
+        <Button
+          type="button"
+          size="sm"
+          className="h-10 w-full gap-1.5 text-sm"
+          disabled={vehicleMaintenanceBlocked(vehicle)}
+          onClick={() => router.push(vehicleNewRentHref(vehicle.id))}
+        >
           <KeyRound className="h-3.5 w-3.5" />
           Kiralama başlat
         </Button>
@@ -2333,7 +2477,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
               </TabsContent>
               <TabsContent value="edit" className="mt-0 outline-none">
                 <VehicleImageSlotsRemoteEditor
-                  vehicleId={vehicle.id}
+                  vehicleId={String(vehicle.id)}
                   images={vehicle.images}
                   fallbackImages={galleryImages}
                 />
@@ -2407,14 +2551,14 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                 <RentAvailabilityCalendar
                   locale={tr}
                   booked={booked}
-                  disabled={(day) => vehicle.maintenance || isBeforeToday(day)}
+                  disabled={(day) => vehicleMaintenanceBlocked(vehicle) || isBeforeToday(day)}
                   onDayClick={handleDayClick}
                 />
                 <div className="border-t border-slate-100 px-3 pb-2 pt-1 sm:px-5">
                   <RentCalendarLegend />
                 </div>
               </div>
-              {vehicle.maintenance && (
+              {vehicleMaintenanceBlocked(vehicle) && (
                 <p className="text-center text-xs text-destructive sm:text-left">Bakım modunda takvim kilitli.</p>
               )}
             </TabsContent>
@@ -2472,19 +2616,19 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                     <div className="rounded-md border border-border/70 p-2">
                       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Brüt gelir</p>
                       <p className="mt-1 text-lg font-semibold tabular-nums">
-                        {reportStats.totalGrossRevenue.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}
+                        {formatEur(reportStats.totalGrossRevenue)}
                       </p>
                     </div>
                     <div className="rounded-md border border-border/70 p-2">
                       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Komisyon tutarı</p>
                       <p className="mt-1 text-lg font-semibold tabular-nums">
-                        {reportStats.totalCommission.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}
+                        {formatEur(reportStats.totalCommission)}
                       </p>
                     </div>
                     <div className="rounded-md border border-border/70 p-2">
                       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Toplam kar (net)</p>
                       <p className="mt-1 text-lg font-semibold tabular-nums">
-                        {reportStats.totalProfit.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}
+                        {formatEur(reportStats.totalProfit)}
                       </p>
                     </div>
                   </div>
@@ -2546,7 +2690,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
                               <div key={`net-${row.key}`} className="space-y-1">
                                 <div className="flex items-center justify-between text-xs">
                                   <span className="font-medium">{row.label}</span>
-                                  <span className="tabular-nums">{row.net.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}</span>
+                                  <span className="tabular-nums">{formatEur(row.net)}</span>
                                 </div>
                                 <div className="h-2 rounded bg-muted/50">
                                   <div
@@ -2669,23 +2813,6 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
           </Button>
         </CardContent>
       </Card>
-
-        </div>
-
-        <div className="fixed bottom-16 left-0 z-40 flex w-full items-center justify-around border-t border-slate-200 bg-white/90 px-3 py-2.5 backdrop-blur lg:hidden">
-          <Button type="button" variant="outline" className="mr-2 h-10 flex-1 rounded-md border-slate-300 text-[11px] font-semibold" asChild>
-            <Link href={`/vehicles/${vehicle.id}/options`}>
-              Download PDF Report
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            className="ml-2 h-10 flex-[1.2] rounded-md bg-indigo-700 text-[11px] font-semibold hover:bg-indigo-800"
-            onClick={() => setEditOpen(true)}
-          >
-            Edit Vehicle Details
-          </Button>
-        </div>
 
         <nav className="fixed bottom-0 left-0 z-40 flex w-full items-center justify-around border-t border-slate-200 bg-white/90 px-3 py-2 backdrop-blur lg:hidden">
           <button type="button" className="flex flex-col items-center justify-center rounded-xl bg-blue-50 px-3 py-1 text-blue-600">
@@ -2993,12 +3120,7 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
         onOpenChange={setVehicleOptsDialogOpen}
       />
 
-      <CustomerPickerDialog
-        open={customerPickerOpen}
-        onOpenChange={setCustomerPickerOpen}
-        rows={customerDirectoryRows}
-        onPick={applyCustomerFromDirectory}
-      />
+      {rentalCustomerDialogs}
     </div>
   );
 }

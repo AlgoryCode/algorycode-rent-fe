@@ -1,0 +1,22 @@
+[
+  { "id": 1, "code": "toyota", "name": "Toyota", "sortOrder": 1 },
+  { "id": 2, "code": "volkswagen", "name": "Volkswagen", "sortOrder": 2 },
+  { "id": 3, "code": "hyundai", "name": "Hyundai", "sortOrder": 3 },
+  { "id": 4, "code": "ford", "name": "Ford", "sortOrder": 4 },
+  { "id": 5, "code": "byd", "name": "BYD", "sortOrder": 5 },
+  { "id": 6, "code": "honda", "name": "Honda", "sortOrder": 6 },
+  { "id": 7, "code": "nissan", "name": "Nissan", "sortOrder": 7 },
+  { "id": 8, "code": "suzuki", "name": "Suzuki", "sortOrder": 8 },
+  { "id": 9, "code": "bmw", "name": "BMW", "sortOrder": 9 },
+  { "id": 10, "code": "mercedes_benz", "name": "Mercedes-Benz", "sortOrder": 10 },
+  { "id": 11, "code": "audi", "name": "Audi", "sortOrder": 11 },
+  { "id": 12, "code": "skoda", "name": "Škoda", "sortOrder": 12 },
+  { "id": 13, "code": "renault", "name": "Renault", "sortOrder": 13 },
+  { "id": 14, "code": "peugeot", "name": "Peugeot", "sortOrder": 14 },
+  { "id": 15, "code": "fiat", "name": "Fiat", "sortOrder": 15 },
+  { "id": 16, "code": "tesla", "name": "Tesla", "sortOrder": 16 },
+  { "id": 17, "code": "mazda", "name": "Mazda", "sortOrder": 17 },
+  { "id": 18, "code": "kia", "name": "Kia", "sortOrder": 18 },
+  { "id": 19, "code": "volvo", "name": "Volvo", "sortOrder": 19 },
+  { "id": 20, "code": "jaguar", "name": "Jaguar", "sortOrder": 20 }
+]

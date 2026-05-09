@@ -30,6 +30,7 @@ import {
   buildGenericTalepFormInviteMessage,
   normalizedPhoneForWhatsApp,
 } from "@/lib/customer-contact";
+import { formatEur } from "@/lib/format-money";
 import { rentKeys } from "@/lib/rent-query-keys";
 import type { CustomerAggregateRow } from "@/lib/rental-metadata";
 import {
@@ -790,7 +791,7 @@ export function RequestsClient({ embedded = false }: RequestsClientProps) {
                         {row.whatsappContractError ? (
                           <p className="mt-1 text-[11px] text-destructive">{row.whatsappContractError}</p>
                         ) : null}
-                        <p className="mt-1 text-[11px] text-muted-foreground">Yeşil sigorta: {row.greenInsuranceFee}</p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">Yeşil sigorta: {formatEur(row.greenInsuranceFee)}</p>
                       </TableCell>
                       <TableCell className="align-top font-mono text-[11px] text-muted-foreground">{row.referenceNo}</TableCell>
                       <TableCell className="align-top">{statusBadge(row.status)}</TableCell>

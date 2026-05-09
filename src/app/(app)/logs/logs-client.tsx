@@ -81,7 +81,7 @@ export function RentalLogsClient() {
   const [vehicleStartView, setVehicleStartView] = useState<VehicleStartView>("gallery");
   const [page, setPage] = useState(1);
 
-  const vehiclesById = useMemo(() => new Map(allVehicles.map((v) => [v.id, v])), [allVehicles]);
+  const vehiclesById = useMemo(() => new Map(allVehicles.map((v) => [String(v.id), v])), [allVehicles]);
 
   const vehiclesForStartTab = useMemo(
     () => allVehicles.filter((v) => vehicleMatchesSearch(v, vehicleSearch)),
@@ -126,12 +126,12 @@ export function RentalLogsClient() {
   }, [filteredSessions, safePage]);
 
   const fleetMetrics = useMemo(() => {
-    const rentable = allVehicles.filter((v) => !v.maintenance);
+    const rentable = allVehicles.filter((v) => v.status !== "MAINTENANCE");
     let rentedToday = 0;
     let available = 0;
     let maintenance = 0;
     for (const v of allVehicles) {
-      if (v.maintenance) {
+      if (v.status === "MAINTENANCE") {
         maintenance += 1;
         continue;
       }
@@ -152,12 +152,12 @@ export function RentalLogsClient() {
   }, [allVehicles, fleetSessions, today]);
 
   const openRentalForVehicle = (vehicleId: string) => {
-    const v = allVehicles.find((x) => x.id === vehicleId);
+    const v = allVehicles.find((x) => String(x.id) === vehicleId);
     if (!v) {
       toast.error("Araç bulunamadı.");
       return;
     }
-    if (v.maintenance) {
+    if (v.status === "MAINTENANCE") {
       toast.error("Bu araç bakımda; kiralama oluşturulamaz.");
       return;
     }

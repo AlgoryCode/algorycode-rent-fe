@@ -49,7 +49,7 @@ export default function SettingsOptionsHubPage() {
             <CardContent className="pb-4 text-xs font-medium text-primary">Yönet →</CardContent>
           </Card>
         </Link>
-        <Link href="/countries" className="block rounded-lg outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
+        <Link href="/settings/locations/countries" className="block rounded-lg outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
           <Card className="glow-card h-full transition-colors hover:border-primary/40">
             <CardHeader className="py-3">
               <CardTitle className="text-sm">Ülkeler</CardTitle>

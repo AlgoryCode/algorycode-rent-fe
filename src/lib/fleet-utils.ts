@@ -100,8 +100,8 @@ export function invalidateExtraVehiclesCache() {
 }
 
 export function mergeVehicleLists(seed: Vehicle[], extra: Vehicle[]): Vehicle[] {
-  const seen = new Set(seed.map((v) => v.id));
-  return [...seed, ...extra.filter((v) => !seen.has(v.id))];
+  const seen = new Set(seed.map((v) => String(v.id)));
+  return [...seed, ...extra.filter((v) => !seen.has(String(v.id)))];
 }
 
 export { VEHICLES_STORAGE_KEY };
@@ -118,10 +118,11 @@ function sessionDays(s: RentalSession): Date[] {
 }
 
 /** Araç için takvimde “dolu” günler. */
-export function bookedDatesForVehicle(sessions: RentalSession[], vehicleId: string): Date[] {
+export function bookedDatesForVehicle(sessions: RentalSession[], vehicleId: string | number): Date[] {
+  const vid = String(vehicleId);
   const set = new Map<number, Date>();
   for (const s of sessions) {
-    if (s.vehicleId !== vehicleId || !rentalCountsForCalendar(s)) continue;
+    if (String(s.vehicleId) !== vid || !rentalCountsForCalendar(s)) continue;
     for (const d of sessionDays(s)) {
       set.set(d.getTime(), d);
     }
@@ -154,10 +155,11 @@ function rentalRequestBlocksFleet(req: RentalRequestDto): boolean {
   return req.status === "pending" || req.status === "approved";
 }
 
-export function bookedDatesFromRentalRequests(requests: RentalRequestDto[], vehicleId: string): Date[] {
+export function bookedDatesFromRentalRequests(requests: RentalRequestDto[], vehicleId: string | number): Date[] {
+  const vid = String(vehicleId);
   const set = new Map<number, Date>();
   for (const req of requests) {
-    if ((req.vehicleId ?? "") !== vehicleId) continue;
+    if (String(req.vehicleId ?? "") !== vid) continue;
     if (!rentalRequestBlocksFleet(req)) continue;
     let start: Date;
     let end: Date;
@@ -182,9 +184,10 @@ export function mergeBookedDateArrays(a: Date[], b: Date[]): Date[] {
   return [...map.values()];
 }
 
-export function isDateBooked(sessions: RentalSession[], vehicleId: string, day: Date): boolean {
+export function isDateBooked(sessions: RentalSession[], vehicleId: string | number, day: Date): boolean {
+  const vid = String(vehicleId);
   return sessions.some((s) => {
-    if (s.vehicleId !== vehicleId || !rentalCountsForCalendar(s)) return false;
+    if (String(s.vehicleId) !== vid || !rentalCountsForCalendar(s)) return false;
     const start = startOfDay(parseISO(s.startDate));
     const end = startOfDay(parseISO(s.endDate));
     return isWithinInterval(startOfDay(day), { start, end });
@@ -196,14 +199,15 @@ export function isDateBooked(sessions: RentalSession[], vehicleId: string, day: 
  * Talepler yalnızca {@code pending} ve {@code approved} için dikkate alınır; {@code rejected} hariç.
  */
 export function isVehicleBookedOnDay(
-  vehicleId: string,
+  vehicleId: string | number,
   sessions: RentalSession[],
   requests: readonly RentalRequestDto[] | undefined,
   day: Date,
 ): boolean {
+  const vid = String(vehicleId);
   const d = startOfDay(day);
   const fromRental = sessions.some((s) => {
-    if (s.vehicleId !== vehicleId || !rentalCountsForCalendar(s)) return false;
+    if (String(s.vehicleId) !== vid || !rentalCountsForCalendar(s)) return false;
     const start = startOfDay(parseISO(s.startDate));
     const end = startOfDay(parseISO(s.endDate));
     return isWithinInterval(d, { start, end });
@@ -212,7 +216,7 @@ export function isVehicleBookedOnDay(
   if (!requests?.length) return false;
   return requests.some((req) => {
     if (!rentalRequestBlocksFleet(req)) return false;
-    if ((req.vehicleId ?? "") !== vehicleId) return false;
+    if (String(req.vehicleId ?? "") !== vid) return false;
     let start: Date;
     let end: Date;
     try {
@@ -249,11 +253,8 @@ export function resolveVehicleFleetUiStatus(
   on: Date,
   requests?: readonly RentalRequestDto[],
 ): FleetStatus {
-  if (v.maintenance) return "maintenance";
-  const code = v.fleetStatusCode;
-  if (code === "maintenance") return "maintenance";
-  if (code === "available") return "available";
-  if (code === "rented") return "rented";
+  if (v.status === "MAINTENANCE") return "maintenance";
+  if (v.status === "RENTED") return "rented";
   return vehicleFleetStatus(v, sessions, on, requests);
 }
 
@@ -268,12 +269,15 @@ export function vehicleFleetStatus(
   on: Date,
   requests?: readonly RentalRequestDto[],
 ): FleetStatus {
-  if (v.maintenance) return "maintenance";
+  if (v.status === "MAINTENANCE") return "maintenance";
   return isVehicleBookedOnDay(v.id, sessions, requests, on) ? "rented" : "available";
 }
 
-export function sessionsForVehicle(sessions: RentalSession[], vehicleId: string): RentalSession[] {
-  return sessions.filter((s) => s.vehicleId === vehicleId).sort((a, b) => parseISO(b.startDate).getTime() - parseISO(a.startDate).getTime());
+export function sessionsForVehicle(sessions: RentalSession[], vehicleId: string | number): RentalSession[] {
+  const vid = String(vehicleId);
+  return sessions
+    .filter((s) => String(s.vehicleId) === vid)
+    .sort((a, b) => parseISO(b.startDate).getTime() - parseISO(a.startDate).getTime());
 }
 
 export function formatDay(d: Date) {

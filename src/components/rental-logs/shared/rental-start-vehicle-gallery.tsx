@@ -24,12 +24,12 @@ export function RentalStartVehicleGalleryResponsive({
         </p>
       ) : null}
       {vehicles.map((v) => {
-        const disabled = Boolean(v.maintenance);
+        const disabled = v.status === "MAINTENANCE";
         const cover = vehicleCardCoverUrl(v);
         const dailyLabel = formatVehicleDailyRental(v);
         const onActivate = () => {
           if (disabled) return;
-          onSelectVehicle(v.id);
+          onSelectVehicle(String(v.id));
         };
 
         return (

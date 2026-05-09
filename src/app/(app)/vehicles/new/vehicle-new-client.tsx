@@ -2,20 +2,30 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFleetVehicles } from "@/hooks/use-fleet-vehicles";
 import { fetchVehicleFormCatalogFromRentApi, getRentApiErrorMessage } from "@/lib/rent-api";
 import { rentKeys } from "@/lib/rent-query-keys";
 import { compactVehicleImages, type VehicleImages } from "@/lib/vehicle-images";
+import {
+  resolveStaticBrandModelNames,
+  staticVehicleBrandSelectItems,
+  staticVehicleModelsForBrandId,
+  VEHICLE_BODY_STYLES_STATIC,
+  VEHICLE_FUEL_TYPES_STATIC,
+  VEHICLE_TRANSMISSION_TYPES_STATIC,
+} from "@/constants";
 import { HandoverReturnMultiCombobox } from "@/components/vehicles/handover-return-multi-combobox";
 import { VehicleImageSlotsEditor } from "@/components/vehicles/vehicle-image-slots-editor";
+import { formatEur } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
 
 const REQUIRED_VEHICLE_IMAGE_SLOTS: (keyof VehicleImages)[] = [
@@ -56,10 +66,7 @@ export function VehicleNewClient() {
   const [plate, setPlate] = useState("");
   const [brandId, setBrandId] = useState(BRAND_NONE);
   const [modelId, setModelId] = useState(MODEL_NONE);
-  const [brandManual, setBrandManual] = useState("");
-  const [modelManual, setModelManual] = useState("");
   const [year, setYear] = useState(String(new Date().getFullYear()));
-  const [fleetStatusCode, setFleetStatusCode] = useState("available");
   const [externalVehicle, setExternalVehicle] = useState(false);
   const [externalCompany, setExternalCompany] = useState("");
   const [commissionRatePercent, setCommissionRatePercent] = useState("");
@@ -80,41 +87,35 @@ export function VehicleNewClient() {
   const pickupLocs = catalog?.pickupHandoverLocations ?? [];
   const returnLocs = catalog?.returnHandoverLocations ?? [];
   const optionTemplates = useMemo(() => catalog?.optionTemplates ?? [], [catalog]);
-  const fuelTypeOptions = catalog?.fuelTypes ?? [];
-  const transmissionTypeOptions = catalog?.transmissionTypes ?? [];
-  const bodyStyleOptions = catalog?.bodyStyles ?? [];
+  const fuelTypeOptions = VEHICLE_FUEL_TYPES_STATIC;
+  const transmissionTypeOptions = VEHICLE_TRANSMISSION_TYPES_STATIC;
+  const bodyStyleOptions = VEHICLE_BODY_STYLES_STATIC;
 
   const countriesSorted = useMemo(
     () => [...(catalog?.countries ?? [])].sort((a, b) => a.name.localeCompare(b.name, "tr")),
     [catalog?.countries],
   );
 
-  const selectedBrandRow = useMemo(
-    () => (catalog?.brands ?? []).find((b) => b.id === brandId),
-    [catalog?.brands, brandId],
+  const staticBrandItems = useMemo(() => staticVehicleBrandSelectItems(), []);
+
+  const staticModelItems = useMemo(() => staticVehicleModelsForBrandId(brandId), [brandId]);
+
+  const fuelSelectItems = useMemo(
+    () => fuelTypeOptions.map((o) => ({ value: o.code, label: o.labelTr })),
+    [fuelTypeOptions],
   );
 
-  const modelOptionsForBrand = selectedBrandRow?.models ?? [];
+  const transmissionSelectItems = useMemo(
+    () => transmissionTypeOptions.map((o) => ({ value: o.code, label: o.labelTr })),
+    [transmissionTypeOptions],
+  );
 
-  const fleetStatusRows = useMemo(() => {
-    const rows = catalog?.vehicleStatuses ?? [];
-    if (rows.length > 0) return rows;
-    return [
-      { id: "fb1", code: "available", labelTr: "Müsait", sortOrder: 1 },
-      { id: "fb2", code: "maintenance", labelTr: "Bakımda", sortOrder: 2 },
-      { id: "fb3", code: "rented", labelTr: "Kirada", sortOrder: 3 },
-    ];
-  }, [catalog?.vehicleStatuses]);
+  const bodyStyleSelectItems = useMemo(
+    () => bodyStyleOptions.map((o) => ({ value: o.code, label: o.labelTr })),
+    [bodyStyleOptions],
+  );
 
-  const useBrandModelCatalog = Boolean(catalog && catalog.brands.length > 0);
   const formLocked = catalogLoading || !!catalogError || !catalog;
-
-  useEffect(() => {
-    if (fleetStatusRows.length === 0) return;
-    if (fleetStatusRows.some((s) => s.code === fleetStatusCode)) return;
-    const pref = fleetStatusRows.find((s) => s.code === "available") ?? fleetStatusRows[0];
-    if (pref) setFleetStatusCode(pref.code);
-  }, [fleetStatusRows, fleetStatusCode]);
 
   const filteredOptionTemplates = useMemo(() => {
     const q = optionSearch.trim().toLocaleLowerCase("tr");
@@ -128,16 +129,9 @@ export function VehicleNewClient() {
 
   const validateStep = (targetStep: NewVehicleStep): boolean => {
     const p = normalizePlate(plate);
-    let b = "";
-    let m = "";
-    if (useBrandModelCatalog) {
-      b = selectedBrandRow?.name?.trim() ?? "";
-      const modelRow = modelOptionsForBrand.find((x) => x.id === modelId);
-      m = modelRow?.name?.trim() ?? "";
-    } else {
-      b = brandManual.trim();
-      m = modelManual.trim();
-    }
+    const resolved = resolveStaticBrandModelNames(brandId, modelId);
+    const b = resolved?.brand.trim() ?? "";
+    const m = resolved?.model.trim() ?? "";
     const y = parseInt(year, 10);
     if (targetStep >= 1) {
       if (!p || !b || !m || !Number.isFinite(y) || y < 1950 || y > new Date().getFullYear() + 1) {
@@ -208,16 +202,9 @@ export function VehicleNewClient() {
       return;
     }
     const p = normalizePlate(plate);
-    let b = "";
-    let m = "";
-    if (useBrandModelCatalog) {
-      b = selectedBrandRow?.name?.trim() ?? "";
-      const modelRow = modelOptionsForBrand.find((x) => x.id === modelId);
-      m = modelRow?.name?.trim() ?? "";
-    } else {
-      b = brandManual.trim();
-      m = modelManual.trim();
-    }
+    const resolved = resolveStaticBrandModelNames(brandId, modelId);
+    const b = resolved?.brand.trim() ?? "";
+    const m = resolved?.model.trim() ?? "";
     const y = parseInt(year, 10);
     if (!p || !b || !m || !Number.isFinite(y) || y < 1950 || y > new Date().getFullYear() + 1) {
       toast.error("Plaka, marka, model ve geçerli model yılı gerekli.");
@@ -276,15 +263,12 @@ export function VehicleNewClient() {
 
     setSaving(true);
     try {
-      const fleetStatusRow = fleetStatusRows.find((s) => s.code === fleetStatusCode);
-      const created = await addVehicle({
+      await addVehicle({
         plate: p,
         brand: b,
         model: m,
         year: y,
-        maintenance: fleetStatusCode === "maintenance",
-        ...(useBrandModelCatalog && modelId !== MODEL_NONE ? { vehicleModelId: modelId } : {}),
-        ...(fleetStatusRow?.id ? { vehicleStatusId: fleetStatusRow.id } : {}),
+        maintenance: false,
         external: externalVehicle,
         externalCompany: externalVehicle ? externalCompany.trim() : undefined,
         commissionRatePercent: externalVehicle ? rate : undefined,
@@ -303,7 +287,7 @@ export function VehicleNewClient() {
         ...(luggageParsed !== undefined ? { luggage: luggageParsed } : {}),
       });
       toast.success("Araç kaydedildi");
-      router.push(`/vehicles/${created.id}`);
+      router.push("/vehicles");
     } catch (e) {
       toast.error(getRentApiErrorMessage(e));
     } finally {
@@ -352,70 +336,39 @@ export function VehicleNewClient() {
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {useBrandModelCatalog ? (
-                  <>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Marka</Label>
-                      <Select
-                        value={brandId}
-                        onValueChange={(v) => {
-                          setBrandId(v);
-                          setModelId(MODEL_NONE);
-                        }}
-                        disabled={formLocked}
-                      >
-                        <SelectTrigger className="h-9 w-full text-xs">
-                          <SelectValue placeholder="Seçin" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={BRAND_NONE}>Seçin</SelectItem>
-                          {(catalog?.brands ?? []).map((br) => (
-                            <SelectItem key={br.id} value={br.id}>
-                              {br.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Model</Label>
-                      <Select value={modelId} onValueChange={setModelId} disabled={formLocked || brandId === BRAND_NONE}>
-                        <SelectTrigger className="h-9 w-full text-xs">
-                          <SelectValue placeholder={brandId === BRAND_NONE ? "Önce marka seçin" : "Seçin"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={MODEL_NONE}>Seçin</SelectItem>
-                          {modelOptionsForBrand.map((mo) => (
-                            <SelectItem key={mo.id} value={mo.id}>
-                              {mo.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="space-y-1">
-                      <Label htmlFor="nv-brand">Marka</Label>
-                      <Input
-                        id="nv-brand"
-                        value={brandManual}
-                        onChange={(e) => setBrandManual(e.target.value)}
-                        disabled={formLocked}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="nv-model">Model</Label>
-                      <Input
-                        id="nv-model"
-                        value={modelManual}
-                        onChange={(e) => setModelManual(e.target.value)}
-                        disabled={formLocked}
-                      />
-                    </div>
-                  </>
-                )}
+                <div className="space-y-1">
+                  <Label className="text-xs">Marka</Label>
+                  <SearchableSelect
+                    className="text-xs"
+                    items={staticBrandItems}
+                    value={brandId}
+                    onValueChange={(v) => {
+                      setBrandId(v);
+                      setModelId(MODEL_NONE);
+                    }}
+                    noneValue={BRAND_NONE}
+                    noneLabel="Seçin"
+                    placeholder="Seçin"
+                    searchPlaceholder="Marka ara…"
+                    emptyText="Marka listesi yüklenemedi."
+                    disabled={formLocked}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Model</Label>
+                  <SearchableSelect
+                    className="text-xs"
+                    items={staticModelItems}
+                    value={modelId}
+                    onValueChange={setModelId}
+                    noneValue={MODEL_NONE}
+                    noneLabel="Seçin"
+                    placeholder={brandId === BRAND_NONE ? "Önce marka seçin" : "Seçin"}
+                    searchPlaceholder="Model ara…"
+                    emptyText="Bu marka için model yok."
+                    disabled={formLocked || brandId === BRAND_NONE}
+                  />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="nv-year">Model yılı</Label>
@@ -429,105 +382,85 @@ export function VehicleNewClient() {
                   disabled={formLocked}
                 />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="nv-fleet-op" className="text-xs">
-                  Filo durumu
-                </Label>
-                <Select value={fleetStatusCode} onValueChange={setFleetStatusCode} disabled={formLocked}>
-                  <SelectTrigger id="nv-fleet-op" className="h-9 w-full text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {fleetStatusRows.map((s) => (
-                      <SelectItem key={s.code} value={s.code} disabled={s.code === "rented"}>
-                        {s.labelTr}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </>
           )}
 
           {step === 2 && (
             <>
               <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Araç özellikleri
-            </p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Yakıt türü</Label>
-                <Select value={fuelType} onValueChange={setFuelType} disabled={formLocked}>
-                  <SelectTrigger className="h-9 w-full text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SPECS_FUEL_NONE}>Seçilmedi</SelectItem>
-                    {fuelTypeOptions.map((o) => (
-                      <SelectItem key={o.id || o.code} value={o.code}>
-                        {o.labelTr || o.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Araç özellikleri
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Yakıt türü</Label>
+                    <SearchableSelect
+                      className="text-xs"
+                      items={fuelSelectItems}
+                      value={fuelType}
+                      onValueChange={setFuelType}
+                      noneValue={SPECS_FUEL_NONE}
+                      noneLabel="Seçilmedi"
+                      placeholder="Seçin"
+                      searchPlaceholder="Yakıt ara…"
+                      emptyText="Sonuç yok."
+                      disabled={formLocked}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Vites türü</Label>
+                    <SearchableSelect
+                      className="text-xs"
+                      items={transmissionSelectItems}
+                      value={transmissionType}
+                      onValueChange={setTransmissionType}
+                      noneValue={SPECS_TRANS_NONE}
+                      noneLabel="Seçilmedi"
+                      placeholder="Seçin"
+                      searchPlaceholder="Vites ara…"
+                      emptyText="Sonuç yok."
+                      disabled={formLocked}
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs">Araç türü</Label>
+                    <SearchableSelect
+                      className="text-xs"
+                      items={bodyStyleSelectItems}
+                      value={bodyStyleCode}
+                      onValueChange={setBodyStyleCode}
+                      noneValue={SPECS_BODY_NONE}
+                      noneLabel="Seçilmedi"
+                      placeholder="Seçin"
+                      searchPlaceholder="Gövde tipi ara…"
+                      emptyText="Sonuç yok."
+                      disabled={formLocked}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Koltuk sayısı</Label>
+                    <Input
+                      className="h-9 text-xs"
+                      inputMode="numeric"
+                      placeholder="Örn. 5"
+                      value={seats}
+                      onChange={(e) => setSeats(e.target.value)}
+                      disabled={formLocked}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Bagaj (valiz sayısı)</Label>
+                    <Input
+                      className="h-9 text-xs"
+                      inputMode="numeric"
+                      placeholder="Örn. 5"
+                      value={luggage}
+                      onChange={(e) => setLuggage(e.target.value)}
+                      disabled={formLocked}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Vites türü</Label>
-                <Select value={transmissionType} onValueChange={setTransmissionType} disabled={formLocked}>
-                  <SelectTrigger className="h-9 w-full text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SPECS_TRANS_NONE}>Seçilmedi</SelectItem>
-                    {transmissionTypeOptions.map((o) => (
-                      <SelectItem key={o.id || o.code} value={o.code}>
-                        {o.labelTr || o.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1 sm:col-span-2">
-                <Label className="text-xs">Araç türü</Label>
-                <Select value={bodyStyleCode} onValueChange={setBodyStyleCode} disabled={formLocked}>
-                  <SelectTrigger className="h-9 w-full text-xs">
-                    <SelectValue placeholder="Seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SPECS_BODY_NONE}>Seçilmedi</SelectItem>
-                    {bodyStyleOptions.map((o) => (
-                      <SelectItem key={o.code} value={o.code}>
-                        {o.labelTr || o.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Koltuk sayısı</Label>
-                <Input
-                  className="h-9 text-xs"
-                  inputMode="numeric"
-                  placeholder="Örn. 5"
-                  value={seats}
-                  onChange={(e) => setSeats(e.target.value)}
-                  disabled={formLocked}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Bagaj (valiz sayısı)</Label>
-                <Input
-                  className="h-9 text-xs"
-                  inputMode="numeric"
-                  placeholder="Örn. 5"
-                  value={luggage}
-                  onChange={(e) => setLuggage(e.target.value)}
-                  disabled={formLocked}
-                />
-              </div>
-            </div>
-          </div>
               <label className={cn("flex cursor-pointer items-center gap-2 text-xs", formLocked && "pointer-events-none opacity-60")}>
                 <input
                   type="checkbox"
@@ -642,7 +575,7 @@ export function VehicleNewClient() {
                         <p className="truncate text-[11px] font-medium">{t.title}</p>
                         <p className="text-[10px] text-muted-foreground">
                           {Number.isFinite(t.price)
-                            ? `${t.price.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺`
+                            ? formatEur(t.price)
                             : "—"}
                         </p>
                       </div>

@@ -1,6 +1,7 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
 
 import type { RentalSession, Vehicle } from "@/lib/mock-fleet";
+import { formatEur } from "@/lib/format-money";
 import { mergeVehicleImagesWithDemo, type VehicleImageSlot } from "@/lib/vehicle-images";
 import type { RentalStatus } from "@/lib/rental-status";
 
@@ -20,20 +21,23 @@ export function vehicleCardCoverUrl(v: Vehicle): string | undefined {
 export function formatVehicleDailyRental(v: Vehicle): string {
   const p = v.rentalDailyPrice;
   if (p == null || !Number.isFinite(p)) return "—";
-  return `${p.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺`;
+  return formatEur(p);
 }
 
 export function vehicleMatchesSearch(v: Vehicle, raw: string): boolean {
   const q = raw.trim().toLocaleLowerCase("tr-TR");
   if (!q) return true;
-  const parts = [v.plate, v.brand, v.model, String(v.year), v.id, v.externalCompany ?? ""];
+  const parts = [v.plate, v.brand, v.model, String(v.year), String(v.id), v.externalCompany ?? ""];
   const blob = parts.join(" ").toLocaleLowerCase("tr-TR");
   const blobCompact = blob.replace(/\s+/g, "");
   const qCompact = q.replace(/\s+/g, "");
   if (blob.includes(q) || blobCompact.includes(qCompact)) return true;
   const tokens = q.split(/\s+/).filter(Boolean);
   return tokens.every(
-    (t) => blob.includes(t) || blobCompact.includes(t.replace(/\s+/g, "")) || parts.some((p) => p.toLocaleLowerCase("tr-TR").includes(t)),
+    (t) =>
+      blob.includes(t) ||
+      blobCompact.includes(t.replace(/\s+/g, "")) ||
+      parts.some((p) => String(p).toLocaleLowerCase("tr-TR").includes(t)),
   );
 }
 
@@ -71,7 +75,7 @@ export function sessionNetTotal(session: RentalSession, vehicle: Vehicle | undef
 export function sessionEstimatedTotal(session: RentalSession, vehicle: Vehicle | undefined): string {
   const total = sessionNetTotal(session, vehicle);
   if (total == null) return "—";
-  return `${total.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺`;
+  return formatEur(total);
 }
 
 export function rentalLogStatusPillClass(st: RentalStatus): string {

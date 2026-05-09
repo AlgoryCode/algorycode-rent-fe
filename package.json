@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "dev:turbo": "next dev --turbopack",
-    "local_prod": "NEXT_PUBLIC_LOCAL_PROD=true next dev --webpack",
+    "local_prod": "next dev --webpack",
     "dev:local": "next dev --webpack",
     "build": "next build",
     "start": "next start",

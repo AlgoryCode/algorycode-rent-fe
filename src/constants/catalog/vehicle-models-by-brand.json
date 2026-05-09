@@ -1,0 +1,87 @@
+{
+  "toyota": [
+    { "id": 1, "brandId": 1, "code": "corolla", "name": "Corolla", "sortOrder": 1 },
+    { "id": 2, "brandId": 1, "code": "camry", "name": "Camry", "sortOrder": 2 },
+    { "id": 3, "brandId": 1, "code": "rav4", "name": "RAV4", "sortOrder": 3 },
+    { "id": 4, "brandId": 1, "code": "yaris", "name": "Yaris", "sortOrder": 4 }
+  ],
+  "volkswagen": [
+    { "id": 5, "brandId": 2, "code": "golf", "name": "Golf", "sortOrder": 1 },
+    { "id": 6, "brandId": 2, "code": "passat", "name": "Passat", "sortOrder": 2 },
+    { "id": 7, "brandId": 2, "code": "tiguan", "name": "Tiguan", "sortOrder": 3 }
+  ],
+  "hyundai": [
+    { "id": 8, "brandId": 3, "code": "i20", "name": "i20", "sortOrder": 1 },
+    { "id": 9, "brandId": 3, "code": "tucson", "name": "Tucson", "sortOrder": 2 },
+    { "id": 10, "brandId": 3, "code": "ioniq_5", "name": "Ioniq 5", "sortOrder": 3 }
+  ],
+  "ford": [
+    { "id": 11, "brandId": 4, "code": "focus", "name": "Focus", "sortOrder": 1 },
+    { "id": 12, "brandId": 4, "code": "puma", "name": "Puma", "sortOrder": 2 },
+    { "id": 13, "brandId": 4, "code": "kuga", "name": "Kuga", "sortOrder": 3 }
+  ],
+  "byd": [
+    { "id": 14, "brandId": 5, "code": "atto_3", "name": "Atto 3", "sortOrder": 1 },
+    { "id": 15, "brandId": 5, "code": "seal", "name": "Seal", "sortOrder": 2 }
+  ],
+  "honda": [
+    { "id": 16, "brandId": 6, "code": "civic", "name": "Civic", "sortOrder": 1 },
+    { "id": 17, "brandId": 6, "code": "cr_v", "name": "CR-V", "sortOrder": 2 }
+  ],
+  "nissan": [
+    { "id": 18, "brandId": 7, "code": "qashqai", "name": "Qashqai", "sortOrder": 1 },
+    { "id": 19, "brandId": 7, "code": "x_trail", "name": "X-Trail", "sortOrder": 2 }
+  ],
+  "suzuki": [
+    { "id": 20, "brandId": 8, "code": "swift", "name": "Swift", "sortOrder": 1 },
+    { "id": 21, "brandId": 8, "code": "vitara", "name": "Vitara", "sortOrder": 2 }
+  ],
+  "bmw": [
+    { "id": 22, "brandId": 9, "code": "series_3", "name": "3 Serisi", "sortOrder": 1 },
+    { "id": 23, "brandId": 9, "code": "x5", "name": "X5", "sortOrder": 2 }
+  ],
+  "mercedes_benz": [
+    { "id": 24, "brandId": 10, "code": "c_class", "name": "C Serisi", "sortOrder": 1 },
+    { "id": 25, "brandId": 10, "code": "gle", "name": "GLE", "sortOrder": 2 }
+  ],
+  "audi": [
+    { "id": 26, "brandId": 11, "code": "a4", "name": "A4", "sortOrder": 1 },
+    { "id": 27, "brandId": 11, "code": "q5", "name": "Q5", "sortOrder": 2 }
+  ],
+  "skoda": [
+    { "id": 28, "brandId": 12, "code": "octavia", "name": "Octavia", "sortOrder": 1 },
+    { "id": 29, "brandId": 12, "code": "kodiaq", "name": "Kodiaq", "sortOrder": 2 }
+  ],
+  "renault": [
+    { "id": 30, "brandId": 13, "code": "clio", "name": "Clio", "sortOrder": 1 },
+    { "id": 31, "brandId": 13, "code": "megane", "name": "Mégane", "sortOrder": 2 }
+  ],
+  "peugeot": [
+    { "id": 32, "brandId": 14, "code": "e_208", "name": "208", "sortOrder": 1 },
+    { "id": 33, "brandId": 14, "code": "e_3008", "name": "3008", "sortOrder": 2 }
+  ],
+  "fiat": [
+    { "id": 34, "brandId": 15, "code": "e_500", "name": "500", "sortOrder": 1 },
+    { "id": 35, "brandId": 15, "code": "egea", "name": "Egea", "sortOrder": 2 }
+  ],
+  "tesla": [
+    { "id": 36, "brandId": 16, "code": "model_3", "name": "Model 3", "sortOrder": 1 },
+    { "id": 37, "brandId": 16, "code": "model_y", "name": "Model Y", "sortOrder": 2 }
+  ],
+  "mazda": [
+    { "id": 38, "brandId": 17, "code": "mazda3", "name": "Mazda3", "sortOrder": 1 },
+    { "id": 39, "brandId": 17, "code": "cx_5", "name": "CX-5", "sortOrder": 2 }
+  ],
+  "kia": [
+    { "id": 40, "brandId": 18, "code": "ceed", "name": "Ceed", "sortOrder": 1 },
+    { "id": 41, "brandId": 18, "code": "sportage", "name": "Sportage", "sortOrder": 2 }
+  ],
+  "volvo": [
+    { "id": 42, "brandId": 19, "code": "xc60", "name": "XC60", "sortOrder": 1 },
+    { "id": 43, "brandId": 19, "code": "xc90", "name": "XC90", "sortOrder": 2 }
+  ],
+  "jaguar": [
+    { "id": 44, "brandId": 20, "code": "f_pace", "name": "F-Pace", "sortOrder": 1 },
+    { "id": 45, "brandId": 20, "code": "xe", "name": "XE", "sortOrder": 2 }
+  ]
+}

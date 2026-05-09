@@ -43,9 +43,9 @@ function manualDefinitionsNotFromTemplates(
     if (templates.some((t) => defMatchesTemplate(d, t))) continue;
     manual.push({
       title: d.title,
-      description: d.description,
+      description: d.description ?? undefined,
       price: d.price,
-      icon: d.icon,
+      icon: d.icon ?? undefined,
       lineOrder: 100 + i++,
       active: d.active !== false,
     });

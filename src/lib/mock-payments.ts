@@ -4,7 +4,7 @@ export type PaymentLog = {
   id: string;
   /** ISO 8601 */
   createdAt: string;
-  /** Tutar (TRY) */
+  /** Tutar (EUR gösterimi; alan adı API ile uyumlu) */
   amountTry: number;
   status: PaymentLogStatus;
   /** Ödeme kanalı */
@@ -26,7 +26,7 @@ export const seedPaymentLogs: PaymentLog[] = [
     status: "completed",
     method: "Kredi kartı (3D)",
     plate: "34 ABC 101",
-    vehicleId: "v1",
+    vehicleId: "1",
     customerName: "Ayşe Yılmaz",
     reference: "AUTH-9F2A-7741",
     note: "Kiralama ön ödeme",
@@ -38,7 +38,7 @@ export const seedPaymentLogs: PaymentLog[] = [
     status: "completed",
     method: "Havale / EFT",
     plate: "06 XYZ 202",
-    vehicleId: "v2",
+    vehicleId: "2",
     customerName: "Mehmet Kaya",
     reference: "EFT-20260405091",
   },
@@ -49,7 +49,7 @@ export const seedPaymentLogs: PaymentLog[] = [
     status: "pending",
     method: "Kredi kartı",
     plate: "35 DEF 303",
-    vehicleId: "v3",
+    vehicleId: "3",
     customerName: "Zeynep Demir",
     reference: "PEND-8831",
     note: "Provizyon bekleniyor",
@@ -61,7 +61,7 @@ export const seedPaymentLogs: PaymentLog[] = [
     status: "failed",
     method: "Kredi kartı",
     plate: "34 ABC 101",
-    vehicleId: "v1",
+    vehicleId: "1",
     customerName: "Demo Kullanıcı",
     reference: "FAIL-1102",
     note: "Yetersiz bakiye",
@@ -73,7 +73,7 @@ export const seedPaymentLogs: PaymentLog[] = [
     status: "refunded",
     method: "Kredi kartı",
     plate: "34 JKL 505",
-    vehicleId: "v5",
+    vehicleId: "5",
     customerName: "Can Öztürk",
     reference: "REF-4455",
     note: "İptal iadesi",
@@ -85,7 +85,7 @@ export const seedPaymentLogs: PaymentLog[] = [
     status: "completed",
     method: "POS / fiziki",
     plate: "34 ABC 101",
-    vehicleId: "v1",
+    vehicleId: "1",
     customerName: "Ayşe Yılmaz",
     reference: "POS-77821",
   },

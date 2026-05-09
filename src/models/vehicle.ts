@@ -55,7 +55,9 @@ export type CreateVehiclePayload = {
   seats?: number;
   luggage?: number;
   transmissionType?: string;
+  transmissionTypeId?: string;
   bodyStyleCode?: string;
+  bodyStyleId?: string;
 };
 
 export type UpdateVehiclePayload = {
@@ -84,7 +86,9 @@ export type UpdateVehiclePayload = {
   seats?: number;
   luggage?: number;
   transmissionType?: string;
+  transmissionTypeId?: string;
   bodyStyleCode?: string;
+  bodyStyleId?: string;
 };
 
 export type CountryRow = {
@@ -168,9 +172,6 @@ export type VehicleFormCatalogVehicleStatusRow = {
 
 export type VehicleFormCatalog = {
   brands: VehicleFormCatalogBrandRow[];
-  fuelTypes: VehicleCatalogRow[];
-  transmissionTypes: VehicleCatalogRow[];
-  bodyStyles: VehicleCatalogRow[];
   vehicleStatuses: VehicleFormCatalogVehicleStatusRow[];
   countries: CountryRow[];
   pickupHandoverLocations: HandoverLocationApiRow[];

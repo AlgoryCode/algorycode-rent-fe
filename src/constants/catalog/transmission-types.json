@@ -1,0 +1,7 @@
+[
+  { "id": 1, "code": "manual", "labelTr": "Manuel", "sortOrder": 1 },
+  { "id": 2, "code": "automatic", "labelTr": "Otomatik", "sortOrder": 2 },
+  { "id": 3, "code": "cvt", "labelTr": "Sürekli değişken (CVT)", "sortOrder": 3 },
+  { "id": 4, "code": "dual_clutch", "labelTr": "Çift kavramalı (DCT / DSG)", "sortOrder": 4 },
+  { "id": 5, "code": "automated_manual", "labelTr": "Yarı otomatik (AMT)", "sortOrder": 5 }
+]

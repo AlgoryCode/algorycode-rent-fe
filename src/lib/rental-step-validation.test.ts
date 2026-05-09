@@ -13,7 +13,9 @@ const base = {
   passportImageDataUrl: "pp",
   additionalDrivers: [] as Array<{
     fullName: string;
+    birthDate: string;
     driverLicenseImageDataUrl: string;
+    passportImageDataUrl: string;
   }>,
 };
 
@@ -59,7 +61,9 @@ describe("validateRentalStepInput", () => {
     const err = validateRentalStepInput({
       ...base,
       step: 4,
-      additionalDrivers: [{ fullName: "", driverLicenseImageDataUrl: "" }],
+      additionalDrivers: [
+        { fullName: "", birthDate: "2000-01-01", driverLicenseImageDataUrl: "", passportImageDataUrl: "p" },
+      ],
     });
     expect(err).toBe("Ek sürücü için isim soyisim ve ehliyet fotoğrafı zorunludur.");
   });

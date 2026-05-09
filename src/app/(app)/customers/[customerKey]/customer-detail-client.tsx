@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
-import { AlertTriangle, Building2, Copy, FileImage, Mail, MessageCircle, Pencil, User } from "lucide-react";
+import { AlertTriangle, Copy, FileImage, Mail, MessageCircle, Pencil } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +36,6 @@ import {
 import {
   aggregateCustomersFromSessions,
   mergeCustomerDirectoryStates,
-  resolveCustomerKind,
   sessionCreatedAt,
   vehiclePlate,
   type CustomerAggregateRow,
@@ -47,7 +46,7 @@ import {
   patchCustomerRecordActiveOnRentApi,
 } from "@/lib/rent-api";
 import { rentKeys } from "@/lib/rent-query-keys";
-import type { CustomerKind, RentalSession } from "@/lib/mock-fleet";
+import type { RentalSession } from "@/lib/mock-fleet";
 import { cn } from "@/lib/utils";
 
 const defaultEditForm = {
@@ -58,7 +57,6 @@ const defaultEditForm = {
   passportNo: "",
   birthDate: "",
   driverLicenseNo: "",
-  kind: "individual" as CustomerKind,
 };
 
 type Props = {
@@ -152,7 +150,7 @@ export function CustomerDetailClient({ customerKey }: Props) {
     return mergeCustomerDirectoryStates([baseRow], customerRecordStates)[0] ?? null;
   }, [baseRow, customerRecordStates]);
 
-  const vehiclesById = useMemo(() => new Map(allVehicles.map((v) => [v.id, v])), [allVehicles]);
+  const vehiclesById = useMemo(() => new Map(allVehicles.map((v) => [String(v.id), v])), [allVehicles]);
 
   const rentalRequestUrl = useMemo(() => {
     if (!row) return "";
@@ -193,7 +191,6 @@ export function CustomerDetailClient({ customerKey }: Props) {
       passportNo: c.passportNo ?? "",
       birthDate: (c.birthDate ?? "").slice(0, 10),
       driverLicenseNo: c.driverLicenseNo ?? "",
-      kind: c.kind === "corporate" ? "corporate" : "individual",
     });
     setEditOpen(true);
   };
@@ -212,7 +209,7 @@ export function CustomerDetailClient({ customerKey }: Props) {
       passportNo: ef.passportNo.trim() || "",
       birthDate: ef.birthDate.trim() || undefined,
       driverLicenseNo: ef.driverLicenseNo.trim() || undefined,
-      kind: ef.kind,
+      kind: "individual",
     });
     if (!ok) {
       toast.error("Güncellenemedi.");
@@ -338,32 +335,8 @@ export function CustomerDetailClient({ customerKey }: Props) {
             <DialogDescription className="text-xs">Manuel kayıt — tarayıcıda saklanır.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setEf((s) => ({ ...s, kind: "individual" }))}
-                className={cn(
-                  "flex min-h-[3rem] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-semibold",
-                  ef.kind === "individual" ? "border-primary/50 bg-primary/10" : "border-border/80 bg-muted/15",
-                )}
-              >
-                <User className="h-3.5 w-3.5" />
-                Bireysel
-              </button>
-              <button
-                type="button"
-                onClick={() => setEf((s) => ({ ...s, kind: "corporate" }))}
-                className={cn(
-                  "flex min-h-[3rem] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-semibold",
-                  ef.kind === "corporate" ? "border-primary/50 bg-primary/10" : "border-border/80 bg-muted/15",
-                )}
-              >
-                <Building2 className="h-3.5 w-3.5" />
-                Kurumsal
-              </button>
-            </div>
             <div className="space-y-1">
-              <Label className="text-xs">{ef.kind === "corporate" ? "Firma *" : "Ad soyad *"}</Label>
+              <Label className="text-xs">Ad soyad *</Label>
               <Input className="h-9 text-sm" value={ef.fullName} onChange={(e) => setEf((s) => ({ ...s, fullName: e.target.value }))} />
             </div>
             <div className="space-y-1">
@@ -411,9 +384,6 @@ export function CustomerDetailClient({ customerKey }: Props) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <CardTitle className="text-base">{row.customer.fullName}</CardTitle>
-              <Badge variant="secondary" className="text-[10px] font-normal">
-                {resolveCustomerKind(row.customer) === "corporate" ? "Kurumsal" : "Bireysel"}
-              </Badge>
               {!row.recordActive && (
                 <Badge variant="muted" className="text-[10px] font-normal">
                   Pasif

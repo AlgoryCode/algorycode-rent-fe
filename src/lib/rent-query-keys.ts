@@ -7,6 +7,7 @@ export const rentKeys = {
   rentalsByVehicle: (vehicleId: string) => [...rentKeys.rentals(), "byVehicle", vehicleId] as const,
   rental: (id: string) => [...rentKeys.all, "rental", id] as const,
   rentalRequests: () => [...rentKeys.all, "rentalRequests"] as const,
+  customers: () => [...rentKeys.all, "customers"] as const,
   countries: () => [...rentKeys.all, "countries"] as const,
   payments: () => [...rentKeys.all, "payments"] as const,
   panelUsers: () => [...rentKeys.all, "panelUsers"] as const,

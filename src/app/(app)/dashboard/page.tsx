@@ -23,7 +23,7 @@ const quickMenuAll = [
   { href: "/customers", label: "Customers", icon: Users, bg: "from-primary/28 to-[hsl(237,62%,93%)]" },
   { href: "/customers/channel", label: "Toplu mesaj", icon: MessagesSquare, bg: "from-primary/26 to-[hsl(247,72%,92%)]" },
   { href: "/users", label: "Kullanıcılar", icon: UserCog, bg: "from-slate-500/25 to-zinc-500/10" },
-  { href: "/countries", label: "Ülkeler", icon: Globe2, bg: "from-purple-500/25 to-blue-500/10" },
+  { href: "/settings/locations/countries", label: "Ülkeler", icon: Globe2, bg: "from-purple-500/25 to-blue-500/10" },
   { href: "/settings", label: "Ayarlar", icon: Settings, bg: "from-stone-500/25 to-neutral-500/10" },
 ] as const;
 
