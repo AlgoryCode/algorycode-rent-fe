@@ -23,6 +23,7 @@ export function getAuthApiRoot(): string {
 
 export function getRentApiRoot(): string {
   const origin = envRentGatewayOrigin() ?? stripTrailingSlash(REMOTE.rentGatewayOrigin);
-  //return `${origin}/rent`;
-  return `http://localhost:8090`;
+   return `${origin}/rent`;
+  //return `http://localhost:8090`;
+  
 }
