@@ -19,9 +19,19 @@ export function LoginForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [awaiting2FA, setAwaiting2FA] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
+  const [twoFactorHintEmail, setTwoFactorHintEmail] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const from = searchParams.get("from") || "/dashboard";
+
+  const cancelTwoFactor = async () => {
+    await authService.logout().catch(() => undefined);
+    setAwaiting2FA(false);
+    setTotpCode("");
+    setTwoFactorHintEmail(null);
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,13 +41,41 @@ export function LoginForm() {
     }
     setLoading(true);
     try {
-      const data = await authService.login({ email: username.trim(), password });
+      const data = (await authService.login({ email: username.trim(), password })) as {
+        requiresTwoFactor?: boolean;
+        email?: string;
+      };
       if (data.requiresTwoFactor) {
-        toast.error(t("login.twoFactorTitle"), {
-          description: t("login.twoFactorDesc"),
-        });
+        setTwoFactorHintEmail(data.email ?? username.trim());
+        setAwaiting2FA(true);
+        setTotpCode("");
         return;
       }
+      toast.success(t("login.success"));
+      clearRentApiGatewayAuthCache();
+      router.push(from.startsWith("/") ? from : "/dashboard");
+      router.refresh();
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : t("login.errorGeneric");
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onSubmitTwoFactor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = totpCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      toast.error(t("login.errorCredentials"));
+      return;
+    }
+    setLoading(true);
+    try {
+      await authService.completeTwoFactorLogin(code);
+      setAwaiting2FA(false);
+      setTotpCode("");
+      setTwoFactorHintEmail(null);
       toast.success(t("login.success"));
       clearRentApiGatewayAuthCache();
       router.push(from.startsWith("/") ? from : "/dashboard");
@@ -67,36 +105,81 @@ export function LoginForm() {
 
         <div className="glass glow-card rounded-xl p-6 space-y-5">
           <div className="text-center space-y-1">
-            <h1 className="text-lg font-semibold">{t("login.title")}</h1>
-            <p className="text-xs text-muted-foreground">{t("login.subtitle")}</p>
+            <h1 className="text-lg font-semibold">
+              {awaiting2FA ? t("login.twoFactorStepTitle") : t("login.title")}
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              {awaiting2FA
+                ? twoFactorHintEmail
+                  ? `${t("login.twoFactorEmailIntro")} ${twoFactorHintEmail}`
+                  : t("login.twoFactorStepSubtitle")
+                : t("login.subtitle")}
+            </p>
           </div>
 
-          <form onSubmit={(e) => void onSubmit(e)} className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="user">{t("login.emailLabel")}</Label>
-              <Input
-                id="user"
-                name="username"
-                autoComplete="username"
-                placeholder={t("login.emailPlaceholder")}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="pass">{t("login.passwordLabel")}</Label>
-              <Input
-                id="pass"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <Button type="submit" variant="hero" className="w-full" size="lg" disabled={loading}>
-              {loading ? t("login.submitting") : t("login.submit")}
-            </Button>
-          </form>
+          {awaiting2FA ? (
+            <form onSubmit={(e) => void onSubmitTwoFactor(e)} className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="totp">{t("login.twoFactorCodeLabel")}</Label>
+                <Input
+                  id="totp"
+                  name="totp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="000000"
+                  className="tracking-widest font-mono text-center text-base"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+              </div>
+              <Button
+                type="submit"
+                variant="hero"
+                className="w-full"
+                size="lg"
+                disabled={loading || totpCode.length !== 6}
+              >
+                {loading ? t("login.twoFactorVerifying") : t("login.twoFactorVerify")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={loading}
+                onClick={() => void cancelTwoFactor()}
+              >
+                {t("login.twoFactorCancel")}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={(e) => void onSubmit(e)} className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="user">{t("login.emailLabel")}</Label>
+                <Input
+                  id="user"
+                  name="username"
+                  autoComplete="username"
+                  placeholder={t("login.emailPlaceholder")}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="pass">{t("login.passwordLabel")}</Label>
+                <Input
+                  id="pass"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              <Button type="submit" variant="hero" className="w-full" size="lg" disabled={loading}>
+                {loading ? t("login.submitting") : t("login.submit")}
+              </Button>
+            </form>
+          )}
         </div>
       </div>
     </div>

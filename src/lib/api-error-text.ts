@@ -10,3 +10,12 @@ export function getJsonErrorText(data: unknown): string {
   }
   return "";
 }
+
+export const TOTP_WRONG_USER_MESSAGE = "2FA kodu hatalı.";
+
+export function isLikelyWrongTotpBackendText(text: string): boolean {
+  const t = text.toLowerCase();
+  if (t.includes("invalid verification code")) return true;
+  if (t.includes("401 unauthorized") && t.includes("invalid verification")) return true;
+  return false;
+}

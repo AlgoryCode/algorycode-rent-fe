@@ -12,14 +12,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VehicleBrandModelManager } from "@/components/vehicles/vehicle-brand-model-manager";
 import {
   createVehicleCatalogEntryOnRentApi,
-  createVehicleStatusOnRentApi,
   deleteVehicleCatalogEntryOnRentApi,
-  deleteVehicleStatusOnRentApi,
   fetchVehicleCatalogFromRentApi,
-  fetchVehicleStatusesFromRentApi,
   getRentApiErrorMessage,
   updateVehicleCatalogEntryOnRentApi,
-  updateVehicleStatusOnRentApi,
   type VehicleCatalogKind,
   type VehicleCatalogRow,
 } from "@/lib/rent-api";
@@ -28,19 +24,18 @@ const FEATURE_NAME_LABEL = "Özellik adı";
 const SORT_LABEL = "Sıra no";
 const SORT_HINT = "Açılır listede üstten alta sıra; küçük sayı daha önde gösterilir.";
 
-type CatalogTab = VehicleCatalogKind | "vehicleStatus" | "brandModel";
+type CatalogTab = VehicleCatalogKind | "brandModel";
 
 const TAB_META: { value: CatalogTab; label: string }[] = [
   { value: "bodyStyle", label: "Araç türü" },
   { value: "fuelType", label: "Yakıt" },
   { value: "transmissionType", label: "Vites" },
-  { value: "vehicleStatus", label: "Filo statüsü" },
   { value: "brandModel", label: "Marka ve model" },
 ];
 
-type FormState = { labelTr: string; sortOrder: string; codeOptional: string };
+type FormState = { labelTr: string; sortOrder: string };
 
-const emptyForm = (): FormState => ({ labelTr: "", sortOrder: "0", codeOptional: "" });
+const emptyForm = (): FormState => ({ labelTr: "", sortOrder: "0" });
 
 export function VehicleCatalogManageClient() {
   const [tab, setTab] = useState<CatalogTab>("bodyStyle");
@@ -59,8 +54,7 @@ export function VehicleCatalogManageClient() {
     setRows([]);
     setLoading(true);
     try {
-      const list =
-        kind === "vehicleStatus" ? await fetchVehicleStatusesFromRentApi() : await fetchVehicleCatalogFromRentApi(kind);
+      const list = await fetchVehicleCatalogFromRentApi(kind);
       setRows(list);
     } catch (e) {
       toast.error(getRentApiErrorMessage(e));
@@ -83,7 +77,6 @@ export function VehicleCatalogManageClient() {
     setForm({
       labelTr: row.labelTr,
       sortOrder: String(row.sortOrder ?? 0),
-      codeOptional: "",
     });
   };
 
@@ -107,23 +100,10 @@ export function VehicleCatalogManageClient() {
     setSaving(true);
     try {
       if (editingCode === "new") {
-        if (tab === "vehicleStatus") {
-          const optCode = form.codeOptional.trim();
-          await createVehicleStatusOnRentApi({
-            labelTr,
-            sortOrder,
-            ...(optCode ? { code: optCode } : {}),
-          });
-        } else {
-          await createVehicleCatalogEntryOnRentApi(tab, { labelTr, sortOrder });
-        }
+        await createVehicleCatalogEntryOnRentApi(tab, { labelTr, sortOrder });
         toast.success("Kayıt oluşturuldu.");
       } else if (editingCode) {
-        if (tab === "vehicleStatus") {
-          await updateVehicleStatusOnRentApi(editingCode, { labelTr, sortOrder });
-        } else {
-          await updateVehicleCatalogEntryOnRentApi(tab, editingCode, { labelTr, sortOrder });
-        }
+        await updateVehicleCatalogEntryOnRentApi(tab, editingCode, { labelTr, sortOrder });
         toast.success("Güncellendi.");
       }
       cancelForm();
@@ -146,11 +126,7 @@ export function VehicleCatalogManageClient() {
       return;
     }
     try {
-      if (tab === "vehicleStatus") {
-        await deleteVehicleStatusOnRentApi(row.id);
-      } else {
-        await deleteVehicleCatalogEntryOnRentApi(tab, row.id);
-      }
+      await deleteVehicleCatalogEntryOnRentApi(tab, row.id);
       toast.success("Silindi.");
       await load(tab);
     } catch (e) {
@@ -190,24 +166,11 @@ export function VehicleCatalogManageClient() {
                       <CardTitle className="text-sm">{editingCode === "new" ? "Yeni kayıt" : "Düzenle"}</CardTitle>
                       <CardDescription className="text-xs">
                         {editingCode === "new"
-                          ? tab === "vehicleStatus"
-                            ? "Kod isteğe bağlıdır; boş bırakılırsa sunucu üretir."
-                            : "Kod özellik adından otomatik üretilir; çakışırsa sunucu sonek ekler."
+                          ? "Kod özellik adından otomatik üretilir; çakışırsa sunucu sonek ekler."
                           : `Kod değişmez: ${editingCode}. ${FEATURE_NAME_LABEL} ve ${SORT_LABEL} güncellenir.`}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 pb-4">
-                      {tab === "vehicleStatus" && editingCode === "new" ? (
-                        <div className="space-y-1">
-                          <Label className="text-xs">Kod (isteğe bağlı)</Label>
-                          <Input
-                            className="h-9 font-mono text-xs"
-                            placeholder="Örn: fleet_hold"
-                            value={form.codeOptional}
-                            onChange={(e) => setForm((f) => ({ ...f, codeOptional: e.target.value }))}
-                          />
-                        </div>
-                      ) : null}
                       <div className="space-y-1">
                         <Label className="text-xs">{FEATURE_NAME_LABEL}</Label>
                         <Input
@@ -260,7 +223,7 @@ export function VehicleCatalogManageClient() {
                         <table className="w-full min-w-[280px] border-collapse text-left text-xs">
                           <thead>
                             <tr className="border-b border-border/60 bg-muted/40">
-                              <th className="px-2 py-2 font-medium">{tab === "vehicleStatus" ? "Kod" : "Kod (otomatik)"}</th>
+                              <th className="px-2 py-2 font-medium">Kod (otomatik)</th>
                               <th className="px-2 py-2 font-medium">{FEATURE_NAME_LABEL}</th>
                               <th className="px-2 py-2 font-medium">{SORT_LABEL}</th>
                               <th className="px-2 py-2 font-medium text-right">İşlem</th>

@@ -1,21 +1,22 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { startOfDay } from "date-fns";
 import {
   ArrowDownUp,
+  Armchair,
   BarChart3,
-  BatteryCharging,
   CarFront,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
   Download,
-  Fuel,
   ListFilter,
   ListChecks,
+  Luggage,
   Plus,
   PlusCircle,
   Search,
@@ -23,7 +24,6 @@ import {
   Wrench,
 } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
-import { AddEntityLink } from "@/components/ui/add-entity-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,16 +70,6 @@ function stableHash(s: string | number): number {
 
 function vehiclePseudoMileageKm(v: Vehicle): number {
   return 3000 + (stableHash(v.id) % 45000);
-}
-
-function vehiclePseudoFuelPct(v: Vehicle): number {
-  return 12 + (stableHash(`${String(v.id)}:fuel`) % 87);
-}
-
-function isElectricFuelType(ft?: string | null): boolean {
-  if (!ft) return false;
-  const s = ft.toLowerCase();
-  return s.includes("elektrik") || s.includes("electric") || s.includes("ev") || s.includes("tesla");
 }
 
 function fleetStatusBadgeClass(status: FleetStatus): string {
@@ -380,68 +370,70 @@ export function VehiclesClient() {
         </div>
       </div>
 
-      <div className={cn("mx-auto w-full max-w-md space-y-4 px-4 pt-1 lg:hidden", !showMobileList && "hidden")}>
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
-              <Input
-                placeholder="Araç ara…"
-                className="h-12 rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm shadow-sm ring-[#0ea5e9]/30 placeholder:text-slate-400 focus-visible:border-[#0ea5e9] focus-visible:ring-2"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPage(1);
-                }}
-                aria-label="Araç ara"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-12 w-12 shrink-0 rounded-xl border-slate-200 bg-white shadow-sm active:scale-95"
-              aria-label="Filtreler"
-              onClick={() => setFilterSheetOpen(true)}
-            >
-              <ListFilter className="h-5 w-5 text-[#006591]" />
-            </Button>
-          </div>
-          <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {(
-              [
-                { key: "all" as const, label: "Tümü" },
-                { key: "available" as const, label: "Müsait" },
-                { key: "rented" as const, label: "Kirada" },
-                { key: "maintenance" as const, label: "Bakım" },
-              ] as const
-            ).map(({ key, label }) => (
-              <button
-                key={key}
+      <div className={cn("mx-auto w-full max-w-md space-y-3 px-4 pt-1 lg:hidden", !showMobileList && "hidden")}>
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/90 p-3 shadow-[0_4px_24px_-12px_rgba(15,23,42,0.1)] ring-1 ring-black/[0.03] backdrop-blur-md dark:border-border/50 dark:bg-card/50 dark:shadow-[0_8px_32px_-16px_rgba(0,0,0,0.45)] dark:ring-white/[0.05]">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Araç ara…"
+                  className="h-11 rounded-xl border-border/80 bg-background py-2.5 pl-10 pr-3 text-sm shadow-none placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/25"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  aria-label="Araç ara"
+                />
+              </div>
+              <Button
                 type="button"
-                onClick={() => applyQuickFilter(key)}
-                className={cn(
-                  "shrink-0 whitespace-nowrap rounded-full px-5 py-2 text-xs font-medium tracking-wide transition active:scale-95",
-                  isQuickFilterActive(key)
-                    ? "bg-[#006591] font-semibold text-white shadow-md"
-                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                )}
+                variant="outline"
+                size="icon"
+                className="h-11 w-11 shrink-0 rounded-xl border-border/80 bg-background active:scale-95"
+                aria-label="Filtreler"
+                onClick={() => setFilterSheetOpen(true)}
               >
-                {label}
-              </button>
-            ))}
+                <ListFilter className="h-5 w-5 text-primary" />
+              </Button>
+            </div>
+            <div className="-mx-0.5 flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {(
+                [
+                  { key: "all" as const, label: "Tümü" },
+                  { key: "available" as const, label: "Müsait" },
+                  { key: "rented" as const, label: "Kirada" },
+                  { key: "maintenance" as const, label: "Bakım" },
+                ] as const
+              ).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => applyQuickFilter(key)}
+                  className={cn(
+                    "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-xs font-medium tracking-wide transition active:scale-[0.98]",
+                    isQuickFilterActive(key)
+                      ? "bg-primary font-semibold text-primary-foreground shadow-sm"
+                      : "border border-border/70 bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-        <div className="flex items-center justify-between border-b border-slate-200 px-1 py-2">
-          <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+        <div className="flex items-center justify-between px-0.5 py-1">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {filtered.length} araç bulundu
           </span>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <button
               type="button"
               className={cn(
                 "flex items-center gap-1 text-xs font-medium transition active:opacity-70",
-                sortBy === "mileage" ? "text-[#006591]" : "text-slate-500",
+                sortBy === "mileage" ? "text-primary" : "text-muted-foreground",
               )}
               onClick={toggleSortMileage}
             >
@@ -452,7 +444,7 @@ export function VehiclesClient() {
               type="button"
               className={cn(
                 "flex items-center gap-1 text-xs font-medium transition active:opacity-70",
-                sortBy === "year" ? "text-[#006591]" : "text-slate-500",
+                sortBy === "year" ? "text-primary" : "text-muted-foreground",
               )}
               onClick={toggleSortYear}
             >
@@ -462,23 +454,17 @@ export function VehiclesClient() {
         </div>
       </div>
 
-      <div className="hidden flex-col gap-3 lg:flex lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Fleet Inventory</h1>
-        </div>
-        <AddEntityLink
-          href="/vehicles/new"
-          label="Yeni araç"
-          onClick={() => {
-            void queryClient.prefetchQuery({
-              queryKey: rentKeys.vehicleFormCatalog(),
-              queryFn: fetchVehicleFormCatalogFromRentApi,
-            });
-          }}
-        />
+      <div className="hidden lg:block">
+        <h1 className="text-2xl font-semibold tracking-tight">Fleet Inventory</h1>
       </div>
 
-      <ListingPanel className={cn("lg:block", !showMobileList && "hidden")}>
+      <ListingPanel
+        className={cn(
+          "lg:block",
+          !showMobileList && "hidden",
+          "max-lg:rounded-2xl max-lg:border-border/55 max-lg:bg-card/85 max-lg:shadow-[0_6px_28px_-14px_rgba(15,23,42,0.14)] max-lg:ring-0 max-lg:backdrop-blur-md dark:max-lg:bg-card/45 dark:max-lg:shadow-[0_12px_40px_-18px_rgba(0,0,0,0.5)]",
+        )}
+      >
         <ListingToolbar className="hidden lg:block">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.3fr_0.8fr_0.8fr_auto] lg:items-end">
                 <div className="space-y-1">
@@ -537,16 +523,32 @@ export function VehiclesClient() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-end gap-2">
-                  <Button type="button" size="sm" className="h-10 gap-1.5 px-4" onClick={() => void handleExport()}>
+                <div className="flex flex-wrap items-end justify-end gap-2">
+                  <Button type="button" size="sm" variant="outline" className="h-10 gap-1.5 border-border/80 px-4" onClick={() => void handleExport()}>
                     <Download className="h-4 w-4" />
                     Export
+                  </Button>
+                  <Button variant="default" className="h-10 shrink-0 gap-2 px-4 text-sm font-semibold shadow-none" asChild>
+                    <Link
+                      href="/vehicles/new"
+                      aria-label="Yeni araç ekle"
+                      title="Yeni araç ekle"
+                      onClick={() => {
+                        void queryClient.prefetchQuery({
+                          queryKey: rentKeys.vehicleFormCatalog(),
+                          queryFn: fetchVehicleFormCatalogFromRentApi,
+                        });
+                      }}
+                    >
+                      <Plus className="h-4 w-4 shrink-0" aria-hidden />
+                      <span>Yeni araç</span>
+                    </Link>
                   </Button>
                 </div>
               </div>
         </ListingToolbar>
 
-        <ListingTableWell>
+        <ListingTableWell className="max-lg:border-t-0 max-lg:shadow-none dark:max-lg:shadow-none max-lg:bg-muted/15 dark:max-lg:bg-muted/10">
               {!ready ? (
                 <p className="py-12 text-center text-sm text-muted-foreground">Yükleniyor…</p>
               ) : fleetError ? (
@@ -557,38 +559,36 @@ export function VehiclesClient() {
                     <p className="py-10 text-center text-sm text-muted-foreground">Sonuç yok. Aramayı veya filtreyi değiştirin.</p>
                   ) : (
                     <>
-                      <div className="space-y-3 px-4 pb-8 pt-1 lg:hidden">
+                      <div className="space-y-2.5 px-3 pb-8 pt-2 lg:hidden sm:px-4">
                         {pagedRows.map(({ v, status }) => {
                           const cover = vehicleCoverUrl(v);
-                          const pct = vehiclePseudoFuelPct(v);
                           const mileageKm = vehiclePseudoMileageKm(v);
-                          const FuelIcon = isElectricFuelType(v.fuelType) ? BatteryCharging : Fuel;
                           const statusUpper =
                             status === "available" ? "MÜSAİT" : status === "rented" ? "KİRADA" : "BAKIM";
                           return (
                             <button
                               key={`m-${v.id}`}
                               type="button"
-                              className="flex w-full gap-4 rounded-xl border border-slate-100 bg-white p-3 text-left shadow-sm transition duration-200 hover:shadow-md active:scale-[0.99]"
+                              className="flex w-full gap-3 rounded-xl border border-border/60 bg-card p-3 text-left transition duration-200 hover:border-border hover:bg-accent/30 active:scale-[0.99] dark:border-border/50"
                               onClick={() => router.push(vehicleDetailHref(v.id))}
                             >
-                              <div className="flex h-20 w-32 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
+                              <div className="flex h-20 w-32 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
                                 {cover ? (
                                   <>
                                     {/* eslint-disable-next-line @next/next/no-img-element -- data URL + harici demo URL */}
                                     <img src={cover} alt="" className="h-full w-full object-cover" loading="lazy" />
                                   </>
                                 ) : (
-                                  <span className="text-xs text-slate-400">—</span>
+                                  <span className="text-xs text-muted-foreground">—</span>
                                 )}
                               </div>
                               <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0">
-                                    <p className="text-base font-semibold leading-tight text-slate-900">
+                                    <p className="text-base font-semibold leading-tight text-foreground">
                                       {v.brand} {v.model}
                                     </p>
-                                    <p className="mt-0.5 font-mono text-xs tabular-nums text-slate-500">{v.plate}</p>
+                                    <p className="mt-0.5 font-mono text-xs tabular-nums text-muted-foreground">{v.plate}</p>
                                   </div>
                                   <span
                                     className={cn(
@@ -599,18 +599,18 @@ export function VehiclesClient() {
                                     {statusUpper}
                                   </span>
                                 </div>
-                                <div className="mt-2 flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5">
-                                    <FuelIcon className="h-4 w-4 shrink-0 text-[#006591]" aria-hidden />
-                                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
-                                      <div
-                                        className="h-full rounded-full bg-[#006591]"
-                                        style={{ width: `${pct}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-[11px] font-medium tabular-nums text-slate-600">{pct}%</span>
+                                <div className="mt-2 flex items-center justify-between gap-2">
+                                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                                    <span className="inline-flex items-center gap-1 tabular-nums" title="Koltuk">
+                                      <Armchair className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+                                      <span className="font-medium text-foreground">{v.seats != null ? v.seats : "—"}</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 tabular-nums" title="Bagaj">
+                                      <Luggage className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+                                      <span className="font-medium text-foreground">{v.luggage != null ? v.luggage : "—"}</span>
+                                    </span>
                                   </div>
-                                  <span className="text-[11px] tabular-nums text-slate-400">
+                                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/80">
                                     {mileageKm.toLocaleString("tr-TR")} km
                                   </span>
                                 </div>
@@ -723,7 +723,7 @@ export function VehiclesClient() {
                   )}
 
                   {filtered.length > 0 ? (
-                    <div className="flex flex-col gap-2 border-t border-border/80 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-5">
+                    <div className="flex flex-col gap-2 border-t border-border/70 bg-muted/20 px-3 py-3 lg:flex-row lg:items-center lg:justify-between lg:bg-transparent lg:px-5 dark:bg-muted/15">
                       <p className="text-xs text-muted-foreground">
                         <span className="lg:hidden">
                           {(safePage - 1) * PAGE_SIZE + (pagedRows.length ? 1 : 0)}-
@@ -739,7 +739,7 @@ export function VehiclesClient() {
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="h-9 w-9 rounded-full lg:h-8 lg:w-8 lg:rounded-md"
+                          className="h-9 w-9 rounded-full border-border/80 lg:h-8 lg:w-8 lg:rounded-md"
                           disabled={safePage <= 1}
                           onClick={() => setPage((p) => Math.max(1, p - 1))}
                         >
@@ -754,9 +754,9 @@ export function VehiclesClient() {
                               variant="outline"
                               size="sm"
                               className={cn(
-                                "h-9 min-w-9 px-2 rounded-full lg:h-8 lg:min-w-8 lg:rounded-md",
+                                "h-9 min-w-9 px-2 rounded-full border-border/80 lg:h-8 lg:min-w-8 lg:rounded-md",
                                 p === safePage &&
-                                  "border-sky-500 bg-sky-500 text-white shadow-sm hover:bg-sky-600 hover:text-white",
+                                  "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground",
                               )}
                               onClick={() => setPage(p)}
                             >

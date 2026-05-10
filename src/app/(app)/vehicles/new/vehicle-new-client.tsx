@@ -296,9 +296,10 @@ export function VehicleNewClient() {
   };
 
   return (
-    <div className="mx-auto max-w-xl space-y-4">
-      <div className="space-y-4">
-        <div className="space-y-1 px-1 pb-1 pt-2">
+    <div className="mx-auto w-full max-w-xl">
+      <div className="rounded-xl border border-border/80 bg-card shadow-sm dark:border-border/60">
+        <div className="space-y-4 p-4 sm:p-6">
+        <div className="space-y-1 pb-1 pt-0">
           <h1 className="text-lg font-semibold">Add New Vehicle</h1>
           <p className="text-xs text-muted-foreground">
             Configure global logistics and finalize asset media.
@@ -310,7 +311,7 @@ export function VehicleNewClient() {
             </div>
           </div>
         </div>
-        <div className="space-y-3 px-1 py-2 sm:px-2">
+        <div className="space-y-3">
           {catalogLoading ? (
             <p className="text-xs text-muted-foreground">Araç formu için katalog yükleniyor…</p>
           ) : null}
@@ -324,16 +325,34 @@ export function VehicleNewClient() {
           ) : null}
           {step === 1 && (
             <>
-              <div className="space-y-1">
-                <Label htmlFor="nv-plate">Plaka</Label>
-                <Input
-                  id="nv-plate"
-                  value={plate}
-                  onChange={(e) => setPlate(e.target.value)}
-                  placeholder="34 ABC 123"
-                  className="font-mono"
-                  disabled={formLocked}
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="nv-plate" className="text-xs">
+                    Plaka
+                  </Label>
+                  <Input
+                    id="nv-plate"
+                    value={plate}
+                    onChange={(e) => setPlate(e.target.value)}
+                    placeholder="34 ABC 123"
+                    className="font-mono"
+                    disabled={formLocked}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="nv-year" className="text-xs">
+                    Model yılı
+                  </Label>
+                  <Input
+                    id="nv-year"
+                    type="number"
+                    min={1950}
+                    max={new Date().getFullYear() + 1}
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                    disabled={formLocked}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
@@ -369,18 +388,6 @@ export function VehicleNewClient() {
                     disabled={formLocked || brandId === BRAND_NONE}
                   />
                 </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="nv-year">Model yılı</Label>
-                <Input
-                  id="nv-year"
-                  type="number"
-                  min={1950}
-                  max={new Date().getFullYear() + 1}
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                  disabled={formLocked}
-                />
               </div>
             </>
           )}
@@ -673,7 +680,7 @@ export function VehicleNewClient() {
             </>
           )}
         </div>
-        <div className="flex flex-col-reverse gap-2 border-t border-border/60 bg-muted/10 px-1 py-4 sm:flex-row sm:justify-end sm:px-2">
+        <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-4 sm:flex-row sm:justify-end">
           {step === 1 ? (
             <Button type="button" variant="outline" size="sm" className="h-9 w-full text-xs sm:w-auto" asChild>
               <Link href="/vehicles">İptal</Link>
@@ -699,6 +706,7 @@ export function VehicleNewClient() {
               {saving ? "Kaydediliyor…" : "Submit & Create Vehicle"}
             </Button>
           )}
+        </div>
         </div>
       </div>
     </div>

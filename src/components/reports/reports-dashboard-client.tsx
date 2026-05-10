@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { Calendar, Car, Euro, LineChart, RefreshCw, Timer, TrendingUp } from "lucide-react";
 
+import { FleetOverviewSection } from "@/components/fleet/fleet-overview-section";
 import { useLocale } from "@/components/locale-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -104,6 +105,8 @@ export function ReportsDashboardClient() {
         <h1 className="text-lg font-semibold tracking-tight">{t("reports.title")}</h1>
         <p className="text-sm text-muted-foreground">{t("reports.subtitle")}</p>
       </div>
+
+      <FleetOverviewSection />
 
       <Card className="animate-in fade-in slide-in-from-bottom-2 duration-500">
         <CardHeader className="pb-3">

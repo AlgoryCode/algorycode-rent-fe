@@ -15,6 +15,14 @@ const baseOptions = {
 
 const cookieOptions = { ...baseOptions, maxAge: COOKIE_MAX_AGE_SECONDS };
 
+type CookieStoreLike = { get: (name: string) => { value?: string } | undefined };
+
+export function readAccessTokenFromCookies(cookieStore: CookieStoreLike): string | null {
+  const t =
+    cookieStore.get("accessToken")?.value?.trim() || cookieStore.get("algory_access_token")?.value?.trim();
+  return t || null;
+}
+
 /** Eski `algory_*` auth çerezlerini kaldır (geçiş / tutarlılık). */
 export function clearLegacyAlgoryAuthCookies(response: NextResponse) {
   const clear = { ...cookieOptions, maxAge: 0 };
