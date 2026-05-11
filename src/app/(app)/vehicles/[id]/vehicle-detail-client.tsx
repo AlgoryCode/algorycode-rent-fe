@@ -1061,21 +1061,12 @@ export function VehicleDetailClient({ vehicle, rentalFormAsPage = false }: Props
       return;
     }
     try {
-      let customerIdStr = rentalCustomerBackendId.trim();
+      const customerIdStr = rentalCustomerBackendId.trim();
       if (!customerIdStr) {
-        const created = await createCustomerOnRentApi({
-          fullName: fullName.trim(),
-          nationalId: nationalId.trim() || "",
-          passportNo: passportNo.trim() || "",
-          phone,
-          email,
-          birthDate: birthTrim || undefined,
-          driverLicenseNo: driverLicenseNo.trim() || undefined,
-          passportImageDataUrl: passportImageDataUrl || undefined,
-          driverLicenseImageDataUrl: driverLicenseImageDataUrl || undefined,
-        });
-        customerIdStr = created.id;
-        setRentalCustomerBackendId(created.id);
+        toast.error(
+          "Kayıtlı bir müşteri seçin veya «Yeni müşteri» ile kayıt oluşturun; kiralama yalnızca mevcut müşteri kimliğiyle oluşturulur.",
+        );
+        return;
       }
       await createRental({
         vehicleId: String(vehicle.id),

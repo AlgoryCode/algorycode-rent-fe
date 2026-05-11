@@ -623,6 +623,12 @@ export function mapRentalFromApi(raw: Record<string, unknown>): RentalSession {
       driverLicenseNo: asOptionalString(customer?.driverLicenseNo),
       driverLicenseImageDataUrl: asOptionalString(customer?.driverLicenseImageDataUrl),
       passportImageDataUrl: asOptionalString(customer?.passportImageDataUrl),
+      id: (() => {
+        const idRaw = customer?.id;
+        if (idRaw == null) return undefined;
+        const s = String(idRaw).trim();
+        return s.length > 0 ? s : undefined;
+      })(),
     },
     additionalDrivers: additionalDrivers?.length ? additionalDrivers : undefined,
     photos,

@@ -13,6 +13,7 @@ function mergeCustomerFromRentals(rentals: RentalSession[]): CustomerInfo {
   const latest = sorted[0].customer;
   let passport: string | undefined;
   let license: string | undefined;
+  let backendId: string | undefined;
   for (const s of sorted) {
     if (!passport && s.customer.passportImageDataUrl) {
       passport = s.customer.passportImageDataUrl;
@@ -20,9 +21,16 @@ function mergeCustomerFromRentals(rentals: RentalSession[]): CustomerInfo {
     if (!license && s.customer.driverLicenseImageDataUrl) {
       license = s.customer.driverLicenseImageDataUrl;
     }
+    const cid = s.customer.id?.trim();
+    if (cid) {
+      backendId = cid;
+      break;
+    }
   }
+  const latestId = latest.id?.trim();
   return {
     ...latest,
+    id: backendId ?? (latestId && latestId.length > 0 ? latestId : undefined),
     passportImageDataUrl: passport ?? latest.passportImageDataUrl,
     driverLicenseImageDataUrl: license ?? latest.driverLicenseImageDataUrl,
   };
@@ -78,6 +86,7 @@ export function aggregateCustomersFromSessions(sessions: RentalSession[]): Custo
     const sorted = [...rentals].sort((a, b) => sessionCreatedAt(b).localeCompare(sessionCreatedAt(a)));
     const lastActivity = sessionCreatedAt(sorted[0]);
     const customer = mergeCustomerFromRentals(sorted);
+    const bid = customer.id?.trim();
     rows.push({
       key,
       customer,
@@ -85,6 +94,7 @@ export function aggregateCustomersFromSessions(sessions: RentalSession[]): Custo
       totalRentals: sorted.length,
       lastActivity,
       recordActive: true,
+      backendCustomerId: bid && bid.length > 0 ? bid : undefined,
     });
   }
 
@@ -100,6 +110,7 @@ export function aggregateRowFromRentCustomer(row: RentCustomerRow): CustomerAggr
     email: row.email,
     birthDate: row.birthDate,
     driverLicenseNo: row.driverLicenseNo,
+    id: row.id,
   };
   const key = customerRecordKey(customer);
   const lastActivity = row.updatedAt ?? row.createdAt ?? new Date().toISOString();
@@ -118,7 +129,21 @@ export function mergeRentCustomerApiRowsIntoAggregates(
   existing: CustomerAggregateRow[],
   apiRows: RentCustomerRow[],
 ): CustomerAggregateRow[] {
-  const keys = new Set(existing.map((r) => r.key));
+  const idByKey = new Map<string, string>();
+  for (const row of apiRows) {
+    const agg = aggregateRowFromRentCustomer(row);
+    idByKey.set(agg.key, row.id);
+  }
+  const mergedExisting = existing.map((r) => {
+    const fromApi = idByKey.get(r.key);
+    if (!fromApi) return r;
+    return {
+      ...r,
+      backendCustomerId: fromApi,
+      customer: { ...r.customer, id: fromApi },
+    };
+  });
+  const keys = new Set(mergedExisting.map((row) => row.key));
   const additions: CustomerAggregateRow[] = [];
   for (const row of apiRows) {
     const agg = aggregateRowFromRentCustomer(row);
@@ -126,7 +151,7 @@ export function mergeRentCustomerApiRowsIntoAggregates(
     keys.add(agg.key);
     additions.push(agg);
   }
-  return [...additions, ...existing].sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
+  return [...additions, ...mergedExisting].sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 }
 
 export function vehiclePlate(vehiclesById: Map<string, Vehicle>, vehicleId: string): string {

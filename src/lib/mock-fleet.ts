@@ -30,6 +30,7 @@ export type CustomerInfo = {
   driverLicenseImageDataUrl?: string;
   passportImageDataUrl?: string;
   kind?: CustomerKind;
+  id?: string;
 };
 
 export type AdditionalDriverInfo = {
