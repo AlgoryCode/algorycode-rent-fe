@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
-import { isSupabaseAuthEnabled } from "@/lib/data-source";
-import { decodeJwtPayloadJson, extractRentRolesFromJwtPayload } from "@/lib/rbac/jwt-rent-roles";
+import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
+import type { RentAppRole } from "@/lib/rbac/rent-roles";
 import { hasRentManagerAccess } from "@/lib/rbac/rent-roles";
 import { requiresRentManagerForPath } from "@/lib/rbac/route-policy";
-import { updateSupabaseSession } from "@/lib/supabase/middleware";
+import { RENT_FE_ROLES_COOKIE, rentFeRolesCookieOptions } from "@/lib/rbac/role-cookie";
 
 const AUTH_PATH = "/login";
 
@@ -27,13 +27,8 @@ function isProtectedPath(pathname: string) {
   );
 }
 
-function hasAccessToken(req: NextRequest) {
-  return Boolean(req.cookies.get("accessToken")?.value);
-}
-
-function legacyMiddleware(req: NextRequest) {
+function redirectTalep(req: NextRequest) {
   const { pathname } = req.nextUrl;
-
   if (pathname === "/talep/p" || pathname.startsWith("/talep/p/")) {
     const url = req.nextUrl.clone();
     url.pathname = "/rental-request-form";
@@ -49,12 +44,40 @@ function legacyMiddleware(req: NextRequest) {
     url.pathname = "/rental-request-form";
     return NextResponse.redirect(url);
   }
+  return null;
+}
 
-  const authed = hasAccessToken(req);
+export async function updateSupabaseSession(req: NextRequest) {
+  const talepRedirect = redirectTalep(req);
+  if (talepRedirect) return talepRedirect;
+
+  let supabaseResponse = NextResponse.next({ request: req });
+
+  const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    cookies: {
+      getAll() {
+        return req.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
+        supabaseResponse = NextResponse.next({ request: req });
+        cookiesToSet.forEach(({ name, value, options }) => {
+          supabaseResponse.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { pathname } = req.nextUrl;
+  const authed = Boolean(user);
 
   if (pathname === AUTH_PATH) {
     if (authed) return NextResponse.redirect(new URL("/dashboard", req.url));
-    return NextResponse.next();
+    return supabaseResponse;
   }
 
   if (isProtectedPath(pathname)) {
@@ -64,10 +87,13 @@ function legacyMiddleware(req: NextRequest) {
       url.searchParams.set("from", pathname);
       return NextResponse.redirect(url);
     }
+
     if (requiresRentManagerForPath(pathname)) {
-      const token = req.cookies.get("accessToken")?.value?.trim() || "";
-      const payload = token ? decodeJwtPayloadJson(token) : null;
-      const roles = payload ? extractRentRolesFromJwtPayload(payload) : [];
+      const rolesCookie = req.cookies.get(RENT_FE_ROLES_COOKIE)?.value ?? "";
+      const roles = rolesCookie
+        .split(",")
+        .map((r) => r.trim())
+        .filter(Boolean) as RentAppRole[];
       if (!hasRentManagerAccess(roles)) {
         const url = req.nextUrl.clone();
         url.pathname = "/dashboard";
@@ -75,19 +101,7 @@ function legacyMiddleware(req: NextRequest) {
         return NextResponse.redirect(url);
       }
     }
-    return NextResponse.next();
   }
 
-  return NextResponse.next();
+  return supabaseResponse;
 }
-
-export async function middleware(req: NextRequest) {
-  if (isSupabaseAuthEnabled()) {
-    return updateSupabaseSession(req);
-  }
-  return legacyMiddleware(req);
-}
-
-export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
-};

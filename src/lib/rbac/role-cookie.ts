@@ -53,3 +53,7 @@ export function clearRentFeRolesCookie(response: NextResponse): void {
     maxAge: 0,
   });
 }
+
+export function applyRentFeRolesFromList(response: NextResponse, roles: RentAppRole[]): void {
+  response.cookies.set(RENT_FE_ROLES_COOKIE, roles.join(","), rentFeRolesCookieOptions());
+}

@@ -1,11 +1,17 @@
-import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
-/**
- * Sadece aynı origin (panel) istemcisi okur: httpOnly çerezdeki access JWT’yi JSON olarak döner.
- * Tarayıcıdan doğrudan `gateway…/rent` çağrılarında Bearer eklemek için kullanılır (`rent-api` interceptor).
- */
+import { isSupabaseAuthEnabled } from "@/lib/data-source";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
 export async function GET() {
+  if (isSupabaseAuthEnabled()) {
+    const supabase = await createSupabaseServerClient();
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token?.trim() || null;
+    return NextResponse.json({ accessToken }, { status: 200 });
+  }
+
   const store = await cookies();
   const accessToken =
     store.get("accessToken")?.value?.trim() || store.get("algory_access_token")?.value?.trim() || null;

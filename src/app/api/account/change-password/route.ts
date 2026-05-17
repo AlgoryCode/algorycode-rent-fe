@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 
 import { getJsonErrorText } from "@/lib/api-error-text";
 import { getUserIdFromAccessToken } from "@/lib/auth-user";
+import { isSupabaseAuthEnabled } from "@/lib/data-source";
 import { AUTH_BASE } from "@/lib/config";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type Body = { currentPassword?: string; newPassword?: string };
 
@@ -26,6 +28,26 @@ export async function POST(req: Request) {
     const body = (await req.json()) as Body;
     if (!body?.currentPassword || !body?.newPassword) {
       return NextResponse.json({ message: "Mevcut şifre ve yeni şifre gerekli" }, { status: 400 });
+    }
+
+    if (isSupabaseAuthEnabled()) {
+      const supabase = await createSupabaseServerClient();
+      const email = (await supabase.auth.getUser()).data.user?.email;
+      if (!email) {
+        return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
+      }
+      const verify = await supabase.auth.signInWithPassword({
+        email,
+        password: body.currentPassword,
+      });
+      if (verify.error) {
+        return NextResponse.json({ message: "Mevcut şifre hatalı" }, { status: 400 });
+      }
+      const { error } = await supabase.auth.updateUser({ password: body.newPassword });
+      if (error) {
+        return NextResponse.json({ message: error.message }, { status: 400 });
+      }
+      return new NextResponse(null, { status: 204 });
     }
 
     const upstream = await axios.post(

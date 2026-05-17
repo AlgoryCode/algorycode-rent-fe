@@ -3,13 +3,43 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
+import { isSupabaseAuthEnabled } from "@/lib/data-source";
 import { AUTH_BASE, COOKIE_MAX_AGE_SECONDS } from "@/lib/config";
-import { applyRentFeRolesCookie } from "@/lib/rbac/role-cookie";
+import { applyRentFeRolesCookie, applyRentFeRolesFromList } from "@/lib/rbac/role-cookie";
+import type { RentAppRole } from "@/lib/rbac/rent-roles";
+import { isRentAppRole } from "@/lib/rbac/rent-roles";
 import { clearAuthCookies, clearLegacyAlgoryAuthCookies } from "@/lib/server/auth-cookies";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-/** Panel httpOnly refresh çerezini okur; AuthService’e JSON gövde ile refresh. */
 export async function POST() {
   try {
+    if (isSupabaseAuthEnabled()) {
+      const supabase = await createSupabaseServerClient();
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session) {
+        const res = NextResponse.json({ message: "Oturum yok" }, { status: 401 });
+        clearAuthCookies(res);
+        return res;
+      }
+      const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+      if (refreshErr || !refreshed.session) {
+        const res = NextResponse.json({ message: refreshErr?.message ?? "Token yenilenemedi" }, { status: 401 });
+        clearAuthCookies(res);
+        return res;
+      }
+      const { data: profile } = await supabase
+        .from("rent_profiles")
+        .select("rent_roles")
+        .eq("id", refreshed.session.user.id)
+        .maybeSingle();
+      const roles: RentAppRole[] = Array.isArray(profile?.rent_roles)
+        ? profile!.rent_roles.filter((r): r is RentAppRole => typeof r === "string" && isRentAppRole(r))
+        : ["RENT_USER"];
+      const response = NextResponse.json({ success: true }, { status: 200 });
+      applyRentFeRolesFromList(response, roles.length > 0 ? roles : ["RENT_USER"]);
+      return response;
+    }
+
     const cookieStore = await cookies();
     const refreshToken =
       cookieStore.get("refreshToken")?.value?.trim() ||

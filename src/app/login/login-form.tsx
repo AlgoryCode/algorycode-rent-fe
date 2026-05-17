@@ -12,10 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/errors";
 import { authService } from "@/lib/auth-service";
+import { isSupabaseAuthEnabled } from "@/lib/data-source";
 import { clearRentApiGatewayAuthCache } from "@/lib/rent-api";
 
 export function LoginForm() {
   const { t } = useLocale();
+  const supabaseAuth = isSupabaseAuthEnabled();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -45,7 +47,7 @@ export function LoginForm() {
         requiresTwoFactor?: boolean;
         email?: string;
       };
-      if (data.requiresTwoFactor) {
+      if (!supabaseAuth && data.requiresTwoFactor) {
         setTwoFactorHintEmail(data.email ?? username.trim());
         setAwaiting2FA(true);
         setTotpCode("");
@@ -88,6 +90,8 @@ export function LoginForm() {
     }
   };
 
+  const show2FA = !supabaseAuth && awaiting2FA;
+
   return (
     <div className="relative min-h-screen bg-background flex items-center justify-center px-4">
       <div className="fixed z-50 flex flex-col items-end gap-0.5 sm:gap-1 right-[max(1rem,env(safe-area-inset-right))] top-[max(1rem,env(safe-area-inset-top))] sm:right-[max(1.5rem,env(safe-area-inset-right))] sm:top-[max(1.5rem,env(safe-area-inset-top))]">
@@ -106,10 +110,10 @@ export function LoginForm() {
         <div className="glass glow-card rounded-xl p-6 space-y-5">
           <div className="text-center space-y-1">
             <h1 className="text-lg font-semibold">
-              {awaiting2FA ? t("login.twoFactorStepTitle") : t("login.title")}
+              {show2FA ? t("login.twoFactorStepTitle") : t("login.title")}
             </h1>
             <p className="text-xs text-muted-foreground">
-              {awaiting2FA
+              {show2FA
                 ? twoFactorHintEmail
                   ? `${t("login.twoFactorEmailIntro")} ${twoFactorHintEmail}`
                   : t("login.twoFactorStepSubtitle")
@@ -117,7 +121,7 @@ export function LoginForm() {
             </p>
           </div>
 
-          {awaiting2FA ? (
+          {show2FA ? (
             <form onSubmit={(e) => void onSubmitTwoFactor(e)} className="space-y-3">
               <div className="space-y-1">
                 <Label htmlFor="totp">{t("login.twoFactorCodeLabel")}</Label>
@@ -159,6 +163,7 @@ export function LoginForm() {
                 <Input
                   id="user"
                   name="username"
+                  type="email"
                   autoComplete="username"
                   placeholder={t("login.emailPlaceholder")}
                   value={username}
